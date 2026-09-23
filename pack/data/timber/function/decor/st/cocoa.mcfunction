@@ -1,0 +1,8 @@
+data modify storage timber:op recs[-1].n set value "minecraft:cocoa"
+execute if block ~ ~ ~ minecraft:cocoa[facing=north] run data modify storage timber:op recs[-1].p.facing set value "north"
+execute if block ~ ~ ~ minecraft:cocoa[facing=east] run data modify storage timber:op recs[-1].p.facing set value "east"
+execute if block ~ ~ ~ minecraft:cocoa[facing=south] run data modify storage timber:op recs[-1].p.facing set value "south"
+execute if block ~ ~ ~ minecraft:cocoa[facing=west] run data modify storage timber:op recs[-1].p.facing set value "west"
+execute if block ~ ~ ~ minecraft:cocoa[age=0] run data modify storage timber:op recs[-1].p.age set value "0"
+execute if block ~ ~ ~ minecraft:cocoa[age=1] run data modify storage timber:op recs[-1].p.age set value "1"
+execute if block ~ ~ ~ minecraft:cocoa[age=2] run data modify storage timber:op recs[-1].p.age set value "2"

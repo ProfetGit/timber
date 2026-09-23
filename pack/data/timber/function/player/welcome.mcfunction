@@ -1,0 +1,5 @@
+tag @s add timber.welcomed
+execute unless score #welcome timber.config matches 1 run return 0
+execute if score #sneak timber.config matches 1 run return run tellraw @s ["",{text:"🪓 Timber: ",color:"gold"},{text:"sneak while chopping a tree with an axe to fell the whole tree. ",color:"gray"},{text:"[Toggle]",color:"aqua",hover_event:{action:"show_text",value:"/trigger timber"},click_event:{action:"run_command",command:"/trigger timber"}}]
+execute if score #sneak timber.config matches 2 run return run tellraw @s ["",{text:"🪓 Timber: ",color:"gold"},{text:"chop a tree with an axe and the whole tree comes down. ",color:"gray"},{text:"[Toggle]",color:"aqua",hover_event:{action:"show_text",value:"/trigger timber"},click_event:{action:"run_command",command:"/trigger timber"}}]
+tellraw @s ["",{text:"🪓 Timber: ",color:"gold"},{text:"chop a tree with an axe and the whole tree comes down. Sneak to take a single log. ",color:"gray"},{text:"[Toggle]",color:"aqua",hover_event:{action:"show_text",value:"/trigger timber"},click_event:{action:"run_command",command:"/trigger timber"}}]

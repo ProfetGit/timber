@@ -1,0 +1,7 @@
+data modify storage timber:op recs[-1].n set value "minecraft:creaking_heart"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=x] run data modify storage timber:op recs[-1].p.axis set value "x"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=y] run data modify storage timber:op recs[-1].p.axis set value "y"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=z] run data modify storage timber:op recs[-1].p.axis set value "z"
+execute if block ~ ~ ~ minecraft:creaking_heart[creaking_heart_state=uprooted] run data modify storage timber:op recs[-1].p.creaking_heart_state set value "uprooted"
+execute if block ~ ~ ~ minecraft:creaking_heart[creaking_heart_state=dormant] run data modify storage timber:op recs[-1].p.creaking_heart_state set value "dormant"
+execute if block ~ ~ ~ minecraft:creaking_heart[creaking_heart_state=awake] run data modify storage timber:op recs[-1].p.creaking_heart_state set value "awake"

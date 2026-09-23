@@ -1,0 +1,2 @@
+$execute if score #$(key) timber.config matches $(v) run return run data modify storage timber:menu row append value {text:"[$(label)]",color:"green",underlined:true,hover_event:{action:"show_text",value:"$(hint)"}}
+$data modify storage timber:menu row append value {text:"[$(label)]",color:"aqua",hover_event:{action:"show_text",value:"$(hint)"},click_event:{action:"run_command",command:"/function timber:settings/set {key:$(key),value:$(v)}"}}

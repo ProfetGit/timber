@@ -1,0 +1,6 @@
+$scoreboard players set #sin timber.data $(s)
+$scoreboard players set #cos timber.data $(c)
+$data modify storage timber:op s.qs set value $(qs)
+$data modify storage timber:op s.qc set value $(qc)
+$data modify storage timber:op s.qsi set value $(qsi)
+$data modify storage timber:op s.qci set value $(qci)

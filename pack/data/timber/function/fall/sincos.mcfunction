@@ -1,0 +1,16 @@
+execute if score #yi timber.data matches 0 run return run function timber:fall/sc {s:0,c:10000,qs:0.0,qc:1.0,qsi:0,qci:10000}
+execute if score #yi timber.data matches 1 run return run function timber:fall/sc {s:3827,c:9239,qs:0.19509,qc:0.980785,qsi:1951,qci:9808}
+execute if score #yi timber.data matches 2 run return run function timber:fall/sc {s:7071,c:7071,qs:0.382683,qc:0.92388,qsi:3827,qci:9239}
+execute if score #yi timber.data matches 3 run return run function timber:fall/sc {s:9239,c:3827,qs:0.55557,qc:0.83147,qsi:5556,qci:8315}
+execute if score #yi timber.data matches 4 run return run function timber:fall/sc {s:10000,c:0,qs:0.707107,qc:0.707107,qsi:7071,qci:7071}
+execute if score #yi timber.data matches 5 run return run function timber:fall/sc {s:9239,c:-3827,qs:0.83147,qc:0.55557,qsi:8315,qci:5556}
+execute if score #yi timber.data matches 6 run return run function timber:fall/sc {s:7071,c:-7071,qs:0.92388,qc:0.382683,qsi:9239,qci:3827}
+execute if score #yi timber.data matches 7 run return run function timber:fall/sc {s:3827,c:-9239,qs:0.980785,qc:0.19509,qsi:9808,qci:1951}
+execute if score #yi timber.data matches 8 run return run function timber:fall/sc {s:0,c:-10000,qs:1.0,qc:0.0,qsi:10000,qci:0}
+execute if score #yi timber.data matches 9 run return run function timber:fall/sc {s:-3827,c:-9239,qs:0.980785,qc:-0.19509,qsi:9808,qci:-1951}
+execute if score #yi timber.data matches 10 run return run function timber:fall/sc {s:-7071,c:-7071,qs:0.92388,qc:-0.382683,qsi:9239,qci:-3827}
+execute if score #yi timber.data matches 11 run return run function timber:fall/sc {s:-9239,c:-3827,qs:0.83147,qc:-0.55557,qsi:8315,qci:-5556}
+execute if score #yi timber.data matches 12 run return run function timber:fall/sc {s:-10000,c:0,qs:0.707107,qc:-0.707107,qsi:7071,qci:-7071}
+execute if score #yi timber.data matches 13 run return run function timber:fall/sc {s:-9239,c:3827,qs:0.55557,qc:-0.83147,qsi:5556,qci:-8315}
+execute if score #yi timber.data matches 14 run return run function timber:fall/sc {s:-7071,c:7071,qs:0.382683,qc:-0.92388,qsi:3827,qci:-9239}
+execute if score #yi timber.data matches 15 run return run function timber:fall/sc {s:-3827,c:9239,qs:0.19509,qc:-0.980785,qsi:1951,qci:-9808}

@@ -1,0 +1,8 @@
+execute unless block ~ ~ ~ minecraft:shelf_mushroom run return run data modify storage timber:op recs[-1].n set value "minecraft:air"
+data modify storage timber:op recs[-1].n set value "minecraft:shelf_mushroom"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[facing=north] run data modify storage timber:op recs[-1].p.facing set value "north"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[facing=east] run data modify storage timber:op recs[-1].p.facing set value "east"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[facing=south] run data modify storage timber:op recs[-1].p.facing set value "south"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[facing=west] run data modify storage timber:op recs[-1].p.facing set value "west"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[age=0] run data modify storage timber:op recs[-1].p.age set value "0"
+execute if block ~ ~ ~ minecraft:shelf_mushroom[age=1] run data modify storage timber:op recs[-1].p.age set value "1"

@@ -1,0 +1,12 @@
+{
+  "values": [
+    "#timber:passable",
+    "#minecraft:logs",
+    "#minecraft:leaves",
+    "minecraft:cocoa",
+    "minecraft:mangrove_propagule",
+    "minecraft:pale_hanging_moss",
+    "minecraft:creaking_heart",
+    {"id": "minecraft:shelf_mushroom", "required": false}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "criteria": {
+    "placed": {
+      "trigger": "minecraft:placed_block",
+      "conditions": {
+        "location": {
+          "type": "minecraft:match_block",
+          "blocks": "#timber:logs"
+        }
+      }
+    }
+  },
+  "rewards": {
+    "function": "timber:placed/on_place"
+  }
+}

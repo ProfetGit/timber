@@ -1,0 +1,19 @@
+scoreboard objectives add timber trigger {text:"Timber"}
+scoreboard objectives add timber.off dummy
+scoreboard objectives add timber.config dummy
+scoreboard objectives add timber.data dummy
+scoreboard objectives add timber.job dummy
+scoreboard objectives add timber.x dummy
+scoreboard objectives add timber.y dummy
+scoreboard objectives add timber.z dummy
+scoreboard objectives add timber.lab dummy
+scoreboard objectives add timber.ph dummy
+scoreboard objectives add timber.e dummy
+scoreboard objectives add timber.dr dummy
+scoreboard objectives add timber.y0 dummy
+scoreboard objectives add timber.t dummy
+scoreboard objectives add timber.p dummy
+scoreboard objectives add timber.hit dummy
+scoreboard objectives add timber.dur dummy
+scoreboard objectives add timber.h dummy
+scoreboard objectives add timber.b dummy

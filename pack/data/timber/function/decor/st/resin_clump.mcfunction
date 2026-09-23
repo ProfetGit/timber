@@ -1,0 +1,7 @@
+data modify storage timber:op recs[-1].n set value "minecraft:resin_clump"
+execute if block ~ ~ ~ minecraft:resin_clump[north=true] run data modify storage timber:op recs[-1].p.north set value "true"
+execute if block ~ ~ ~ minecraft:resin_clump[east=true] run data modify storage timber:op recs[-1].p.east set value "true"
+execute if block ~ ~ ~ minecraft:resin_clump[south=true] run data modify storage timber:op recs[-1].p.south set value "true"
+execute if block ~ ~ ~ minecraft:resin_clump[west=true] run data modify storage timber:op recs[-1].p.west set value "true"
+execute if block ~ ~ ~ minecraft:resin_clump[up=true] run data modify storage timber:op recs[-1].p.up set value "true"
+execute if block ~ ~ ~ minecraft:resin_clump[down=true] run data modify storage timber:op recs[-1].p.down set value "true"

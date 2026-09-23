@@ -1,0 +1,6 @@
+data modify storage timber:op recs[-1].n set value "minecraft:vine"
+execute if block ~ ~ ~ minecraft:vine[north=true] run data modify storage timber:op recs[-1].p.north set value "true"
+execute if block ~ ~ ~ minecraft:vine[east=true] run data modify storage timber:op recs[-1].p.east set value "true"
+execute if block ~ ~ ~ minecraft:vine[south=true] run data modify storage timber:op recs[-1].p.south set value "true"
+execute if block ~ ~ ~ minecraft:vine[west=true] run data modify storage timber:op recs[-1].p.west set value "true"
+execute if block ~ ~ ~ minecraft:vine[up=true] run data modify storage timber:op recs[-1].p.up set value "true"

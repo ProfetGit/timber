@@ -1,0 +1,9 @@
+execute as @a[scores={timber.m.oak=1..}] at @s run function timber:mined {t:"oak"}
+execute as @a[scores={timber.m.spruce=1..}] at @s run function timber:mined {t:"spruce"}
+execute as @a[scores={timber.m.birch=1..}] at @s run function timber:mined {t:"birch"}
+execute as @a[scores={timber.m.jungle=1..}] at @s run function timber:mined {t:"jungle"}
+execute as @a[scores={timber.m.acacia=1..}] at @s run function timber:mined {t:"acacia"}
+execute as @a[scores={timber.m.dark_oak=1..}] at @s run function timber:mined {t:"dark_oak"}
+execute as @a[scores={timber.m.mangrove=1..}] at @s run function timber:mined {t:"mangrove"}
+execute as @a[scores={timber.m.cherry=1..}] at @s run function timber:mined {t:"cherry"}
+execute as @a[scores={timber.m.pale_oak=1..}] at @s run function timber:mined {t:"pale_oak"}

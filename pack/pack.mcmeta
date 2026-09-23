@@ -1,0 +1,16 @@
+{
+  "pack": {
+    "description": [
+      {"text": "Timber", "color": "gold", "bold": true},
+      {"text": " – fell whole trees, cartoon style\n", "color": "gray"},
+      {"text": "v1.0.0 by Profet", "color": "dark_gray"}
+    ],
+    "min_format": [107, 1],
+    "max_format": 121
+  },
+  "overlays": {
+    "entries": [
+      {"directory": "overlay_26_3", "min_format": 121, "max_format": 121}
+    ]
+  }
+}

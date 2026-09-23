@@ -1,0 +1,9 @@
+dev/test/.work/
+dev/__pycache__/
+# build output and renders (regenerate with dev/build.py, dev/make_icon.py, dev/make_banner.py)
+dist/
+dev/icon/frames/
+dev/icon/banner_frames/
+dev/icon/contact.png
+# textures extracted from the Minecraft jar (Mojang's), shape reference only
+dev/icon/textures/
