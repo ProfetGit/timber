@@ -1,4 +1,6 @@
 data modify storage timber:meta version set value "1.0.0"
+data modify storage timber:meta version_id set value 10000
+data remove storage timber:meta requires
 function timber:load/objectives
 function timber:load/types
 function timber:compat/extra_load
@@ -23,3 +25,4 @@ scoreboard players set #36000 timber.data 36000
 execute unless score #stage timber.data = #stage timber.data run scoreboard players set #stage timber.data 0
 function timber:config/defaults
 function timber:load/curve
+function #timber:api/loaded

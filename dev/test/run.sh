@@ -35,6 +35,7 @@ ZIP=$(ls "$ROOT"/dist/Timber-*.zip | head -1)
 rm -rf "$WORK"
 mkdir -p "$WORK/world/datapacks" "$WORK/classes"
 cp "$ZIP" "$WORK/world/datapacks/"
+[ "${1:-}" = explore ] || cp -r "$ROOT/dev/test/hookpack" "$WORK/world/datapacks/"
 for extra in ${EXTRA_PACKS:-}; do cp -r "$extra" "$WORK/world/datapacks/"; done
 echo "eula=true" > "$WORK/eula.txt"
 cat > "$WORK/server.properties" <<'EOF'

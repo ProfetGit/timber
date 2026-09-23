@@ -540,6 +540,14 @@ class Scenarios {
         List<String> ver = cmd("data get storage timber:meta version");
         info("pack version: " + ver);
         check("pack loaded (config defaults present)", cmd("scoreboard players get #max_logs timber.config").toString().contains("256"), ver.toString());
+        // the hook fixture (dev/test/hookpack) is off for everything except hooks()
+        cmd("datapack disable \"file/hookpack\"");
+        tick(5);
+        List<String> packs = cmd("datapack list enabled");
+        check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains("Timber-"), packs.toString());
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10000"),
+            cmd("data get storage timber:meta version_id").toString());
+        check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
             && !cmd("data get storage timber:types poplar").toString().contains("Found no");
         info("26.3 content (poplar): " + v263);
@@ -561,6 +569,7 @@ class Scenarios {
         if (only.isEmpty() || only.contains("mangroves")) mangroves();
         if (only.contains("paleoaks")) for (int k = 0; k < 16; k++) everyTreeList(List.of("pale_oak_creaking"));
         if (only.contains("giants")) for (int k = 0; k < 4; k++) everyTreeList(List.of("mega_pine", "mega_spruce", "mega_jungle_tree"));
+        if (only.isEmpty() || only.contains("hooks")) hooks();
         if (only.isEmpty() || only.contains("settings")) settingsAndUninstall();
     }
 
@@ -1059,6 +1068,89 @@ class Scenarios {
         finish(120);
         tick(2);
         check("decor: ripe cocoa drops beans", itemsOf("minecraft:cocoa_beans", 20) >= 2, TimberTest.itemsNear(p(0, 0, 0), 20).toString());
+    }
+
+    static int tb(String holder) {
+        String out = cmd("scoreboard players get " + holder + " tbtest").toString();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(" has (-?\\d+) ").matcher(out);
+        return m.find() ? Integer.parseInt(m.group(1)) : Integer.MIN_VALUE;
+    }
+
+    static int requiresCount() {
+        String out = cmd("data get storage timber:meta requires").toString();
+        return out.contains("Found no elements") ? -1 : out.split("Test requirement", -1).length - 1;
+    }
+
+    /** Plants the standard birch test tree on a fresh plot and returns its log count. */
+    static int hookTree() throws Exception {
+        plot();
+        customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+        tick(30);
+        hold("minecraft:iron_axe");
+        cmd("scoreboard players set #calls_a tbtest 0");
+        cmd("scoreboard players set #calls_b tbtest 0");
+        return count(Scenarios::isLog, 6);
+    }
+
+    /** Add-on hooks, via the fixture pack dev/test/hookpack. */
+    static void hooks() throws Exception {
+        cmd("scoreboard players reset * tbtest");
+        cmd("datapack enable \"file/hookpack\"");
+        tick(5);
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10000,
+            "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
+        cmd("reload");
+        tick(5);
+        check("hooks: requires text rebuilt on /reload, not duplicated", requiresCount() == 1 && tb("#loaded") == 2, "requires=" + requiresCount());
+
+        int logs = hookTree();
+        chop(0, 0, 0);
+        check("hooks: hooks that don't return allow the fell", count(Scenarios::isLog, 6) == 0 && displays() > 0 && tb("#calls_a") == 1 && tb("#calls_b") == 1,
+            "logs left " + count(Scenarios::isLog, 6) + " a=" + tb("#calls_a") + " b=" + tb("#calls_b"));
+        check("hooks: run as the player, at the chopped log's centre", tb("#player") == 1 && tb("#hx") == cx * 10 + 5 && tb("#hy") == Y * 10 + 5 && tb("#hz") == cz * 10 + 5,
+            "player=" + tb("#player") + " at " + tb("#hx") + " " + tb("#hy") + " " + tb("#hz") + " (log " + cx + " " + Y + " " + cz + ")");
+        finish(120);
+
+        cmd("tag TimberTester add tbtest.veto_a");
+        logs = hookTree();
+        TimberTest.chat();
+        chop(0, 0, 0);
+        tick(3);
+        check("hooks: return 1 cancels the fell, the chopped log still breaks", count(Scenarios::isLog, 6) == logs - 1 && displays() == 0 && damage() == 1,
+            "logs " + logs + " -> " + count(Scenarios::isLog, 6) + ", displays " + displays() + ", damage " + damage());
+        check("hooks: first returning hook ends the chain", tb("#calls_b") == 0, "b=" + tb("#calls_b"));
+        List<String> bar = TimberTest.chat();
+        check("hooks: cancelled fell shows no action bar", bar.stream().noneMatch(m -> m.startsWith("[actionbar]")), bar.toString());
+
+        cmd("tag TimberTester remove tbtest.veto_a");
+        cmd("tag TimberTester add tbtest.veto_b");
+        logs = hookTree();
+        chop(0, 0, 0);
+        check("hooks: a later hook can cancel after an earlier one falls through", count(Scenarios::isLog, 6) == logs - 1 && displays() == 0,
+            "logs " + logs + " -> " + count(Scenarios::isLog, 6));
+        cmd("tag TimberTester remove tbtest.veto_b");
+
+        logs = hookTree();
+        TimberTest.sneak(true);
+        chop(0, 0, 0);
+        TimberTest.sneak(false);
+        check("hooks: run only after Timber's own checks pass", tb("#calls_a") == 0 && count(Scenarios::isLog, 6) == logs - 1, "a=" + tb("#calls_a"));
+
+        TimberTest.chat();
+        cmd("execute as TimberTester run function timber:player/welcome");
+        List<String> hello = TimberTest.chat();
+        check("hooks: join hint shows add-on requirement", hello.stream().anyMatch(m -> m.contains("Sneak to take a single log. Test requirement. [Toggle]")), hello.toString());
+        cmd("execute as TimberTester run function timber:settings");
+        List<String> shown = TimberTest.chat();
+        check("hooks: menu shows add-on requirement", shown.size() == 13 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
+
+        cmd("datapack disable \"file/hookpack\"");
+        tick(5);
+        hookTree();
+        chop(0, 0, 0);
+        check("hooks: removing the add-on clears its requirement and hooks", requiresCount() == -1 && count(Scenarios::isLog, 6) == 0,
+            "requires=" + requiresCount() + " logs left " + count(Scenarios::isLog, 6));
+        finish(120);
     }
 
     static void settingsAndUninstall() throws Exception {

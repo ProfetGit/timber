@@ -11,3 +11,5 @@
 - Works on every overworld tree: oak, birch, spruce, jungle, acacia, dark oak, mangrove, cherry, pale oak, azalea, the 2×2 giants, and poplar on 26.3.
 - Axe durability applies (Unbreaking too); a tree that would break your axe is not felled.
 - Sneak to take a single log. Players can turn it off with `/trigger timber`. Ops get a clickable settings menu with `/function timber:settings`, and `/function timber:uninstall` removes all data.
+- Add-on support. Other data packs can stop a tree from being felled, or add a line to the join hint and the settings menu. The first add-on is Enchanted Timber, which makes felling need a Timber enchantment on the axe.
+- For pack authors: the function tags `#timber:api/cancel` and `#timber:api/loaded`, the `timber:meta requires` text list, and the `timber:meta version_id` number (10000 for 1.0.0). See the README.

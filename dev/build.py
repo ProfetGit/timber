@@ -136,6 +136,10 @@ def main() -> None:
         print("\n".join(errors))
         sys.exit(f"{len(errors)} problem(s)")
     ver = version()
+    major, minor, patch = (int(p) for p in ver.split("."))
+    vid = major * 10000 + minor * 100 + patch
+    if f"storage timber:meta version_id set value {vid}\n" not in (PACK / "data/timber/function/load.mcfunction").read_text():
+        sys.exit(f"load.mcfunction: expected version_id {vid} for {ver}")
     for rel, needle in (("pack/pack.mcmeta", f"v{ver}"), ("pack/data/timber/function/settings.mcfunction", f"v{ver}"),
                         ("pack/data/timber/function/uninstall.mcfunction", f"Timber-{ver}.zip"),
                         ("CHANGELOG.md", f"## {ver}")):

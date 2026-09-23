@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "Timber test fixture: a fake add-on using the timber:api hooks",
+    "min_format": [107, 1],
+    "max_format": 121
+  }
+}

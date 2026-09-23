@@ -16,6 +16,7 @@ Timber is a vanilla data pack for **Minecraft Java 26.2 and 26.3**. It installs 
 - **Fair durability.** The axe takes durability for the tree, Unbreaking included. A tree that would break your axe is not felled.
 - **Players choose for themselves.** Anyone can turn Timber off or on with `/trigger timber`. No operator is needed.
 - **A clickable settings menu.** Operators can change every setting from chat. Settings survive `/reload` and restarts.
+- **Add-on support.** Other data packs can add their own rules on top. See [Add-ons](#add-ons).
 
 ## How to use
 
@@ -46,6 +47,22 @@ Every setting can also be changed by command, for example:
 
 Setting names: `#max_logs`, `#radius`, `#sneak` (0 sneak = one log, 1 sneak to fell, 2 always), `#drops` (0 where it lands, 1 at player), `#require_axe`, `#durability`, `#animation`, `#protect`, `#feedback`, `#welcome`, and `#max_blocks` (limit on leaves and attached blocks per tree, 100 to 1200, default 900). For on/off settings, 1 is on and 0 is off.
 
+## Add-ons
+
+**[Enchanted Timber](https://modrinth.com/datapack/enchanted-timber)** makes felling depend on a new **Timber** enchantment. You find it like any other axe enchantment: at the enchanting table, from librarians, or in loot. Axes without it chop one log at a time.
+
+<details>
+<summary>For data pack authors</summary>
+
+Timber offers these hooks. They are safe to use when Timber isn't installed, because a tag your pack adds to is simply never called.
+
+- `#timber:api/cancel` (function tag): runs as the player, positioned at the centre of the chopped log, just before Timber looks at the tree. It runs after Timber's own checks (toggle, game mode, sneaking, axe) and before the tree's shape and the axe's durability are checked. Do `return 1` to cancel the fell. The log the player chopped still breaks normally. To allow the fell, **don't return at all**: the first function in the tag that returns decides, so a `return 0` or `return fail` would skip the add-ons after yours.
+- `#timber:api/loaded` (function tag): runs at the end of Timber's load function, every load and `/reload`. Use it to check that Timber is present.
+- `storage timber:meta requires` (list of text components): cleared on every load, just before `#timber:api/loaded` runs. Append a sentence there, such as `{text:"Your axe needs X. ",color:"gray"}`, and Timber shows it in the join hint and the settings menu.
+- `storage timber:meta version_id` (int): `major × 10000 + minor × 100 + patch`, for example `10000` for 1.0.0.
+
+</details>
+
 ## Installation
 
 **Singleplayer**
@@ -59,7 +76,7 @@ Don't unzip the file.
 ## Compatibility
 
 - One zip supports Minecraft Java **26.2 and 26.3**. 26.3 changed the data pack format, so the zip includes a small 26.3 overlay that the game selects automatically.
-- Everything lives in the `timber` namespace. The only vanilla files it touches are the `#minecraft:load` and `#minecraft:tick` function tags, which it adds to, so other data packs are unaffected.
+- Everything lives in the `timber` namespace. The only vanilla files it touches are the `#minecraft:load` and `#minecraft:tick` function tags, which it adds to, so other data packs are unaffected. Add-ons hook in through the tags in [Add-ons](#add-ons).
 - Only vanilla overworld trees are supported.
 
 ## Uninstall
