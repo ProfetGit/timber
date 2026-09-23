@@ -49,17 +49,17 @@ Setting names: `#max_logs`, `#radius`, `#sneak` (0 sneak = one log, 1 sneak to f
 
 ## Add-ons
 
-**[Enchanted Timber](https://modrinth.com/datapack/enchanted-timber)** makes felling depend on a new **Timber** enchantment. You find it like any other axe enchantment: at the enchanting table, from librarians, or in loot. Axes without it chop one log at a time.
+**[Enchanted Timber](https://modrinth.com/datapack/enchanted-timber)** makes felling depend on a new **Timber** enchantment. You find it like any other axe enchantment: at the enchanting table, from librarians, or in loot. Axes without it chop one log at a time. It needs Timber 1.1.0 or newer.
 
 <details>
 <summary>For data pack authors</summary>
 
-Timber offers these hooks. They are safe to use when Timber isn't installed, because a tag your pack adds to is simply never called.
+Timber 1.1.0 and newer offer these hooks. They are safe to use when Timber isn't installed, because a tag your pack adds to is simply never called.
 
 - `#timber:api/cancel` (function tag): runs as the player, positioned at the centre of the chopped log, just before Timber looks at the tree. It runs after Timber's own checks (toggle, game mode, sneaking, axe) and before the tree's shape and the axe's durability are checked. Do `return 1` to cancel the fell. The log the player chopped still breaks normally. To allow the fell, **don't return at all**: the first function in the tag that returns decides, so a `return 0` or `return fail` would skip the add-ons after yours.
 - `#timber:api/loaded` (function tag): runs at the end of Timber's load function, every load and `/reload`. Use it to check that Timber is present.
 - `storage timber:meta requires` (list of text components): cleared on every load, just before `#timber:api/loaded` runs. Append a sentence there, such as `{text:"Your axe needs X. ",color:"gray"}`, and Timber shows it in the join hint and the settings menu.
-- `storage timber:meta version_id` (int): `major × 10000 + minor × 100 + patch`, for example `10000` for 1.0.0.
+- `storage timber:meta version_id` (int): `major × 10000 + minor × 100 + patch`, for example `10100` for 1.1.0.
 
 </details>
 
@@ -82,7 +82,7 @@ Don't unzip the file.
 ## Uninstall
 
 1. Run `/function timber:uninstall`.
-2. Remove the `.zip` from the `datapacks` folder, or run `/datapack disable "file/Timber-1.0.0.zip"`.
+2. Remove the `.zip` from the `datapacks` folder, or run `/datapack disable "file/Timber-1.1.0.zip"`.
 3. Run `/reload`.
 
 ## Support

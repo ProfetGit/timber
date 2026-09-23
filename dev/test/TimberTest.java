@@ -545,7 +545,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains("Timber-"), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10000"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10100"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -1097,7 +1097,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10000,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10100,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
