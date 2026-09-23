@@ -1,0 +1,15 @@
+name: Feature request
+description: "Suggest an idea or a change for Timber"
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why?
+      description: What would it help you do? A concrete example helps.

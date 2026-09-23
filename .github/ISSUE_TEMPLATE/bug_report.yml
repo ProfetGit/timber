@@ -1,0 +1,60 @@
+name: Bug report
+description: "Something in Timber doesn't work as described"
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for reporting! The more of this you fill in, the faster it gets fixed."
+  - type: input
+    id: pack-version
+    attributes:
+      label: Timber version
+      description: "The name of the zip, e.g. Timber-1.0.0.zip"
+    validations:
+      required: true
+  - type: dropdown
+    id: mc-version
+    attributes:
+      label: Minecraft version
+      options:
+        - "26.2"
+        - "26.3"
+        - Other (say which below)
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - Singleplayer
+        - Open to LAN
+        - Dedicated server
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: other-packs
+    attributes:
+      label: Other data packs, mods or plugins
+      description: Packs can affect each other. List what else is installed, or write "none".
+  - type: textarea
+    id: logs
+    attributes:
+      label: Chat messages or log lines
+      description: Any error from the chat or the server log (logs/latest.log). Paste as text.
+      render: text
