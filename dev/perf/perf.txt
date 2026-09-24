@@ -1,0 +1,49 @@
+// Performance probe: explore file for dev/test/run.sh (needs EXTRA_PACKS=dev/capture/scene for the tree shapes).
+// Prints the worst server tick while chopping (pipeline tick) and during the animation, for an oak and a big spruce.
+forceload add -64 -64 96 96
+gamerule random_tick_speed 0
+!player
+!tick 60
+execute positioned 8 -60 8 run function tscene:tree/oak_c
+execute positioned 40 -60 8 run function tscene:tree/spruce_b
+execute positioned 8 -60 40 run function tscene:tree/fancy_a
+execute positioned 40 -60 40 run function tscene:tree/oak_e
+execute positioned 72 -60 40 run function tscene:tree/oak_c
+!tick 40
+item replace entity TimberTester weapon.mainhand with minecraft:netherite_axe
+gamemode survival TimberTester
+tag TimberTester add timber.welcomed
+// warm-up chop (JIT, function cache): not counted
+tp TimberTester 37.5 -60 40.5 -90 20
+!tick 5
+!destroy 40 -60 40
+!timed 2
+!timed 120
+kill @e[type=item]
+tp TimberTester 5.5 -60 8.5 -90 20
+!timed 20
+// oak (6 logs)
+!destroy 8 -60 8
+!timed 2
+!timed 120
+kill @e[type=item]
+// fancy oak
+tp TimberTester 5.5 -60 40.5 -90 20
+!tick 5
+!destroy 8 -60 40
+!timed 2
+!timed 120
+kill @e[type=item]
+// big spruce (2x2, 97 logs)
+tp TimberTester 37.5 -60 9.0 -90 20
+!tick 5
+!destroy 40 -60 8
+!timed 2
+!timed 140
+kill @e[type=item]
+// oak again
+tp TimberTester 69.5 -60 40.5 -90 20
+!tick 5
+!destroy 72 -60 40
+!timed 2
+!timed 120

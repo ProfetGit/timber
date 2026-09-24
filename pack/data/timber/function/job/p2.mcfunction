@@ -1,3 +1,4 @@
+execute unless data storage timber:meta version run return 0
 execute unless score #stage timber.data matches 1 run return 0
 scoreboard players set #stage timber.data 2
 execute as @e[type=marker,tag=timber.m,tag=timber.g,tag=!timber.p] at @s run function timber:own/seed
@@ -28,5 +29,7 @@ scoreboard players set #tool timber.data 1
 execute as @a[tag=timber.cutter,limit=1] unless function timber:tool/check run scoreboard players set #tool timber.data 0
 execute if score #tool timber.data matches 0 run return run function timber:job/abort
 function timber:own/footprint
+scoreboard players set #low timber.data 0
+execute as @e[type=marker,tag=timber.ours] if score @s timber.y = #oy timber.data run scoreboard players add #low timber.data 1
 execute as @e[type=marker,tag=timber.m,tag=!timber.ours] at @s run function timber:job/restore with storage timber:op t
 kill @e[type=marker,tag=timber.m,tag=!timber.ours]

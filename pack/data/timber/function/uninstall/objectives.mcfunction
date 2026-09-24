@@ -17,3 +17,10 @@ scoreboard objectives remove timber.hit
 scoreboard objectives remove timber.dur
 scoreboard objectives remove timber.h
 scoreboard objectives remove timber.b
+scoreboard objectives remove timber.k
+scoreboard objectives remove timber.u
+scoreboard objectives remove timber.kr
+scoreboard objectives remove timber.ks
+scoreboard objectives remove timber.kf
+scoreboard objectives remove timber.kx
+scoreboard objectives remove timber.km

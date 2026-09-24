@@ -177,6 +177,24 @@ public class TimberTest {
                 if (p.length > 1) Files.writeString(Path.of(p[1]), tr.json());
                 continue;
             }
+            if (line.startsWith("!dump ")) {
+                String[] p = line.substring(6).trim().split(" ", 7);
+                int[] v = new int[6];
+                for (int i = 0; i < 6; i++) v[i] = Integer.parseInt(p[i]);
+                String out = on(() -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (BlockPos q : BlockPos.betweenClosed(v[0], v[1], v[2], v[3], v[4], v[5])) {
+                        BlockState s = level.getBlockState(q);
+                        if (s.isAir()) continue;
+                        sb.append("setblock ~").append(q.getX() - v[0]).append(" ~").append(q.getY() - v[1]).append(" ~").append(q.getZ() - v[2])
+                            .append(' ').append(net.minecraft.commands.arguments.blocks.BlockStateParser.serialize(s)).append(" strict\n");
+                    }
+                    return sb.toString();
+                });
+                Files.writeString(Path.of(p[6]), out);
+                System.out.println("[EXPLORE] dump " + out.lines().count() + " blocks -> " + p[6]);
+                continue;
+            }
             if (line.startsWith("!destroy ")) {
                 String[] p = line.substring(9).trim().split(" ");
                 BlockPos pos = new BlockPos(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]));
@@ -351,9 +369,20 @@ public class TimberTest {
 
     static AnimTrace trace(int maxTicks) throws InterruptedException {
         AnimTrace tr = new AnimTrace();
-        List<Display.BlockDisplay> ds = treeDisplays();
+        List<Display.BlockDisplay> ds = new ArrayList<>(treeDisplays());
         tr.displays = ds.size();
         if (ds.isEmpty()) return tr;
+        on(() -> {
+            Display.BlockDisplay top = null;
+            float best = -1e9f;
+            for (Display.BlockDisplay d : ds) {
+                if (!d.entityTags().contains("timber.lg")) continue;
+                float y = TimberTest.<org.joml.Vector3fc>displayData(d, "DATA_TRANSLATION_ID").y();
+                if (y > best) { best = y; top = d; }
+            }
+            if (top != null) { ds.remove(top); ds.add(0, top); }
+            return null;
+        });
         on(() -> {
             Display.BlockDisplay first = ds.get(0);
             tr.pivot = new double[] {first.getX(), first.getY(), first.getZ()};
@@ -545,7 +574,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains("Timber-"), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10100"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10200"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -570,6 +599,7 @@ class Scenarios {
         if (only.contains("paleoaks")) for (int k = 0; k < 16; k++) everyTreeList(List.of("pale_oak_creaking"));
         if (only.contains("giants")) for (int k = 0; k < 4; k++) everyTreeList(List.of("mega_pine", "mega_spruce", "mega_jungle_tree"));
         if (only.isEmpty() || only.contains("hooks")) hooks();
+        if (only.isEmpty() || only.contains("anim")) animation();
         if (only.isEmpty() || only.contains("settings")) settingsAndUninstall();
     }
 
@@ -586,7 +616,7 @@ class Scenarios {
         check("oak: world blocks replaced by displays in one tick", count(Scenarios::isLog, 6) == 0 && count(Scenarios::natLeaf, 6) == 0,
             "logs left " + count(Scenarios::isLog, 6) + ", leaves left " + count(Scenarios::natLeaf, 6));
         check("oak: one display per felled block", d == logs - 1 + leaves, d + " displays for " + (logs - 1) + " logs + " + leaves + " leaves");
-        check("oak: falls away from the player (east)", Math.abs(((ctlYaw() % 360) + 360) % 360 - 270) < 0.5, "yaw " + ctlYaw());
+        check("oak: falls away from the player, tipped 33.75 deg to one side", Math.abs(Math.abs(((ctlYaw() % 360) + 360) % 360 - 270) - 33.75) < 0.01, "yaw " + ctlYaw());
         TimberTest.AnimTrace tr = finish(120);
         info("oak pitch per tick: " + pitches(tr));
         List<Float> pitch = new ArrayList<>();
@@ -594,7 +624,7 @@ class Scenarios {
         float min0 = 0, max = -99;
         int maxAt = -1;
         for (int i = 0; i < pitch.size(); i++) {
-            if (i < 10) min0 = Math.min(min0, pitch.get(i));
+            if (i < 20) min0 = Math.min(min0, pitch.get(i));
             if (pitch.get(i) > max + 0.01f) { max = pitch.get(i); maxAt = i; }
         }
         int dips = 0;
@@ -602,13 +632,13 @@ class Scenarios {
             if (pitch.get(i) < pitch.get(i - 1) && pitch.get(i) <= pitch.get(i + 1)) dips++;
         int rest = 0;
         for (int i = pitch.size() - 1; i > 0 && Math.abs(pitch.get(i) - max) < 0.01f; i--) rest++;
-        check("oak: leans back first (anticipation)", min0 < -2 && min0 > -3, "min pitch in first 10 ticks " + min0);
+        check("oak: leans back 8 deg first (anticipation)", min0 < -7.5f && min0 > -8.5f, "min pitch in first 20 ticks " + min0);
         check("oak: lands flat on open ground", max > 89.9f, "impact pitch " + max + " at tick " + maxAt);
-        check("oak: three bounces", dips == 3, dips + " dips after impact");
-        check("oak: holds still before the poof", rest >= 10, rest + " still ticks");
-        check("oak: whole gag lasts 2.5-3.5 s", tr.rot.size() >= 50 && tr.rot.size() <= 70, tr.rot.size() + " ticks");
+        check("oak: two bounces", dips == 2, dips + " dips after impact");
+        check("oak: lies still while the trunk pops apart", rest >= 10, rest + " still ticks");
+        check("oak: whole gag lasts 2.3-3.5 s", tr.rot.size() >= 46 && tr.rot.size() <= 70, tr.rot.size() + " ticks");
         tick(2);
-        check("oak: displays and controller gone after poof", displays() == 0 && TimberTest.controllers() == 0, displays() + " displays, " + TimberTest.controllers() + " controllers");
+        check("oak: displays and controller gone at the end", displays() == 0 && TimberTest.controllers() == 0, displays() + " displays, " + TimberTest.controllers() + " controllers");
         int dropped = itemsOf("minecraft:oak_log", 24);
         check("oak: every log dropped", dropped == logs, dropped + " of " + logs);
         check("oak: axe used 1 per log", damage() == logs, "damage " + damage() + " for " + logs + " logs");
@@ -896,7 +926,7 @@ class Scenarios {
         tr = finish(120);
         max = 0;
         for (float[] r : tr.rot) max = Math.max(max, r[1] + r[3]);
-        check("hedge in the way: falls through leaves and lies flat", Math.abs(yaw - 270) < 0.5 && max > 89, "yaw " + yaw + ", landed at " + max);
+        check("hedge in the way: falls through leaves and lies flat", Math.abs(Math.abs(yaw - 270) - 33.75) < 0.01 && max > 89, "yaw " + yaw + ", landed at " + max);
     }
 
     static void modes() throws Exception {
@@ -1097,7 +1127,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10100,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10200,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
@@ -1151,6 +1181,162 @@ class Scenarios {
         check("hooks: removing the add-on clears its requirement and hooks", requiresCount() == -1 && count(Scenarios::isLog, 6) == 0,
             "requires=" + requiresCount() + " logs left " + count(Scenarios::isLog, 6));
         finish(120);
+    }
+
+    static double ctlY() {
+        return TimberTest.on(() -> {
+            for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) return e.getY();
+            return Double.NaN;
+        });
+    }
+
+    /** Item id -> total count in an SNBT dump of item stacks (the controller's recorded drops). */
+    static Map<String, Integer> lootOf(String snbt) {
+        Map<String, Integer> m = new java.util.TreeMap<>();
+        java.util.regex.Matcher c = java.util.regex.Pattern.compile("\\{[^{}]*\\}").matcher(snbt);
+        while (c.find()) {
+            java.util.regex.Matcher id = java.util.regex.Pattern.compile("id: \"([a-z0-9_:]+)\"").matcher(c.group());
+            java.util.regex.Matcher n = java.util.regex.Pattern.compile("count: (\\d+)").matcher(c.group());
+            if (id.find()) m.merge(id.group(1), n.find() ? Integer.parseInt(n.group(1)) : 1, Integer::sum);
+        }
+        return m;
+    }
+
+    static int tagged(String tag) {
+        return (int) TimberTest.treeDisplays().stream().filter(d -> d.entityTags().contains(tag)).count();
+    }
+
+    /** 1.2.0 animation: hang + drop, tip to the side, crown burst at the slam, ring-by-ring pop, fair drops. */
+    static void animation() throws Exception {
+        // the tree hangs a block up over the chopped log for a beat, then drops into the gap
+        plot();
+        customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        double cy = ctlY();
+        List<net.minecraft.world.entity.Display.BlockDisplay> ds = TimberTest.treeDisplays();
+        long up = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy - 1) < 0.001).count());
+        check("hang: at the chop the whole tree hangs one block up, over the gap", up == ds.size() && up > 0, up + " of " + ds.size() + " displays one block up");
+        tick(5);
+        long down = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy) < 0.001).count());
+        check("hang: then it drops into the gap", down == ds.size(), down + " of " + ds.size() + " displays on the pivot after 5 ticks");
+        finish(160);
+
+        // a 2x2 trunk still stands on its other three logs, so it doesn't drop
+        plot();
+        feature("mega_spruce", 0, 0);
+        tick(40);
+        hold("minecraft:netherite_axe");
+        TimberTest.destroy(TimberTest.on(() -> {
+            for (int y = 0; y < 6; y++) { BlockPos q = new BlockPos(cx, Y + y, cz); if (isLog(TimberTest.level.getBlockState(q))) return q; }
+            return p(0, 0, 0);
+        }));
+        tick(1);
+        double cy2 = ctlY();
+        List<net.minecraft.world.entity.Display.BlockDisplay> ds2 = TimberTest.treeDisplays();
+        long raised = TimberTest.on(() -> ds2.stream().filter(d -> Math.abs(d.getY() - cy2) > 0.001).count());
+        check("hang: a 2x2 trunk cut in one corner doesn't drop", raised == 0 && !ds2.isEmpty(), raised + " of " + ds2.size() + " displays off the pivot");
+        finish(200);
+
+        // the tip: with the right-hand side (south-east) walled off, it tips to the left instead
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        cmd("fill " + at(2, 0, 2) + " " + at(9, 7, 9) + " minecraft:stone");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        float yaw = ((ctlYaw() % 360) + 360) % 360;
+        check("tip: tips 33.75 deg to the open side", Math.abs(yaw - 236.25) < 0.01, "yaw " + yaw);
+        finish(160);
+
+        // burst, ripple and fairness on one tree
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        tick(40);
+        int logs = count(Scenarios::isLog, 6);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        Map<String, Integer> want = lootOf(cmd("data get entity @e[type=marker,tag=timber.ctl,limit=1] data.drops").toString());
+        lootOf(cmd("data get entity @e[type=marker,tag=timber.ctl,limit=1] data.ldrops").toString()).forEach((k, v) -> want.merge(k, v, Integer::sum));
+        want.merge("minecraft:oak_log", 1, Integer::sum);
+        java.util.Map<net.minecraft.world.entity.Display.BlockDisplay, Float> height = new java.util.HashMap<>();
+        List<net.minecraft.world.entity.Display.BlockDisplay> all = TimberTest.treeDisplays();
+        TimberTest.on(() -> { for (var d : all) if (d.entityTags().contains("timber.lg")) height.put(d, TimberTest.<org.joml.Vector3fc>displayData(d, "DATA_TRANSLATION_ID").y()); return null; });
+        java.util.Map<net.minecraft.world.entity.Display.BlockDisplay, Integer> gone = new java.util.HashMap<>();
+        int burstAt = -1, lfBefore = tagged("timber.lf"), lgAtBurst = 0;
+        java.util.TreeSet<Integer> logSteps = new java.util.TreeSet<>();
+        int lastLogs = itemsOf("minecraft:oak_log", 24);
+        for (int t = 1; t <= 160 && TimberTest.controllers() > 0; t++) {
+            tick(1);
+            if (burstAt < 0 && tagged("timber.lf") == 0) { burstAt = t; lgAtBurst = tagged("timber.lg"); }
+            for (var e : height.keySet()) if (!gone.containsKey(e) && TimberTest.on(e::isRemoved)) gone.put(e, t);
+            int n = itemsOf("minecraft:oak_log", 24);
+            if (n > lastLogs) logSteps.add(t);
+            lastLogs = n;
+        }
+        check("burst: at the slam the crown's leaves burst while the trunk still lies there", lfBefore > 0 && burstAt > 20 && lgAtBurst == logs - 1,
+            lfBefore + " leaf displays gone at tick " + burstAt + ", " + lgAtBurst + " log displays left");
+        List<Float> hs = new ArrayList<>(new java.util.TreeSet<>(height.values()));
+        boolean ordered = true;
+        int first = Integer.MAX_VALUE, last = -1;
+        for (var e : height.entrySet()) {
+            int g = gone.getOrDefault(e.getKey(), -1);
+            first = Math.min(first, g); last = Math.max(last, g);
+            for (var o : height.entrySet()) if (o.getValue() > e.getValue() + 0.5f && gone.getOrDefault(o.getKey(), -1) < g) ordered = false;
+        }
+        check("ripple: logs pop one ring at a time from the stump end to the tip", ordered && first > burstAt && last - first >= 8,
+            "popped between tick " + first + " and " + last + ", burst at " + burstAt + ", " + hs.size() + " rings");
+        check("ripple: each ring throws its log as it pops (not all at once)", logSteps.size() >= logs - 2, "log items appeared at ticks " + logSteps);
+        tick(3);
+        Map<String, Integer> got = TimberTest.itemsNear(p(0, 0, 0), 24);
+        check("fair: the ground holds exactly the loot rolled at the chop, plus the chopped log", got.equals(want), "got " + got + ", rolled " + want);
+
+        // blocks changing mid-animation (someone rebuilds the trunk, the landing spot gets walled over) change nothing
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        tick(40);
+        logs = count(Scenarios::isLog, 6);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        tick(10);
+        cmd("fill " + at(0, 1, 0) + " " + at(0, 4, 0) + " minecraft:oak_log");
+        cmd("fill " + at(1, 0, -6) + " " + at(9, 1, 6) + " minecraft:stone");
+        finish(160);
+        tick(3);
+        cmd("fill " + at(1, 0, -6) + " " + at(9, 1, 6) + " minecraft:air");
+        tick(20);
+        int dropped = itemsOf("minecraft:oak_log", 24);
+        int rebuilt = count(Scenarios::isLog, 1);
+        check("fair: blocks changed mid-animation don't add or lose drops", dropped == logs && rebuilt == 4, dropped + " of " + logs + " logs dropped, " + rebuilt + " rebuilt logs untouched");
+
+        // a tree still falling in a world saved by 1.1.0 (no ring data, drops as a plain item list) lands its drops and ends
+        plot();
+        cmd("summon marker " + at(0, 0, 0) + " {Tags:[\"timber.ctl\"],data:{drops:[{id:\"minecraft:oak_log\",count:3},{id:\"minecraft:stick\",count:2}]}}");
+        cmd("summon block_display " + at(0, 0, 0) + " {Tags:[\"timber.d\",\"timber.b0\"],block_state:{Name:\"minecraft:oak_log\",id:\"minecraft:oak_log\"}}");
+        cmd("scoreboard players set @e[type=marker,tag=timber.ctl] timber.ph 3");
+        tick(3);
+        check("upgrade: a 1.1.0 tree mid-animation drops its loot and ends", TimberTest.controllers() == 0 && displays() == 0 && itemsOf("minecraft:oak_log", 8) == 3 && itemsOf("minecraft:stick", 8) == 2,
+            TimberTest.controllers() + " controllers, " + displays() + " displays, " + TimberTest.itemsNear(p(0, 0, 0), 8));
+
+        // uninstall while a tree is falling: its drops still land
+        plot();
+        customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+        tick(40);
+        logs = count(Scenarios::isLog, 6);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        tick(12);
+        cmd("function timber:uninstall");
+        tick(3);
+        check("uninstall mid-fall: nothing left behind, every log still drops", displays() == 0 && TimberTest.controllers() == 0 && itemsOf("minecraft:oak_log", 24) == logs,
+            displays() + " displays, " + TimberTest.controllers() + " controllers, " + itemsOf("minecraft:oak_log", 24) + " of " + logs + " logs");
+        cmd("reload");
+        tick(5);
     }
 
     static void settingsAndUninstall() throws Exception {

@@ -6,11 +6,11 @@ Timber is a vanilla data pack for **Minecraft Java 26.2 and 26.3**. It installs 
 
 ## Features
 
-- **The whole tree falls.** It leans back and creaks, tips over, slams into the ground, bounces three times, sits still for a beat, then poofs into a cloud and the drops pop out.
+- **The whole tree falls, cartoon style.** The chopped log shatters, the tree hangs in the air for a beat and drops onto the stump, leans back with a creak, then tips over. When it slams into the ground its crown bursts into leaves, the trunk bounces, and then it pops apart log by log from the stump to the tip, each log hopping out right where it lay.
 - **One tree at a time.** In a crowded forest, every log belongs to the trunk it grows from and leaves go to the tree vanilla says they belong to, so touching neighbours keep their logs and leaves.
 - **Never fells builds.** Logs placed by players are remembered and left alone, and log structures without a leafy crown are ignored.
 - **Chop anywhere up the trunk.** The part above the cut falls and the stump stays.
-- **Falls where it makes sense.** Away from you, or into the most open direction when something is in the way. Only the trunk collides, so it lands on hills, rocks and neighbouring trunks, tips past level onto slopes and cliff edges, and a piece cut high up slides off the stump and drops.
+- **Falls where it makes sense.** Away from you and a little to one side, so you get to watch it fall, or into the most open direction when something is in the way. Only the trunk collides, so it lands on hills, rocks and neighbouring trunks, tips past level onto slopes and cliff edges, and a piece cut high up slides off the stump and drops.
 - **Everything attached comes along.** Vines, cocoa, hanging moss, mangrove propagules, resin, creaking hearts and snow go with the tree.
 - **Every overworld tree.** Oak, birch, spruce, jungle, acacia, dark oak, mangrove, cherry, pale oak, azalea, the 2×2 giants, and poplar on 26.3.
 - **Fair durability.** The axe takes durability for the tree, Unbreaking included. A tree that would break your axe is not felled.
@@ -82,7 +82,7 @@ Don't unzip the file.
 ## Uninstall
 
 1. Run `/function timber:uninstall`.
-2. Remove the `.zip` from the `datapacks` folder, or run `/datapack disable "file/Timber-1.1.0.zip"`.
+2. Remove the `.zip` from the `datapacks` folder, or run `/datapack disable "file/Timber-1.2.0.zip"`.
 3. Run `/reload`.
 
 ## Support

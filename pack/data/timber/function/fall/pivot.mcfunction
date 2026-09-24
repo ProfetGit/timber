@@ -1,5 +1,5 @@
 scoreboard players operation #yi timber.data = #yaw timber.data
-scoreboard players operation #yi timber.data /= #2250 timber.data
+scoreboard players operation #yi timber.data /= #1125 timber.data
 function timber:fall/sincos
 scoreboard players operation #px timber.data = #hw timber.data
 scoreboard players operation #px timber.data *= #sin timber.data

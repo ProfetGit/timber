@@ -1,4 +1,4 @@
-tellraw @s ["",{text:"\n🪓 Timber settings ",color:"gold",bold:true},{text:"v1.1.0",color:"dark_gray"}]
+tellraw @s ["",{text:"\n🪓 Timber settings ",color:"gold",bold:true},{text:"v1.2.0",color:"dark_gray"}]
 execute if data storage timber:meta requires[0] run tellraw @s ["",{text:" "},{storage:"timber:meta",nbt:"requires[]",interpret:true,separator:""}]
 data modify storage timber:menu row set value []
 function timber:settings/num {key:"max_logs",v:64}
@@ -18,8 +18,8 @@ function timber:settings/choice {key:"sneak",v:1,label:"Sneak to fell",hint:"Onl
 function timber:settings/choice {key:"sneak",v:2,label:"Always",hint:"Always fell, sneaking or not"}
 tellraw @s ["",{text:" Sneaking: ",color:"gray"},{storage:"timber:menu",nbt:"row[]",interpret:true,separator:" "}]
 data modify storage timber:menu row set value []
-function timber:settings/choice {key:"drops",v:0,label:"Where it lands",hint:"Drops pop out of the poof where the tree fell"}
-function timber:settings/choice {key:"drops",v:1,label:"At player",hint:"Drops appear at your feet when the tree poofs"}
+function timber:settings/choice {key:"drops",v:0,label:"Where it lands",hint:"Each log hops out where it lands, leaf drops burst from the crown"}
+function timber:settings/choice {key:"drops",v:1,label:"At player",hint:"Drops appear at your feet as the tree breaks apart"}
 tellraw @s ["",{text:" Drops: ",color:"gray"},{storage:"timber:menu",nbt:"row[]",interpret:true,separator:" "}]
 function timber:settings/row_bool {key:"require_axe",label:"Require an axe",hint:"Only fell trees when chopping with an axe"}
 function timber:settings/row_bool {key:"durability",label:"Use axe durability",hint:"Each log costs durability (Unbreaking applies); a tree that would break the axe is not felled"}

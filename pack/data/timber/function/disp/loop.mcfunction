@@ -7,6 +7,10 @@ execute store result score #wz timber.data run data get storage timber:op recs[0
 scoreboard players operation #wx timber.data -= #px timber.data
 scoreboard players operation #wy timber.data -= #py timber.data
 scoreboard players operation #wz timber.data -= #pz timber.data
+scoreboard players operation #wy timber.data -= #hang timber.data
+scoreboard players operation #k timber.data = #wy timber.data
+scoreboard players add #k timber.data 500
+scoreboard players operation #k timber.data /= #1000 timber.data
 scoreboard players operation #tx timber.data = #wx timber.data
 scoreboard players operation #tx timber.data *= #cos timber.data
 scoreboard players operation #a timber.data = #wz timber.data
@@ -24,7 +28,11 @@ execute store result storage timber:op d.transformation.translation[1] float 0.0
 execute store result storage timber:op d.transformation.translation[2] float 0.001 run scoreboard players get #tz timber.data
 function timber:compat/block_state
 function timber:disp/batch
-execute summon block_display run function timber:disp/init
+data modify storage timber:op d.Tags[2] set value "timber.lg"
+execute if data storage timber:op recs[0].l run data modify storage timber:op d.Tags[2] set value "timber.lf"
+execute unless data storage timber:op recs[0].l run scoreboard players operation #km timber.data > #k timber.data
+execute if score #hang timber.data matches 0 summon block_display run function timber:disp/init
+execute if score #hang timber.data matches 1000 positioned ~ ~1 ~ summon block_display run function timber:disp/init
 execute if data storage timber:op recs[0].l run function timber:disp/leaf_width
 data remove storage timber:op recs[0]
 function timber:disp/loop

@@ -1,3 +1,4 @@
+execute unless data storage timber:meta version run return 0
 execute unless score #stage timber.data matches 4 run return 0
 scoreboard players set #stage timber.data 5
 scoreboard players operation #fcx timber.data = #fx0 timber.data
@@ -32,7 +33,7 @@ execute store result storage timber:op f.fz double 0.001 run scoreboard players 
 execute store result storage timber:op f.hw double 0.001 run scoreboard players get #hw timber.data
 execute store result storage timber:op f.lz double 0.001 run scoreboard players get #lz timber.data
 execute store result score #pyaw timber.data run data get entity @a[tag=timber.cutter,limit=1] Rotation[0] 100
-scoreboard players add #pyaw timber.data 1125
+scoreboard players add #pyaw timber.data 562
 scoreboard players operation #pyaw timber.data %= #36000 timber.data
-scoreboard players operation #pyaw timber.data /= #2250 timber.data
-scoreboard players operation #pyaw timber.data *= #2250 timber.data
+scoreboard players operation #pyaw timber.data /= #1125 timber.data
+scoreboard players operation #pyaw timber.data *= #1125 timber.data

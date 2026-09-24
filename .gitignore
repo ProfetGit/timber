@@ -7,3 +7,9 @@ dev/icon/banner_frames/
 dev/icon/contact.png
 # textures extracted from the Minecraft jar (Mojang's), shape reference only
 dev/icon/textures/
+# client capture output (dev/capture/run.sh)
+dev/capture/.work/
+dev/capture/frames/
+dev/capture/sheet-*.png
+dev/capture/review/
+dev/capture/preview/

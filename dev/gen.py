@@ -16,7 +16,8 @@ LEAVES = ["oak", "birch", "spruce", "jungle", "dark_oak", "acacia", "mangrove", 
           "flowering_azalea", "pale_oak"]
 LEAVES_26_3 = ["red_poplar", "orange_poplar", "yellow_poplar"]
 LEAF_HINT = {"poplar": "yellow_poplar"}
-OBJECTIVES = ["off", "config", "data", "job", "x", "y", "z", "lab", "ph", "e", "dr", "y0", "t", "p", "hit", "dur", "h", "b"]
+OBJECTIVES = ["off", "config", "data", "job", "x", "y", "z", "lab", "ph", "e", "dr", "y0", "t", "p", "hit", "dur", "h", "b",
+              "k", "u", "kr", "ks", "kf", "kx", "km"]
 
 SIX = {"px": (1, 0, 0), "nx": (-1, 0, 0), "py": (0, 1, 0), "ny": (0, -1, 0), "pz": (0, 0, 1), "nz": (0, 0, -1)}
 AXIS_SCORE = {0: "#cx", 1: "#cy", 2: "#cz"}
@@ -182,16 +183,18 @@ def fall_curve(start_deg: float = 10.0, n: int = 100) -> list[int]:
 
 
 def gen_curve() -> None:
-    vals = ",".join(str(v) for v in fall_curve())
+    # a quarter linear so the tip visibly starts moving on its first tick, the rest a rod tipping from 25 degrees
+    vals = ",".join(str(round(25 * i + 0.75 * v)) for i, v in enumerate(fall_curve(25.0)))
     write(BASE / "load/curve.mcfunction", [f"data modify storage timber:curve fall set value [{vals}]"])
 
 
 def gen_sincos() -> None:
-    # yaw i*22.5 deg: sin/cos x10000 for the yaw-frame translation, and the Ry(yaw) quaternion (0, qs, 0, qc) that
-    # counter-rotates each block so the yawed display still draws it axis-aligned
+    # yaw i*11.25 deg (byte-exact for entity rotation, so the counter-rotation cancels exactly): sin/cos x10000 for the
+    # yaw-frame translation, and the Ry(yaw) quaternion (0, qs, 0, qc) that counter-rotates each block so the yawed
+    # display still draws it axis-aligned
     lines = []
-    for i in range(16):
-        a = math.radians(i * 22.5)
+    for i in range(32):
+        a = math.radians(i * 11.25)
         qs, qc = round(math.sin(a / 2), 6), round(math.cos(a / 2), 6)
         lines.append(f"execute if score #yi timber.data matches {i} run return run function timber:fall/sc "
                      f"{{s:{round(math.sin(a) * 10000)},c:{round(math.cos(a) * 10000)},qs:{float(qs)},qc:{float(qc)},"

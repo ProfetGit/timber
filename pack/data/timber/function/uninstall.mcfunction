@@ -1,10 +1,10 @@
+execute as @e[type=marker,tag=timber.ctl,tag=!timber.new] at @s run function timber:anim/finish
 kill @e[type=block_display,tag=timber.d]
 kill @e[type=marker,tag=timber.ctl]
 kill @e[type=marker,tag=timber.m]
 kill @e[type=marker,tag=timber.job]
 kill @e[type=marker,tag=timber.cur]
 kill @e[type=marker,tag=timber.pt]
-kill @e[type=marker,tag=timber.mid]
 function timber:uninstall/types
 function timber:compat/extra_uninstall
 function timber:uninstall/objectives
@@ -17,6 +17,7 @@ data remove storage timber:op t
 data remove storage timber:op k
 data remove storage timber:op recs
 data remove storage timber:op drops
+data remove storage timber:op ldrops
 data remove storage timber:op f
 data remove storage timber:op s
 data remove storage timber:op cd
@@ -30,6 +31,9 @@ data remove storage timber:op logs
 data remove storage timber:anim s
 data remove storage timber:anim c
 data remove storage timber:anim it
+data remove storage timber:anim q
+data remove storage timber:anim pf
+data remove storage timber:anim tf
 data remove storage timber:curve fall
 data remove storage timber:menu row
 data remove storage timber:placed o
@@ -39,4 +43,4 @@ data remove storage timber:placed x
 data remove storage timber:meta version
 data remove storage timber:meta version_id
 data remove storage timber:meta requires
-tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.1.0.zip\") so it does not reinstall on the next /reload.",color:"gray"}]
+tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.2.0.zip\") so it does not reinstall on the next /reload.",color:"gray"}]

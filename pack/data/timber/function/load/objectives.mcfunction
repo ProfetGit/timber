@@ -17,3 +17,10 @@ scoreboard objectives add timber.hit dummy
 scoreboard objectives add timber.dur dummy
 scoreboard objectives add timber.h dummy
 scoreboard objectives add timber.b dummy
+scoreboard objectives add timber.k dummy
+scoreboard objectives add timber.u dummy
+scoreboard objectives add timber.kr dummy
+scoreboard objectives add timber.ks dummy
+scoreboard objectives add timber.kf dummy
+scoreboard objectives add timber.kx dummy
+scoreboard objectives add timber.km dummy
