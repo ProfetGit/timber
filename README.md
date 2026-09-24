@@ -49,6 +49,10 @@ Timber is free. If it saves you some chopping, a coffee helps fund the next upda
 
 [![Support me on Ko-fi](https://raw.githubusercontent.com/ProfetGit/assets/main/kofi-banner.gif)](https://ko-fi.com/profetgit)
 
+Want your own server to play on with friends? My BisectHosting affiliate link gives you 25% off the first month, and I get a small commission.
+
+[![Get 25% off your first month at BisectHosting](https://raw.githubusercontent.com/ProfetGit/assets/main/bisecthosting-banner.gif)](https://url-shortener.curseforge.com/Pp2BN)
+
 ![License](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-license.png)
 
 © 2026 Profet. All rights reserved.
