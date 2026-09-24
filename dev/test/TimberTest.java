@@ -44,8 +44,7 @@ public class TimberTest {
     static final List<String> failures = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
-        net.minecraft.server.Main.main(new String[] {"--nogui"});
-        server = findServer();
+        server = boot();
         long deadline = System.currentTimeMillis() + 180_000;
         while (!server.isReady()) {
             if (System.currentTimeMillis() > deadline) throw new IllegalStateException("server never became ready");
@@ -69,6 +68,24 @@ public class TimberTest {
             Thread.sleep(3000);
             System.exit(failed == 0 ? 0 : 1);
         }
+    }
+
+    /** Vanilla by default; -Dharness.main=<class> boots a plugin platform in-process instead (PLATFORM= in run.sh). */
+    static MinecraftServer boot() throws Exception {
+        String main = System.getProperty("harness.main");
+        if (main == null) {
+            net.minecraft.server.Main.main(new String[] {"--nogui"});
+            return findServer();
+        }
+        Class.forName(main).getMethod("main", String[].class).invoke(null, (Object) new String[] {"--nogui"});
+        java.lang.reflect.Method get = MinecraftServer.class.getMethod("getServer");
+        long deadline = System.currentTimeMillis() + 180_000;
+        Object s;
+        while ((s = get.invoke(null)) == null) {
+            if (System.currentTimeMillis() > deadline) throw new IllegalStateException("server never started");
+            Thread.sleep(50);
+        }
+        return (MinecraftServer) s;
     }
 
     @SuppressWarnings("unchecked")
@@ -111,15 +128,24 @@ public class TimberTest {
     static List<String> cmd(String command) {
         return on(() -> {
             List<String> out = new ArrayList<>();
-            CommandSource capture = new CommandSource() {
-                public void sendSystemMessage(Component c) { out.add(c.getString()); }
-                public boolean acceptsSuccess() { return true; }
-                public boolean acceptsFailure() { return true; }
-                public boolean shouldInformAdmins() { return false; }
-            };
+            // a proxy, not an anonymous class: plugin platforms add methods (getBukkitSender), answered by the server
+            CommandSource capture = (CommandSource) java.lang.reflect.Proxy.newProxyInstance(CommandSource.class.getClassLoader(),
+                new Class<?>[] {CommandSource.class}, (proxy, m, a) -> switch (m.getName()) {
+                    case "sendSystemMessage" -> { out.add(((Component) a[0]).getString()); yield null; }
+                    case "acceptsSuccess", "acceptsFailure" -> true;
+                    case "shouldInformAdmins" -> false;
+                    default -> m.invoke(server, a);
+                });
             server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSource(capture), command);
             return out;
         });
+    }
+
+    /** A /data get source as full SNBT: Paper and Purpur cut /data get output at 128 characters. */
+    static String full(String source) {
+        cmd("data remove storage harness:full v");
+        cmd("data modify storage harness:full v set from " + source);
+        return on(() -> String.valueOf(server.getCommandStorage().get(net.minecraft.resources.Identifier.parse("harness:full")).get("v")));
     }
 
     static void explore(Path file) throws Exception {
@@ -573,7 +599,7 @@ class Scenarios {
         cmd("datapack disable \"file/hookpack\"");
         tick(5);
         List<String> packs = cmd("datapack list enabled");
-        check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains("Timber-"), packs.toString());
+        check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains(System.getProperty("harness.packs", "Timber-")), packs.toString());
         check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10200"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
@@ -718,7 +744,7 @@ class Scenarios {
         for (int y = 0; y < 4; y++) TimberTest.place(p(0, y, 0), Direction.UP);
         hold("minecraft:oak_leaves 64");
         for (int y = 2; y < 5; y++) { TimberTest.place(p(0, y, 0), Direction.EAST); TimberTest.place(p(0, y, 0), Direction.NORTH); TimberTest.place(p(0, y, 0), Direction.SOUTH); }
-        List<String> keys = cmd("data get storage timber:placed o");
+        String keys = TimberTest.full("storage timber:placed o");
         info("placed keys: " + keys + " place result " + r);
         boolean keysMatch = true;
         for (int y = 0; y < 5; y++) keysMatch &= keys.toString().contains((cx) + "," + (Y + y) + "," + cz + "\"");
@@ -728,7 +754,7 @@ class Scenarios {
         stand(-2, 0, -90);
         chop(0, 0, 0);
         check("placed: player pillar -> only the chopped log", count(Scenarios::isLog, 6) == 4 && displays() == 0, count(Scenarios::isLog, 6) + " logs left");
-        List<String> keys2 = cmd("data get storage timber:placed o");
+        String keys2 = TimberTest.full("storage timber:placed o");
         check("placed: key removed when the log is mined", keys2.toString().split("1b").length - 1 == 4, keys2.toString());
 
         // log cabin built before install (no keys, no natural leaves)
@@ -1195,8 +1221,8 @@ class Scenarios {
         Map<String, Integer> m = new java.util.TreeMap<>();
         java.util.regex.Matcher c = java.util.regex.Pattern.compile("\\{[^{}]*\\}").matcher(snbt);
         while (c.find()) {
-            java.util.regex.Matcher id = java.util.regex.Pattern.compile("id: \"([a-z0-9_:]+)\"").matcher(c.group());
-            java.util.regex.Matcher n = java.util.regex.Pattern.compile("count: (\\d+)").matcher(c.group());
+            java.util.regex.Matcher id = java.util.regex.Pattern.compile("id: ?\"([a-z0-9_:]+)\"").matcher(c.group());
+            java.util.regex.Matcher n = java.util.regex.Pattern.compile("count: ?(\\d+)").matcher(c.group());
             if (id.find()) m.merge(id.group(1), n.find() ? Integer.parseInt(n.group(1)) : 1, Integer::sum);
         }
         return m;
@@ -1260,8 +1286,8 @@ class Scenarios {
         hold("minecraft:iron_axe");
         stand(-2, 0, -90);
         chop(0, 0, 0);
-        Map<String, Integer> want = lootOf(cmd("data get entity @e[type=marker,tag=timber.ctl,limit=1] data.drops").toString());
-        lootOf(cmd("data get entity @e[type=marker,tag=timber.ctl,limit=1] data.ldrops").toString()).forEach((k, v) -> want.merge(k, v, Integer::sum));
+        Map<String, Integer> want = lootOf(TimberTest.full("entity @e[type=marker,tag=timber.ctl,limit=1] data.drops"));
+        lootOf(TimberTest.full("entity @e[type=marker,tag=timber.ctl,limit=1] data.ldrops")).forEach((k, v) -> want.merge(k, v, Integer::sum));
         want.merge("minecraft:oak_log", 1, Integer::sum);
         java.util.Map<net.minecraft.world.entity.Display.BlockDisplay, Float> height = new java.util.HashMap<>();
         List<net.minecraft.world.entity.Display.BlockDisplay> all = TimberTest.treeDisplays();

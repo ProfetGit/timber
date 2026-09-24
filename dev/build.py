@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT.parent / "ModJar"))
 import modjar  # noqa: E402  workspace tool, packs the zip as mod jars
+sys.path.insert(0, str(ROOT.parent / "PluginJar"))
+import pluginjar  # noqa: E402  workspace tool, packs the zip as a server plugin
 PACK = ROOT / "pack"
 DIST = ROOT / "dist"
 NAMESPACE = "timber"
@@ -149,6 +151,7 @@ def main() -> None:
             sys.exit(f"{rel}: expected '{needle}' (version mismatch)")
     out = build(ver)
     jars = modjar.build(ROOT, out, ver)
+    jars.append(pluginjar.build(ROOT, out, ver))
     nfunc = sum(1 for _ in PACK.rglob("*.mcfunction"))
     print(f"OK  {nfunc} functions, refs resolved -> {out.relative_to(ROOT)} ({out.stat().st_size} bytes)"
           f" + {', '.join(j.name for j in jars)} (MC {', '.join(modjar.releases_of(jars[0]))})")
