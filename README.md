@@ -73,6 +73,8 @@ Timber 1.1.0 and newer offer these hooks. They are safe to use when Timber isn't
 
 Don't unzip the file.
 
+**As a mod:** the same pack also comes as a mod for Fabric, Quilt, NeoForge and Forge. Put `Timber-1.2.0-fabric.jar` (Fabric or Quilt, needs Fabric API) or `Timber-1.2.0-forge.jar` (Forge or NeoForge) in the `mods` folder. It then runs in every world. Use either the mod or the zip, not both.
+
 ## Compatibility
 
 - One zip supports Minecraft Java **26.2 and 26.3**. 26.3 changed the data pack format, so the zip includes a small 26.3 overlay that the game selects automatically.
@@ -84,6 +86,8 @@ Don't unzip the file.
 1. Run `/function timber:uninstall`.
 2. Remove the `.zip` from the `datapacks` folder, or run `/datapack disable "file/Timber-1.2.0.zip"`.
 3. Run `/reload`.
+
+Installed as a mod? Run step 1, then remove the jar from the `mods` folder and restart the game or server.
 
 ## Support
 
