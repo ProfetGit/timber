@@ -9,6 +9,13 @@
 
 A vanilla data pack for **Minecraft Java 26.2 and 26.3**. It runs on the server only, so players join with an unmodified game. It also comes as a mod (Fabric, Quilt, NeoForge, Forge) and a server plugin (Paper, Purpur, Spigot, Bukkit).
 
+<p align="center">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak.gif" alt="An oak: one chop and the whole tree comes down" width="49%">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_birch.gif" alt="A tall birch felled with one chop" width="49%">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_cherry.gif" alt="A cherry tree felled with one chop" width="49%">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_spruce.gif" alt="A giant 2x2 spruce felled with one chop" width="49%">
+</p>
+
 ![Features](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-features.png)
 
 - **The whole tree falls, cartoon style.** It hangs for a beat, drops onto the stump, creaks, tips over, bursts into leaves and pops apart log by log.
