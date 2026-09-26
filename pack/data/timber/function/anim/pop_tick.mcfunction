@@ -1,5 +1,12 @@
 execute unless entity @e[type=block_display,tag=timber.pop,distance=..0.01,limit=1] run return 0
 scoreboard players add @e[type=block_display,tag=timber.pop,distance=..0.01] timber.u 1
+# the lying trunk may sit past level (the residual pitch the transformations carry): pop about the turned centres
+execute store result score #th timber.data run scoreboard players get @s timber.xl
+scoreboard players operation #th timber.data *= #27271 timber.data
+scoreboard players operation #th timber.data /= #10000 timber.data
+function timber:anim/trig
+scoreboard players operation #pcs timber.data = #cs timber.data
+scoreboard players operation #psn timber.data = #sn timber.data
 execute store result score #pc timber.data run data get entity @s data.pc
 execute store result score #mc timber.data run data get entity @s data.mc
 function timber:anim/pop_off {u:-125,v:150,n:1}

@@ -1,0 +1,14 @@
+forceload add -16 -16 64 64
+gamerule random_tick_speed 0
+!player
+!tick 60
+execute positioned 8 -60 8 run function tscene:tree/spruce_b
+!tick 20
+item replace entity TimberTester weapon.mainhand with minecraft:netherite_axe
+gamemode survival TimberTester
+tag TimberTester add timber.welcomed
+tp TimberTester 6.75 -60 8.5 -90 20
+!tick 2
+!destroy 8 -60 8
+!tick 1
+!anim 120 /tmp/claude-1000/-home-emppu-Projects-Minecraft-Datapacks/12dde279-a89c-497e-b5e3-84d50bcb0628/scratchpad/spruce.json

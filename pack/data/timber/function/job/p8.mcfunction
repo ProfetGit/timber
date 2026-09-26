@@ -17,7 +17,11 @@ scoreboard players operation #amp timber.data = #hit timber.data
 scoreboard players operation #amp timber.data -= #tilt timber.data
 scoreboard players operation #amp timber.data *= #12 timber.data
 scoreboard players operation #amp timber.data /= #100 timber.data
-execute if score #amp timber.data matches ..399 run scoreboard players set #amp timber.data 400
+scoreboard players set #a timber.data 7
+scoreboard players operation #a timber.data > #h timber.data
+scoreboard players operation #amp timber.data *= #7 timber.data
+scoreboard players operation #amp timber.data /= #a timber.data
+execute if score #amp timber.data matches ..199 run scoreboard players set #amp timber.data 200
 execute if score #amp timber.data matches 1101.. run scoreboard players set #amp timber.data 1100
 scoreboard players operation #rs timber.data = #lymin timber.data
 scoreboard players operation #rs timber.data -= #by timber.data

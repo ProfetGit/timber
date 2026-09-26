@@ -1,0 +1,17 @@
+// headless probe: oak chop, pitch trace, particle syntax
+forceload add -16 -16 48 48
+gamerule random_tick_speed 0
+!player
+!tick 60
+execute positioned 8 -60 8 run function tscene:tree/oak_c
+particle minecraft:tinted_leaves{color:[0.282,0.71,0.094,1.0]} 8 -55 8 1 1 1 0 5
+particle minecraft:cherry_leaves 8 -55 8 1 1 1 0 5
+!tick 20
+item replace entity TimberTester weapon.mainhand with minecraft:netherite_axe
+gamemode survival TimberTester
+tag TimberTester add timber.welcomed
+tp TimberTester 6.75 -60 8.5 -90 20
+!tick 2
+!destroy 8 -60 8
+!tick 1
+!anim 90 /tmp/claude-1000/-home-emppu-Projects-Minecraft-Datapacks/12dde279-a89c-497e-b5e3-84d50bcb0628/scratchpad/oak13.json

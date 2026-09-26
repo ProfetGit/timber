@@ -9,5 +9,4 @@ scoreboard players operation #s timber.data *= #q timber.data
 $scoreboard players set #q timber.data $(den)
 scoreboard players operation #s timber.data /= #q timber.data
 scoreboard players operation @s timber.p = @s timber.hit
-scoreboard players operation @s timber.p -= @s timber.e
 scoreboard players operation @s timber.p -= #s timber.data

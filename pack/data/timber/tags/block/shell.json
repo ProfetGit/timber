@@ -1,0 +1,8 @@
+{
+  "values": [
+    "minecraft:structure_void",
+    "#minecraft:leaves",
+    "#minecraft:logs",
+    "minecraft:creaking_heart"
+  ]
+}

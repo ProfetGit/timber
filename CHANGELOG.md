@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 — unreleased
+- A smoother, weightier fall. The game only sends an entity's tilt in steps of about 1.4°, so the slow moments (the lean-back, the first moment of the fall, the bounces) used to move in small jerks. Every block now carries its exact angle, so the whole tree glides at any frame rate.
+- The chop jolts the tree: its top shivers, then it drops onto the stump with a squash and a little stretch.
+- It leans back with a creak, then starts falling from rest with a crack and speeds up all the way down.
+- The trunk bends as it falls: the top lags behind while the tree speeds up.
+- A heavier slam: the trunk squashes flat for an instant, the crown splats into the ground and bursts into leaves, dust kicks up along the trunk, and a few leaves drift down afterwards.
+- Big trees bounce less, so a giant spruce no longer see-saws on its stump. The slam's sound and particles now land on the exact frame the tree hits.
+- Leaves buried inside the crown get no display entity (nobody can see them): about a third fewer entities on big trees, for both the server and the client.
+
 ## 1.2.0 — 2026-09-24
 - New felling animation, tuned by watching it in the real game. The chopped log shatters, the tree hangs for a beat, drops onto the stump and leans back with a creak, then tips over and slams down. Its crown bursts into leaves, the trunk bounces, and then it pops apart log by log from the stump to the tip.
 - The tree now tips about 34° to one side of straight away from you (whichever side is more open), so you see it fall in first person instead of watching it disappear behind its own stump.

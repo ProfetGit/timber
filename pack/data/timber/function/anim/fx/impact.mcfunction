@@ -4,7 +4,7 @@ playsound minecraft:block.azalea_leaves.break block @a ~ ~ ~ 1.4 0.7
 playsound minecraft:block.azalea_leaves.break block @a ~ ~ ~ 1.0 1.1
 function timber:anim/ctx
 function timber:anim/walk_impact with storage timber:anim s
-kill @e[type=block_display,tag=timber.lf,distance=..0.01]
+function timber:anim/fx/flutter with storage timber:anim s
 data modify storage timber:anim q set from storage timber:anim s.ldrops
 scoreboard players set #hop timber.data 0
 function timber:anim/drops

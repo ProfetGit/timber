@@ -11,4 +11,11 @@ scoreboard players set #blocks timber.data 0
 scoreboard players operation #ymax timber.data = #by timber.data
 scoreboard players set #lymin timber.data 2147483647
 execute store result score #loot timber.data run gamerule block_drops
+scoreboard players set #lx0 timber.data 2147483647
+scoreboard players set #ly0 timber.data 2147483647
+scoreboard players set #lz0 timber.data 2147483647
+scoreboard players set #lx1 timber.data -2147483648
+scoreboard players set #ly1 timber.data -2147483648
+scoreboard players set #lz1 timber.data -2147483648
 execute as @e[type=marker,tag=timber.ours] at @s run function timber:leaves/seed
+function timber:leaves/clear

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "timberprobe",
+  "version": "0.1.0",
+  "name": "Timber lab display probe (dev only)",
+  "environment": "client",
+  "mixins": ["timberprobe.mixins.json"],
+  "depends": {"fabricloader": "*"}
+}

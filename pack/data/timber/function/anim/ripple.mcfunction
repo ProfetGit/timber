@@ -1,5 +1,4 @@
 execute if score @s timber.t matches ..4 run function timber:anim/arc {t0:0,len:4,num:140,den:1600}
-execute if score @s timber.t matches ..4 run function timber:anim/apply
 execute if score @s timber.t matches 4 run function timber:anim/fx/thud {v:0.5,p:1.2}
 function timber:anim/ring_go
 function timber:anim/pop_tick

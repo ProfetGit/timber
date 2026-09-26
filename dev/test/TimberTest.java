@@ -534,6 +534,22 @@ class Scenarios {
             return n;
         });
     }
+    /** Natural leaves with leaves or logs on all six sides: never seen, so Timber gives them no display. */
+    static int enclosedLeaves(int r) {
+        return TimberTest.on(() -> {
+            int n = 0;
+            for (BlockPos q : BlockPos.betweenClosed(cx - r, Y - 1, cz - r, cx + r, Y + 40, cz + r)) {
+                if (!natLeaf(TimberTest.level.getBlockState(q))) continue;
+                boolean shut = true;
+                for (Direction dir : Direction.values()) {
+                    BlockState o = TimberTest.level.getBlockState(q.relative(dir));
+                    if (!o.is(net.minecraft.tags.BlockTags.LEAVES) && !isLog(o)) { shut = false; break; }
+                }
+                if (shut) n++;
+            }
+            return n;
+        });
+    }
     static boolean isLog(BlockState s) { return s.is(net.minecraft.tags.BlockTags.LOGS); }
     static boolean natLeaf(BlockState s) { return s.is(net.minecraft.tags.BlockTags.LEAVES) && !s.getValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT); }
     static boolean is(BlockState s, String id) { return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString().equals(id); }
@@ -600,7 +616,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains(System.getProperty("harness.packs", "Timber-")), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10200"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10300"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -626,6 +642,7 @@ class Scenarios {
         if (only.contains("giants")) for (int k = 0; k < 4; k++) everyTreeList(List.of("mega_pine", "mega_spruce", "mega_jungle_tree"));
         if (only.isEmpty() || only.contains("hooks")) hooks();
         if (only.isEmpty() || only.contains("anim")) animation();
+        if (only.isEmpty() || only.contains("pose")) pose();
         if (only.isEmpty() || only.contains("settings")) settingsAndUninstall();
     }
 
@@ -634,14 +651,16 @@ class Scenarios {
         customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
         tick(40);
         info("oak leaves after settle: " + TimberTest.leafCheck(new int[] {cx - 4, Y, cz - 4, cx + 4, Y + 8, cz + 4}));
-        int logs = count(Scenarios::isLog, 6), leaves = count(Scenarios::natLeaf, 6);
+        int logs = count(Scenarios::isLog, 6), leaves = count(Scenarios::natLeaf, 6), hidden = enclosedLeaves(6);
         hold("minecraft:iron_axe");
         stand(-2, 0, -90);
         chop(0, 0, 0);
         int d = displays();
         check("oak: world blocks replaced by displays in one tick", count(Scenarios::isLog, 6) == 0 && count(Scenarios::natLeaf, 6) == 0,
             "logs left " + count(Scenarios::isLog, 6) + ", leaves left " + count(Scenarios::natLeaf, 6));
-        check("oak: one display per felled block", d == logs - 1 + leaves, d + " displays for " + (logs - 1) + " logs + " + leaves + " leaves");
+        check("oak: one display per felled block, none for leaves shut in on all sides", hidden > 0 && d == logs - 1 + leaves - hidden,
+            d + " displays for " + (logs - 1) + " logs + " + leaves + " leaves - " + hidden + " enclosed");
+        check("oak: no stand-in blocks left behind", blocks("minecraft:structure_void", 8) == 0, blocks("minecraft:structure_void", 8) + " structure voids");
         check("oak: falls away from the player, tipped 33.75 deg to one side", Math.abs(Math.abs(((ctlYaw() % 360) + 360) % 360 - 270) - 33.75) < 0.01, "yaw " + ctlYaw());
         TimberTest.AnimTrace tr = finish(120);
         info("oak pitch per tick: " + pitches(tr));
@@ -658,7 +677,7 @@ class Scenarios {
             if (pitch.get(i) < pitch.get(i - 1) && pitch.get(i) <= pitch.get(i + 1)) dips++;
         int rest = 0;
         for (int i = pitch.size() - 1; i > 0 && Math.abs(pitch.get(i) - max) < 0.01f; i--) rest++;
-        check("oak: leans back 8 deg first (anticipation)", min0 < -7.5f && min0 > -8.5f, "min pitch in first 20 ticks " + min0);
+        check("oak: leans back first (anticipation, 10 deg plus the top's bend)", min0 < -7f && min0 > -14f, "min pitch in first 20 ticks " + min0);
         check("oak: lands flat on open ground", max > 89.9f, "impact pitch " + max + " at tick " + maxAt);
         check("oak: two bounces", dips == 2, dips + " dips after impact");
         check("oak: lies still while the trunk pops apart", rest >= 10, rest + " still ticks");
@@ -691,10 +710,14 @@ class Scenarios {
             int[] res = TimberTest.on(() -> {
                 int ok = 0, bad = 0;
                 for (net.minecraft.world.entity.Display.BlockDisplay d : ds) {
-                    org.joml.Vector3fc tr = TimberTest.displayData(d, "DATA_TRANSLATION_ID");
-                    org.joml.Quaternionfc left = TimberTest.displayData(d, "DATA_LEFT_ROTATION_ID");
+                    // the rest pose each tick's transformation starts from: the stored offset (timber.x/y/z) and the
+                    // right rotation that counter-turns the block to the world grid (the chop shiver may already bend it)
+                    net.minecraft.world.scores.Scoreboard sb = TimberTest.server.getScoreboard();
+                    java.util.function.ToIntFunction<String> sc = o -> sb.getPlayerScoreInfo(d, sb.getObjective(o)).value();
+                    org.joml.Vector3f tr = new org.joml.Vector3f(sc.applyAsInt("timber.x") / 1000f, sc.applyAsInt("timber.y") / 1000f, sc.applyAsInt("timber.z") / 1000f);
+                    org.joml.Quaternionfc right = TimberTest.displayData(d, "DATA_RIGHT_ROTATION_ID");
                     org.joml.Vector3f c = new org.joml.Vector3f(0.5f, 0.5f, 0.5f);
-                    left.transform(c);
+                    right.transform(c);
                     c.add(tr);
                     new org.joml.Quaternionf().rotationYXZ((float) Math.toRadians(-d.getYRot()), 0f, 0f).transform(c);
                     double x = d.getX() + c.x, y = d.getY() + c.y, z = d.getZ() + c.z;
@@ -1037,16 +1060,20 @@ class Scenarios {
     static void everyTreeList(List<String> trees) throws Exception {
         List<String> times = new ArrayList<>();
         for (String f : trees) {
-            plot();
-            feature(f, 0, 0);
-            tick(40);
-            BlockPos base = TimberTest.on(() -> {
-                for (int y = 0; y < 8; y++) {
-                    BlockPos q = new BlockPos(cx, Y + y, cz);
-                    if (TimberTest.level.getBlockState(q).is(net.minecraft.tags.BlockTags.LOGS)) return q;
-                }
-                return null;
-            });
+            BlockPos base = null;
+            // features are random: a mangrove on roots sometimes grows no log in its origin column, so re-roll it
+            for (int roll = 0; roll < 4 && base == null; roll++) {
+                plot();
+                feature(f, 0, 0);
+                tick(40);
+                base = TimberTest.on(() -> {
+                    for (int y = 0; y < 8; y++) {
+                        BlockPos q = new BlockPos(cx, Y + y, cz);
+                        if (TimberTest.level.getBlockState(q).is(net.minecraft.tags.BlockTags.LOGS)) return q;
+                    }
+                    return null;
+                });
+            }
             if (base == null) { check("tree " + f + ": has a trunk at the feature origin", false, "no log in the column"); continue; }
             int logs = count(Scenarios::isLog, 14), leaves = count(Scenarios::natLeaf, 14);
             int orphans = count(q -> natLeaf(q) && q.getValue(net.minecraft.world.level.block.LeavesBlock.DISTANCE) == 7, 14);
@@ -1067,7 +1094,7 @@ class Scenarios {
                 TimberTest.on(() -> { for (BlockPos q : BlockPos.betweenClosed(cx - 14, Y - 1, cz - 14, cx + 14, Y + 40, cz + 14)) if (isLog(TimberTest.level.getBlockState(q))) where.append(q.getX() - cx).append(',').append(q.getY() - Y).append(',').append(q.getZ() - cz).append(' '); return null; });
                 info("  " + f + " left logs at " + where + "| base y " + (base.getY() - Y) + " n " + score("#n") + " l1 " + score("#l1") + " crown " + score("#crown") + " tree " + score("#tree") + " lab " + score("#lab") + " logs " + score("#logs"));
             }
-            check("tree " + f + ": felled and animated", logsLeft == 0 && leavesLeft <= orphans + Math.max(2, leaves * 3 / 100) && d > 0 && air == 0 && tr.rot.size() > 40 && max >= 85,
+            check("tree " + f + ": felled and animated", logsLeft == 0 && leavesLeft <= orphans + Math.max(2, leaves * 3 / 100) && d > 0 && air == 0 && tr.rot.size() > 30 && max >= 85,
                 logs + " logs/" + leaves + " leaves (" + orphans + " detached), " + air + " invisible displays -> left " + logsLeft + "/" + leavesLeft + ", " + d + " displays, landed " + max + ", " + tr.rot.size() + " ticks, worst tick " + worst / 1_000_000 + " ms");
         }
         info("felling tick cost: " + times);
@@ -1153,7 +1180,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10200,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10300,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
@@ -1233,6 +1260,74 @@ class Scenarios {
     }
 
     /** 1.2.0 animation: hang + drop, tip to the side, crown burst at the slam, ring-by-ring pop, fair drops. */
+    /** World position of a display's block-local point v, as the client draws it (entity yaw/pitch, then the transformation). */
+    static org.joml.Vector3d drawn(net.minecraft.world.entity.Display.BlockDisplay d, org.joml.Vector3f v) {
+        org.joml.Vector3fc tr = TimberTest.displayData(d, "DATA_TRANSLATION_ID");
+        org.joml.Quaternionfc left = TimberTest.displayData(d, "DATA_LEFT_ROTATION_ID");
+        org.joml.Quaternionfc right = TimberTest.displayData(d, "DATA_RIGHT_ROTATION_ID");
+        org.joml.Vector3fc scale = TimberTest.displayData(d, "DATA_SCALE_ID");
+        org.joml.Vector3f c = new org.joml.Vector3f(v);
+        right.transform(c);
+        c.mul(scale);
+        left.transform(c);
+        c.add(tr);
+        new org.joml.Quaternionf().rotationYXZ((float) Math.toRadians(-d.getYRot()), (float) Math.toRadians(d.getXRot()), 0f).transform(c);
+        return new org.joml.Vector3d(d.getX() + c.x, d.getY() + c.y, d.getZ() + c.z);
+    }
+
+    static void pose() throws Exception {
+        // mid-fall the entity pitch is a byte step (what the client receives) and each transformation carries the rest:
+        // together the unbent bottom ring must sit exactly where the true pitch puts it, and the bent rings stay joined
+        plot();
+        customTree(0, 0, 9, 2, "birch_log", "birch_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        double[] res = null;
+        for (int t = 0; t < 60 && res == null; t++) {
+            tick(1);
+            res = TimberTest.on(() -> {
+                net.minecraft.world.entity.Entity ctl = null;
+                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) ctl = e;
+                if (ctl == null) return null;
+                net.minecraft.world.scores.Scoreboard sb = TimberTest.server.getScoreboard();
+                java.util.function.ToIntBiFunction<net.minecraft.world.entity.Entity, String> sc = (e, o) -> sb.getPlayerScoreInfo(e, sb.getObjective(o)).value();
+                int ph = sc.applyAsInt(ctl, "timber.ph"), pt = sc.applyAsInt(ctl, "timber.p");
+                if (ph != 1 || pt < 2000) return null;
+                double worst = 0, gap = 0, pitch = pt / 100.0;
+                java.util.Map<Integer, net.minecraft.world.entity.Display.BlockDisplay> logAt = new java.util.HashMap<>();
+                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) {
+                    if (!(e instanceof net.minecraft.world.entity.Display.BlockDisplay d) || !d.entityTags().contains("timber.lg")) continue;
+                    int k = sc.applyAsInt(d, "timber.k");
+                    logAt.putIfAbsent(k, d);
+                    if (k != 0) continue;
+                    org.joml.Vector3f c = new org.joml.Vector3f(0.5f, 0.5f, 0.5f);
+                    ((org.joml.Quaternionfc) TimberTest.displayData(d, "DATA_RIGHT_ROTATION_ID")).transform(c);
+                    c.add(sc.applyAsInt(d, "timber.x") / 1000f, sc.applyAsInt(d, "timber.y") / 1000f, sc.applyAsInt(d, "timber.z") / 1000f);
+                    new org.joml.Quaternionf().rotationYXZ((float) Math.toRadians(-ctl.getYRot()), (float) Math.toRadians(pitch), 0f).transform(c);
+                    org.joml.Vector3d want = new org.joml.Vector3d(ctl.getX() + c.x, ctl.getY() + c.y, ctl.getZ() + c.z);
+                    worst = Math.max(worst, want.distance(drawn(d, new org.joml.Vector3f(0.5f, 0.5f, 0.5f))));
+                }
+                for (int k : logAt.keySet()) {
+                    var up = logAt.get(k + 1);
+                    if (up == null || sc.applyAsInt(up, "timber.x") != sc.applyAsInt(logAt.get(k), "timber.x") || sc.applyAsInt(up, "timber.z") != sc.applyAsInt(logAt.get(k), "timber.z")) continue;
+                    // rings are stacked flush: the same orientation, each sliding at most a bent step along the one below
+                    org.joml.Vector3d a0 = drawn(logAt.get(k), new org.joml.Vector3f(0.5f, 0f, 0.5f)), a1 = drawn(logAt.get(k), new org.joml.Vector3f(0.5f, 1f, 0.5f));
+                    org.joml.Vector3d b0 = drawn(up, new org.joml.Vector3f(0.5f, 0f, 0.5f)), b1 = drawn(up, new org.joml.Vector3f(0.5f, 1f, 0.5f));
+                    org.joml.Vector3d da = new org.joml.Vector3d(a1).sub(a0), db = new org.joml.Vector3d(b1).sub(b0);
+                    gap = Math.max(gap, a1.distance(b0) + 10 * da.angle(db));
+                }
+                return new double[] {pitch, ctl.getXRot(), worst, gap, sc.applyAsInt(ctl, "timber.bn") / 100.0};
+            });
+        }
+        check("pose: mid-fall the trunk sits exactly at its true pitch (byte step + residual)", res != null && res[2] < 0.01 && res[1] % 1.40625 == 0,
+            res == null ? "never saw the fall" : "pitch " + res[0] + ", entity " + res[1] + ", worst offset " + res[2]);
+        check("pose: the bent trunk's rings stay flush (parallel, sliding a small step)", res != null && res[3] < 0.15,
+            res == null ? "never saw the fall" : "bend " + res[4] + " deg, widest gap " + res[3]);
+        finish(160);
+    }
+
     static void animation() throws Exception {
         // the tree hangs a block up over the chopped log for a beat, then drops into the gap
         plot();

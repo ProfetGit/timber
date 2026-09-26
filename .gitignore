@@ -14,3 +14,11 @@ dev/capture/sheet-*.png
 dev/capture/review/
 dev/capture/preview/
 dev/capture/gallery/
+# fall lab takes and caches (dev/lab/lab.py)
+dev/lab/out/
+dev/lab/.work/
+dev/lab/scenes/
+dev/lab/baseline/
+dev/lab/probe/mod/build/
+dev/lab/probe/mod/timberprobe.jar
+__pycache__/

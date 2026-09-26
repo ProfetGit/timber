@@ -17,7 +17,10 @@ LEAVES = ["oak", "birch", "spruce", "jungle", "dark_oak", "acacia", "mangrove", 
 LEAVES_26_3 = ["red_poplar", "orange_poplar", "yellow_poplar"]
 LEAF_HINT = {"poplar": "yellow_poplar"}
 OBJECTIVES = ["off", "config", "data", "job", "x", "y", "z", "lab", "ph", "e", "dr", "y0", "t", "p", "hit", "dur", "h", "b",
-              "k", "u", "kr", "ks", "kf", "kx", "km"]
+              "k", "u", "kr", "ks", "kf", "kx", "km",
+              # pose runtime: last byte pitch step and residual sent, trunk bend (tip, centi-degrees) and its spring,
+              # squash per group (x1000), lowest and highest ring, crown ring
+              "qs", "xl", "bn", "bv", "bl", "pv", "wv", "gx", "gy", "gz", "lx", "lz", "kn", "kt", "yr"]
 
 SIX = {"px": (1, 0, 0), "nx": (-1, 0, 0), "py": (0, 1, 0), "ny": (0, -1, 0), "pz": (0, 0, 1), "nz": (0, 0, -1)}
 AXIS_SCORE = {0: "#cx", 1: "#cy", 2: "#cz"}
@@ -163,29 +166,87 @@ def gen_leaf_chain() -> None:
     write(OVER / "rec/leaf_chain.mcfunction", chain(LEAVES + LEAVES_26_3))
 
 
-def fall_curve(start_deg: float = 10.0, n: int = 100) -> list[int]:
-    """Normalised rod-falls-over-its-base curve (theta'' = k sin theta) from start_deg to 90 deg, 0..10000."""
-    th, w, t, dt, pts = math.radians(start_deg), 0.0, 0.0, 1e-5, []
-    while th < math.pi / 2:
+# anticipation: the tree leans back LEAN degrees (eased in and out) over LEAN_T ticks and holds HOLD_T ticks; the fall
+# then starts from rest at -LEAN, so the angular velocity is continuous from the chop to the slam
+LEAN, LEAN_T, HOLD_T = 10.0, 7, 0
+# fall: a rod released at rest, torque ~ sin(angle + FALL_A0), from -LEAN to 90 degrees (the curve is time-normalised)
+FALL_A0 = 25.0
+
+
+def rod_from_rest(a_start: float, a_end: float, a0: float, n: int = 100) -> list[int]:
+    """Normalised fall curve 0..10000 over n+1 evenly spaced times: theta'' = sin(theta + a0) from rest at a_start."""
+    th, w, t, dt, pts = math.radians(a_start), 0.0, 0.0, 1e-5, []
+    while th < math.radians(a_end):
         pts.append((t, th))
-        w += math.sin(th) * dt
+        w += math.sin(th + math.radians(a0)) * dt
         th += w * dt
         t += dt
-    pts.append((t, math.pi / 2))
-    total, span, out, j = t, math.pi / 2 - math.radians(start_deg), [], 0
+    pts.append((t, math.radians(a_end)))
+    total, span, out, j = t, math.radians(a_end - a_start), [], 0
     for i in range(n + 1):
         tt = total * i / n
         while j + 1 < len(pts) and pts[j + 1][0] <= tt:
             j += 1
-        out.append(round((pts[j][1] - math.radians(start_deg)) / span * 10000))
+        out.append(round((pts[j][1] - math.radians(a_start)) / span * 10000))
     out[-1] = 10000
     return out
 
 
+FALL_DUR = range(10, 27)  # fall lengths in ticks (p8 clamps the tree's to this range)
+
+
 def gen_curve() -> None:
-    # a quarter linear so the tip visibly starts moving on its first tick, the rest a rod tipping from 25 degrees
-    vals = ",".join(str(round(25 * i + 0.75 * v)) for i, v in enumerate(fall_curve(25.0)))
-    write(BASE / "load/curve.mcfunction", [f"data modify storage timber:curve fall set value [{vals}]"])
+    # one exact per-tick table per fall length, so every tick's step follows the curve (no rounding of the time axis)
+    fine = rod_from_rest(-LEAN, 90.0, FALL_A0, 2000)
+    tables = []
+    for d in FALL_DUR:
+        vals = [fine[round(2000 * t / d)] for t in range(d + 1)]
+        tables.append(f"d{d}:[{','.join(str(v) for v in vals)}]")
+    write(BASE / "load/curve.mcfunction", [f"data modify storage timber:curve fall set value {{{','.join(tables)}}}"])
+
+
+def gen_lean() -> None:
+    # #l counts ticks since the tree stood still (after the drop in the hang case); keyed pitch x100, eased in and out
+    lines = ["execute if score #l timber.data matches ..0 run return 0",
+             "execute if score #l timber.data matches 1 run function timber:anim/fx/creak"]
+    for k in range(1, LEAN_T + 1):
+        x = k / LEAN_T
+        e = x * x * (3 - 2 * x)
+        lines.append(f"execute if score #l timber.data matches {k} run scoreboard players set @s timber.p {round(-LEAN * 100 * e)}")
+    lines.append(f"execute if score #l timber.data matches {LEAN_T + HOLD_T} run function timber:anim/fx/crack")
+    lines.append(f"execute if score #l timber.data matches {LEAN_T + HOLD_T}.. run function timber:anim/phase {{ph:1}}")
+    write(BASE / "anim/lean_back.mcfunction", lines)
+    # the fall maps the curve from -LEAN to 90 degrees (pitch x100)
+    # (to the landing angle when that is past level, so a tree tipping over an edge keeps its speed)
+    write(BASE / "anim/fall_map.mcfunction", [
+        "scoreboard players operation #fr timber.data = @s timber.hit",
+        "scoreboard players operation #fr timber.data > #9000 timber.data",
+        f"scoreboard players add #fr timber.data {round(LEAN * 100)}",
+        "scoreboard players operation #f timber.data *= #fr timber.data",
+        "scoreboard players operation #f timber.data /= #10000 timber.data",
+        f"scoreboard players remove #f timber.data {round(LEAN * 100)}",
+    ])
+
+
+RINGS = range(-16, 96)  # rings (block heights above the pivot) the pose pass can bend; a ring outside stays rigid
+
+
+def ring_name(k: int) -> str:
+    return f"m{-k}" if k < 0 else str(k)
+
+
+def gen_rings() -> None:
+    # the pose pass walks the rings bottom to top (the bend is a chain: each ring starts where the one below ends);
+    # one function per ring with its selector spelled out, so the hot path has no macros
+    lines = [f"execute if score @s timber.kn matches ..{k} if score @s timber.kt matches {k}.. run function timber:anim/xf/k_{ring_name(k)}"
+             for k in RINGS]
+    write(BASE / "anim/xf/rings.mcfunction", lines)
+    for k in RINGS:
+        body = [f"scoreboard players set #k timber.data {k}", "function timber:anim/xf_ring",
+                f"execute as @e[type=block_display,tag=timber.d,tag=!timber.pop,distance=..0.01,scores={{timber.k={k}}}] run function timber:anim/xf_one"]
+        if k >= 0:
+            body.append("function timber:anim/xf_step")
+        write(BASE / f"anim/xf/k_{ring_name(k)}.mcfunction", body)
 
 
 def gen_sincos() -> None:
@@ -200,13 +261,6 @@ def gen_sincos() -> None:
                      f"{{s:{round(math.sin(a) * 10000)},c:{round(math.cos(a) * 10000)},qs:{float(qs)},qc:{float(qc)},"
                      f"qsi:{round(qs * 10000)},qci:{round(qc * 10000)}}}")
     write(BASE / "fall/sincos.mcfunction", lines)
-    # extra tilt past horizontal, 3 degree steps: sin/cos of the angle and of its half (quaternion), x10000
-    tilt = []
-    for i in range(16):
-        b = math.radians(i * 3)
-        tilt.append(f"execute if score #ti timber.data matches {i} run return run function timber:anim/tilt_set "
-                    f"{{ts:{round(math.sin(b) * 10000)},tc:{round(math.cos(b) * 10000)},ta:{round(math.sin(b / 2) * 10000)},tb:{round(math.cos(b / 2) * 10000)}}}")
-    write(BASE / "anim/tilt_sc.mcfunction", tilt)
 
 
 if __name__ == "__main__":
@@ -216,5 +270,7 @@ if __name__ == "__main__":
     gen_decor()
     gen_leaf_chain()
     gen_curve()
+    gen_lean()
+    gen_rings()
     gen_sincos()
     print("generated")

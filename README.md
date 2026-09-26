@@ -18,7 +18,7 @@ A vanilla data pack for **Minecraft Java 26.2 and 26.3**. It runs on the server 
 
 ![Features](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-features.png)
 
-- **The whole tree falls, cartoon style.** It hangs for a beat, drops onto the stump, creaks, tips over, bursts into leaves and pops apart log by log.
+- **The whole tree falls, cartoon style.** It shivers, drops onto the stump, leans back with a creak, bends as it tips over, slams down and splats its crown, then pops apart log by log. Smooth at any frame rate.
 - **One tree at a time.** In a crowded forest, neighbouring trees keep their own logs and leaves.
 - **Never fells builds.** Logs you placed are left alone, and so is anything without a leafy crown.
 - **Falls where it makes sense:** away from you, or into open space when something is in the way.

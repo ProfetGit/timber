@@ -1,5 +1,5 @@
-data modify storage timber:meta version set value "1.2.0"
-data modify storage timber:meta version_id set value 10200
+data modify storage timber:meta version set value "1.3.0"
+data modify storage timber:meta version_id set value 10300
 data remove storage timber:meta requires
 function timber:load/objectives
 function timber:load/types
@@ -7,11 +7,13 @@ function timber:compat/extra_load
 scoreboard players set #-1 timber.data -1
 scoreboard players set #2 timber.data 2
 scoreboard players set #6 timber.data 6
+scoreboard players set #7 timber.data 7
 scoreboard players set #8 timber.data 8
 scoreboard players set #9 timber.data 9
 scoreboard players set #10 timber.data 10
 scoreboard players set #12 timber.data 12
 scoreboard players set #16 timber.data 16
+scoreboard players set #20 timber.data 20
 scoreboard players set #100 timber.data 100
 scoreboard players set #380 timber.data 380
 scoreboard players set #500 timber.data 500
@@ -24,7 +26,20 @@ scoreboard players set #9000 timber.data 9000
 scoreboard players set #9250 timber.data 9250
 scoreboard players set #9800 timber.data 9800
 scoreboard players set #10000 timber.data 10000
+scoreboard players set #100000 timber.data 100000
 scoreboard players set #36000 timber.data 36000
+scoreboard players set #-90 timber.data -90
+scoreboard players set #24 timber.data 24
+scoreboard players set #25 timber.data 25
+scoreboard players set #90 timber.data 90
+scoreboard players set #120 timber.data 120
+scoreboard players set #172 timber.data 172
+scoreboard players set #720 timber.data 720
+scoreboard players set #17453 timber.data 17453
+scoreboard players set #27271 timber.data 27271
+scoreboard players set #flex_k timber.data 35
+scoreboard players set #flex_c timber.data 35
+scoreboard players set #flex_m timber.data 90
 execute unless score #stage timber.data = #stage timber.data run scoreboard players set #stage timber.data 0
 function timber:config/defaults
 function timber:load/curve

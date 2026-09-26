@@ -20,3 +20,13 @@ scoreboard players operation #a timber.data /= #1000 timber.data
 scoreboard players operation #a timber.data += #by timber.data
 execute store result storage timber:op cd.ky int 1 run scoreboard players get #a timber.data
 data modify storage timber:op cd.owner set from entity @a[tag=timber.cutter,limit=1] UUID
+scoreboard players operation #a timber.data = #rs timber.data
+scoreboard players operation #a timber.data += #h timber.data
+scoreboard players operation #a timber.data *= #500 timber.data
+execute store result storage timber:op cd.cy double 0.001 run scoreboard players get #a timber.data
+scoreboard players operation #a timber.data = #cw timber.data
+scoreboard players operation #a timber.data *= #9 timber.data
+scoreboard players operation #a timber.data /= #20 timber.data
+execute store result storage timber:op cd.cr double 0.001 run scoreboard players get #a timber.data
+execute store result storage timber:op cd.hy double 0.001 run scoreboard players get #hang timber.data
+function timber:disp/leaf_fx

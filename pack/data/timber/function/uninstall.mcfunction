@@ -28,12 +28,15 @@ data remove storage timber:op m
 data remove storage timber:op d
 data remove storage timber:op it
 data remove storage timber:op logs
+data remove storage timber:op lc
 data remove storage timber:anim s
 data remove storage timber:anim c
 data remove storage timber:anim it
 data remove storage timber:anim q
 data remove storage timber:anim pf
 data remove storage timber:anim tf
+data remove storage timber:anim xg
+data remove storage timber:anim xl
 data remove storage timber:curve fall
 data remove storage timber:menu row
 data remove storage timber:placed o
@@ -43,4 +46,4 @@ data remove storage timber:placed x
 data remove storage timber:meta version
 data remove storage timber:meta version_id
 data remove storage timber:meta requires
-tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.2.0.zip\") so it does not reinstall on the next /reload.",color:"gray"}]
+tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.3.0.zip\") so it does not reinstall on the next /reload.",color:"gray"}]
