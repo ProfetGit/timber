@@ -2,7 +2,7 @@
 # Usage: dev/test/run.sh <mc-version> [workdir] [harness args...]
 # Boots a headless server from the local ModrinthApp jar with the built pack and runs TimberTest.
 # PLATFORM=paper|purpur|spigot|bukkit runs the same scenarios on that plugin platform with the plugin jar
-# (../PluginJar/platform.py sets up the work dir; default work dir .work/<ver>-<platform>).
+# (../../tools/PluginJar/platform.py sets up the work dir; default work dir .work/<ver>-<platform>).
 set -euo pipefail
 
 VER=${1:?usage: run.sh <mc-version> [workdir] [args...]}
@@ -12,9 +12,18 @@ WORK=${2:-$ROOT/dev/test/.work/$VER$([ "$PLATFORM" = vanilla ] || echo "-$PLATFO
 shift $(( $# >= 2 ? 2 : 1 ))
 META=${MODRINTH_META:-$HOME/.local/share/ModrinthApp/meta}
 
-VDIR=$(ls -d "$META"/versions/"$VER"-* 2>/dev/null | head -1)
+VDIR=$(ls -d "$META"/versions/"$VER"-* 2>/dev/null | sort -V | tail -1)
 [ -n "$VDIR" ] || { echo "no jar for $VER under $META/versions" >&2; exit 2; }
 JAR="$VDIR/$(basename "$VDIR").jar"
+JAVA=java
+case "$VER" in
+  1.*)
+    # 1.x jars are obfuscated: the harness runs on the Mojang-named jar Loom made for the mod targets
+    JAR=$(ls "$HOME"/.gradle/caches/fabric-loom/minecraftMaven/net/minecraft/minecraft-merged/"$VER"-loom*/*.jar 2>/dev/null | head -1)
+    [ -n "$JAR" ] || { echo "no Mojang-named jar for $VER: build a mod target for it first (e.g. ../../mods/FarOut ./gradlew :$VER-fabric:build)" >&2; exit 2; }
+    JREL=21
+    JAVA=$(ls -d "$META"/java_versions/zulu21*/bin | head -1)/java ;;
+esac
 
 CP=$(python3 - "$VDIR/$(basename "$VDIR").json" "$META/libraries" <<'EOF'
 import json, os, sys
@@ -33,7 +42,7 @@ EOF
 )
 
 [ -n "${SKIP_BUILD:-}" ] || python3 "$ROOT/dev/build.py" >/dev/null
-ZIP=$(ls "$ROOT"/dist/Timber-*.zip | head -1)
+case "$VER" in 1.*) ZIP=$(ls "$ROOT"/dist/Timber-*-mc"$VER".zip | head -1) ;; *) ZIP=$(ls "$ROOT"/dist/Timber-*.zip | grep -v -- "-mc" | head -1) ;; esac
 
 rm -rf "$WORK"
 mkdir -p "$WORK/world/datapacks" "$WORK/classes"
@@ -42,10 +51,15 @@ JOPTS=()
 if [ "$PLATFORM" = vanilla ]; then
   cp "$ZIP" "$WORK/world/datapacks/"
 else
-  { read -r RUN_CP; read -r PMAIN; read -r PACKS; } < <(python3 "$ROOT/../PluginJar/platform.py" "$PLATFORM" "$VER" "$WORK" "$ROOT")
+  { read -r RUN_CP; read -r PMAIN; read -r PACKS; } < <(python3 "$ROOT/../../tools/PluginJar/platform.py" "$PLATFORM" "$VER" "$WORK" "$ROOT")
   JOPTS=("-Dharness.main=$PMAIN" "-Dharness.packs=$PACKS")
 fi
-[ "${1:-}" = explore ] || cp -r "$ROOT/dev/test/hookpack" "$WORK/world/datapacks/"
+if [ "${1:-}" != explore ]; then
+  case "$VER" in
+    1.*) python3 "$ROOT/../../tools/Backport/legacy.py" fixture "$ROOT/dev/test/hookpack" "$ROOT/legacy" "$VER" "$WORK/world/datapacks/hookpack" ;;
+    *) cp -r "$ROOT/dev/test/hookpack" "$WORK/world/datapacks/" ;;
+  esac
+fi
 for extra in ${EXTRA_PACKS:-}; do cp -r "$extra" "$WORK/world/datapacks/"; done
 echo "eula=true" > "$WORK/eula.txt"
 PORT=${PORT:-$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')}
@@ -64,10 +78,17 @@ enable-query=false
 enable-rcon=false
 EOF
 
-javac -nowarn -cp "$JAR:$CP" -d "$WORK/classes" "$ROOT/dev/test/TimberTest.java"
+SRC="$ROOT/dev/test/TimberTest.java"
+case "$VER" in
+  1.21.8|1.21.4|1.21.1)  # ResourceLocation was renamed Identifier in 1.21.11
+    mkdir -p "$WORK/src"; sed 's/\bIdentifier\b/ResourceLocation/g' "$SRC" > "$WORK/src/TimberTest.java"; SRC="$WORK/src/TimberTest.java" ;;
+esac
+javac -nowarn ${JREL:+--release $JREL} -cp "$JAR:$CP" -d "$WORK/classes" "$SRC"
 cd "$WORK"
+# one machine-wide server slot (ModTest/slots.py), shared with every other session and harness
+if [ -f "$ROOT/../../tools/ModTest/slot.sh" ]; then . "$ROOT/../../tools/ModTest/slot.sh"; slot_acquire server "Timber $VER${PLATFORM:+ $PLATFORM}"; fi
 set +e
-java -Xmx2G ${JAVA_OPTS:-} --add-opens java.base/java.lang=ALL-UNNAMED "${JOPTS[@]}" -cp "$WORK/classes:$RUN_CP" TimberTest "$@" 2>&1 | tee "$WORK/harness.log" | grep -oE '\[(PASS|FAIL|INFO|EXPLORE)\].*|SUMMARY.*|  - .*|[A-Za-z.]*Exception.*'
+"$JAVA" -Xmx2G ${JAVA_OPTS:-} --add-opens java.base/java.lang=ALL-UNNAMED "${JOPTS[@]}" -cp "$WORK/classes:$RUN_CP" TimberTest "$@" 2>&1 | tee "$WORK/harness.log" | grep -oE '\[(PASS|FAIL|INFO|EXPLORE)\].*|SUMMARY.*|  - .*|[A-Za-z.]*Exception.*'
 STATUS=${PIPESTATUS[0]}
 set -e
 

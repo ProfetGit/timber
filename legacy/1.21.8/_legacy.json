@@ -1,0 +1,15 @@
+{
+  "replace": [
+    {
+      "files": "data/timber/function/job/p3.mcfunction",
+      "old": "gamerule block_drops",
+      "new": "gamerule doTileDrops"
+    }
+  ],
+  "drop_lines": [
+    {
+      "files": "data/timber/function/tool/identify.mcfunction",
+      "containing": "minecraft:copper_axe"
+    }
+  ]
+}

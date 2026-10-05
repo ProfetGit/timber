@@ -36,6 +36,57 @@ import net.minecraft.world.entity.Marker;
 import net.minecraft.network.syncher.EntityDataAccessor;
 
 public class TimberTest {
+
+    /** Entity tags: entityTags() in 26.x, getTags() before. */
+    @SuppressWarnings("unchecked")
+    static java.util.Set<String> tagsOf(net.minecraft.world.entity.Entity e) {
+        try {
+            return (java.util.Set<String>) e.getClass().getMethod("entityTags").invoke(e);
+        } catch (ReflectiveOperationException ex) {
+            try {
+                return (java.util.Set<String>) e.getClass().getMethod("getTags").invoke(e);
+            } catch (ReflectiveOperationException ex2) {
+                throw new RuntimeException(ex2);
+            }
+        }
+    }
+
+    /** A sound's id: location() in 26.x, getLocation() before. */
+    static Object soundId(net.minecraft.sounds.SoundEvent s) {
+        try {
+            return s.getClass().getMethod("location").invoke(s);
+        } catch (ReflectiveOperationException e) {
+            try {
+                return s.getClass().getMethod("getLocation").invoke(s);
+            } catch (ReflectiveOperationException e2) {
+                throw new RuntimeException(e2);
+            }
+        }
+    }
+
+    /** Game rule names: snake_case from 1.21.11, camelCase before. */
+    static String rule(String snake) {
+        boolean legacy = String.join(" ", cmd("gamerule doTileDrops")).contains("currently set");
+        if (!legacy) return snake;
+        StringBuilder b = new StringBuilder();
+        boolean up = false;
+        for (char c : snake.toCharArray()) {
+            if (c == '_') up = true;
+            else {
+                b.append(up ? Character.toUpperCase(c) : c);
+                up = false;
+            }
+        }
+        String camel = b.toString();
+        return switch (snake) {
+            case "block_drops" -> "doTileDrops";
+            case "max_command_sequence_length" -> "maxCommandChainLength";
+            case "max_block_modifications" -> "commandModificationBlockLimit";
+            case "mob_griefing" -> "mobGriefing";
+            case "do_tile_drops" -> "doTileDrops";
+            default -> camel;
+        };
+    }
     static MinecraftServer server;
     static ServerLevel level;
     static ServerPlayer player;
@@ -363,7 +414,7 @@ public class TimberTest {
     static List<Display.BlockDisplay> treeDisplays() {
         return on(() -> {
             List<Display.BlockDisplay> out = new ArrayList<>();
-            for (Entity e : level.getAllEntities()) if (e instanceof Display.BlockDisplay d && d.entityTags().contains("timber.d")) out.add(d);
+            for (Entity e : level.getAllEntities()) if (e instanceof Display.BlockDisplay d && TimberTest.tagsOf(d).contains("timber.d")) out.add(d);
             return out;
         });
     }
@@ -371,7 +422,7 @@ public class TimberTest {
     static int controllers() {
         return on(() -> {
             int n = 0;
-            for (Entity e : level.getAllEntities()) if (e instanceof Marker && e.entityTags().contains("timber.ctl")) n++;
+            for (Entity e : level.getAllEntities()) if (e instanceof Marker && TimberTest.tagsOf(e).contains("timber.ctl")) n++;
             return n;
         });
     }
@@ -432,7 +483,7 @@ public class TimberTest {
                 if (ds.isEmpty()) return waitForTree && ++waited[0] <= maxTicks;
                 float best = -1e9f;
                 for (Display.BlockDisplay d : ds) {
-                    if (!d.entityTags().contains("timber.lg")) continue;
+                    if (!TimberTest.tagsOf(d).contains("timber.lg")) continue;
                     float y = TimberTest.<org.joml.Vector3fc>displayData(d, "DATA_TRANSLATION_ID").y();
                     if (y > best) { best = y; tr.top = d; }
                 }
@@ -633,7 +684,7 @@ class Scenarios {
     static float ctlYaw() {
         return TimberTest.on(() -> {
             for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities())
-                if (e instanceof net.minecraft.world.entity.Marker && e.entityTags().contains("timber.ctl")) return e.getYRot();
+                if (e instanceof net.minecraft.world.entity.Marker && TimberTest.tagsOf(e).contains("timber.ctl")) return e.getYRot();
             return Float.NaN;
         });
     }
@@ -662,9 +713,9 @@ class Scenarios {
     static void run() throws Exception {
         TimberTest.spawnPlayer();
         cmd("forceload add 0 0 255 127");
-        cmd("gamerule max_block_modifications 10000000");
-        cmd("gamerule random_tick_speed 0");
-        cmd("gamerule block_drops true");
+        cmd("gamerule " + TimberTest.rule("max_block_modifications") + " 10000000");
+        cmd("gamerule " + TimberTest.rule("random_tick_speed") + " 0");
+        cmd("gamerule " + TimberTest.rule("block_drops") + " true");
         tick(80);
         List<String> ver = cmd("data get storage timber:meta version");
         info("pack version: " + ver);
@@ -674,7 +725,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains(System.getProperty("harness.packs", "Timber-")), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10302"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10303"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -1007,7 +1058,7 @@ class Scenarios {
         chop(0, 2, 0);
         int stumpLogs = TimberTest.on(() -> { int n = 0; for (int y = 0; y < 2; y++) if (TimberTest.level.getBlockState(new BlockPos(cx, Y + y, cz)).is(net.minecraft.tags.BlockTags.LOGS)) n++; return n; });
         int above = TimberTest.on(() -> { int n = 0; for (int y = 2; y < 8; y++) if (TimberTest.level.getBlockState(new BlockPos(cx, Y + y, cz)).is(net.minecraft.tags.BlockTags.LOGS)) n++; return n; });
-        double pivotY = TimberTest.on(() -> { for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) return e.getY(); return Double.NaN; });
+        double pivotY = TimberTest.on(() -> { for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) return e.getY(); return Double.NaN; });
         check("cut mid-trunk: the stump stays", stumpLogs == 2, stumpLogs + " of 2 stump logs");
         check("cut mid-trunk: the part above the cut falls", above == 0 && displays() > 0, above + " logs left above the cut, " + displays() + " displays");
         check("cut mid-trunk: it hinges at the cut", Math.abs(pivotY - (Y + 2)) < 0.01, "pivot y " + pivotY + ", cut at " + (Y + 2));
@@ -1048,13 +1099,13 @@ class Scenarios {
         cmd("tp TimberTester " + (cx - 2) + ".5 " + (Y + 5) + " " + cz + ".5 -90 10");
         cmd("fill " + at(-3, 4, -1) + " " + at(-1, 4, 1) + " minecraft:stone");
         chop(0, 6, 0);
-        double y0 = TimberTest.on(() -> { for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) return e.getY(); return Double.NaN; });
+        double y0 = TimberTest.on(() -> { for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) return e.getY(); return Double.NaN; });
         double yMin = y0, stray = 0;
         tr = new TimberTest.AnimTrace();
         for (int i = 0; i < 120; i++) {
             double[] st = TimberTest.on(() -> {
                 net.minecraft.world.entity.Entity ctl = null;
-                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) ctl = e;
+                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) ctl = e;
                 if (ctl == null) return null;
                 double far = 0;
                 for (var d : TimberTest.treeDisplays()) far = Math.max(far, d.position().distanceTo(ctl.position()));
@@ -1082,7 +1133,7 @@ class Scenarios {
         int live = displays();
         cmd("function timber:tick/sweep");
         int kept = displays();
-        java.util.function.Supplier<Integer> others = () -> TimberTest.on(() -> { int n = 0; for (var e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("other.pack")) n++; return n; });
+        java.util.function.Supplier<Integer> others = () -> TimberTest.on(() -> { int n = 0; for (var e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("other.pack")) n++; return n; });
         check("orphans: the sweep kills a stray tree display, keeps the falling tree's and other packs' displays", kept == live - 1 && kept > 0 && others.get() == 1,
             live + " displays at the chop (1 stray), " + kept + " after the sweep, other pack's display " + (others.get() == 1 ? "kept" : "gone"));
         finish(160);
@@ -1182,6 +1233,8 @@ class Scenarios {
         List<String> trees = new ArrayList<>(List.of("oak", "fancy_oak", "birch", "super_birch_bees", "spruce", "pine", "mega_spruce", "mega_pine", "jungle_tree",
             "mega_jungle_tree", "acacia", "dark_oak", "cherry", "pale_oak", "pale_oak_creaking", "azalea_tree", "mangrove", "tall_mangrove", "swamp_oak"));
         if (v263) trees.addAll(List.of("red_poplar", "orange_poplar", "yellow_poplar"));
+        // the pale garden came with 1.21.4
+        if (net.minecraft.core.registries.BuiltInRegistries.BLOCK.stream().noneMatch(b -> String.valueOf(b).contains("pale_oak_log"))) trees.removeAll(List.of("pale_oak", "pale_oak_creaking"));
         everyTreeList(trees);
     }
 
@@ -1308,7 +1361,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10302,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10303,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
@@ -1366,7 +1419,7 @@ class Scenarios {
 
     static double ctlY() {
         return TimberTest.on(() -> {
-            for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) return e.getY();
+            for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) return e.getY();
             return Double.NaN;
         });
     }
@@ -1384,7 +1437,7 @@ class Scenarios {
     }
 
     static int tagged(String tag) {
-        return (int) TimberTest.treeDisplays().stream().filter(d -> d.entityTags().contains(tag)).count();
+        return (int) TimberTest.treeDisplays().stream().filter(d -> TimberTest.tagsOf(d).contains(tag)).count();
     }
 
     /** 1.2.0 animation: hang + drop, tip to the side, crown burst at the slam, ring-by-ring pop, fair drops. */
@@ -1417,7 +1470,7 @@ class Scenarios {
             tick(1);
             res = TimberTest.on(() -> {
                 net.minecraft.world.entity.Entity ctl = null;
-                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (e.entityTags().contains("timber.ctl")) ctl = e;
+                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) ctl = e;
                 if (ctl == null) return null;
                 net.minecraft.world.scores.Scoreboard sb = TimberTest.server.getScoreboard();
                 java.util.function.ToIntBiFunction<net.minecraft.world.entity.Entity, String> sc = (e, o) -> sb.getPlayerScoreInfo(e, sb.getObjective(o)).value();
@@ -1426,7 +1479,7 @@ class Scenarios {
                 double worst = 0, gap = 0, pitch = pt / 100.0;
                 java.util.Map<Integer, net.minecraft.world.entity.Display.BlockDisplay> logAt = new java.util.HashMap<>();
                 for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) {
-                    if (!(e instanceof net.minecraft.world.entity.Display.BlockDisplay d) || !d.entityTags().contains("timber.lg")) continue;
+                    if (!(e instanceof net.minecraft.world.entity.Display.BlockDisplay d) || !TimberTest.tagsOf(d).contains("timber.lg")) continue;
                     int k = sc.applyAsInt(d, "timber.k");
                     logAt.putIfAbsent(k, d);
                     if (k != 0) continue;
@@ -1515,7 +1568,7 @@ class Scenarios {
         want.merge("minecraft:oak_log", 1, Integer::sum);
         java.util.Map<net.minecraft.world.entity.Display.BlockDisplay, Float> height = new java.util.HashMap<>();
         List<net.minecraft.world.entity.Display.BlockDisplay> all = TimberTest.treeDisplays();
-        TimberTest.on(() -> { for (var d : all) if (d.entityTags().contains("timber.lg")) height.put(d, TimberTest.<org.joml.Vector3fc>displayData(d, "DATA_TRANSLATION_ID").y()); return null; });
+        TimberTest.on(() -> { for (var d : all) if (TimberTest.tagsOf(d).contains("timber.lg")) height.put(d, TimberTest.<org.joml.Vector3fc>displayData(d, "DATA_TRANSLATION_ID").y()); return null; });
         java.util.Map<net.minecraft.world.entity.Display.BlockDisplay, Integer> gone = new java.util.HashMap<>();
         int lfBefore = tagged("timber.lf");
         int[] burst = {-1, 0}, lastLogs = {itemsOf("minecraft:oak_log", 24)};

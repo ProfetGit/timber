@@ -1,0 +1,25 @@
+{
+  "replace": [
+    {
+      "files": "data/timber/function/*.mcfunction",
+      "old": " strict",
+      "new": " replace"
+    },
+    {
+      "files": "data/timber/function/put/decor.mcfunction",
+      "old": "creaking_heart_state:\"uprooted\"",
+      "new": "active:\"false\",natural:\"false\""
+    },
+    {
+      "files": "data/timber/function/tool/read.mcfunction",
+      "old": "components.\"minecraft:enchantments\".\"",
+      "new": "components.\"minecraft:enchantments\".levels.\""
+    }
+  ],
+  "text_json": {
+    "storage": [
+      "timber:menu row",
+      "timber:meta requires"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "drop_lines": [
+    {
+      "files": "data/timber/function/*",
+      "containing": "pale_"
+    },
+    {
+      "files": "data/timber/function/*",
+      "containing": "creaking_heart"
+    },
+    {
+      "files": "data/timber/function/*",
+      "containing": "resin_clump"
+    },
+    {
+      "files": "data/timber/tags/block/*.json",
+      "containing": "pale_"
+    },
+    {
+      "files": "data/timber/tags/block/*.json",
+      "containing": "creaking_heart"
+    },
+    {
+      "files": "data/timber/tags/block/*.json",
+      "containing": "resin_clump"
+    }
+  ]
+}

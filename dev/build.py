@@ -7,9 +7,11 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT.parent / "ModJar"))
+sys.path.insert(0, str(ROOT.parents[1] / "tools/ModJar"))
 import modjar  # noqa: E402  workspace tool, packs the zip as mod jars
-sys.path.insert(0, str(ROOT.parent / "PluginJar"))
+sys.path.insert(0, str(ROOT.parents[1] / "tools/Backport"))
+import legacy  # noqa: E402  workspace tool, older Minecraft targets
+sys.path.insert(0, str(ROOT.parents[1] / "tools/PluginJar"))
 import pluginjar  # noqa: E402  workspace tool, packs the zip as a server plugin
 PACK = ROOT / "pack"
 DIST = ROOT / "dist"
@@ -116,7 +118,8 @@ def build(ver: str) -> Path:
     DIST.mkdir(exist_ok=True)
     out = DIST / f"Timber-{ver}.zip"
     for old in DIST.glob("Timber-*.zip"):
-        old.unlink()
+        if "-mc" not in old.name:
+            old.unlink()
     files = sorted(p for p in PACK.rglob("*") if p.is_file())
     files.append(ROOT / "LICENSE")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
@@ -150,11 +153,15 @@ def main() -> None:
         if needle not in (ROOT / rel).read_text():
             sys.exit(f"{rel}: expected '{needle}' (version mismatch)")
     out = build(ver)
+    legacy_zips = legacy.build_zips(ROOT, PACK, "Timber", ver)
     jars = modjar.build(ROOT, out, ver)
+    for z in legacy_zips:
+        jars += modjar.build_legacy(ROOT, z, ver, z.stem.rsplit("-mc", 1)[1])
     jars.append(pluginjar.build(ROOT, out, ver))
     nfunc = sum(1 for _ in PACK.rglob("*.mcfunction"))
     print(f"OK  {nfunc} functions, refs resolved -> {out.relative_to(ROOT)} ({out.stat().st_size} bytes)"
-          f" + {', '.join(j.name for j in jars)} (MC {', '.join(modjar.releases_of(jars[0]))})")
+          f" + {', '.join(j.name for j in jars)} (MC {', '.join(modjar.releases_of(jars[0]))})"
+          + (f" + {', '.join(z.name for z in legacy_zips)}" if legacy_zips else ""))
 
 
 if __name__ == "__main__":

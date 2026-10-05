@@ -1,0 +1,6 @@
+data modify storage timber:op recs[-1].n set value "minecraft:creaking_heart"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=x] run data modify storage timber:op recs[-1].p.axis set value "x"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=y] run data modify storage timber:op recs[-1].p.axis set value "y"
+execute if block ~ ~ ~ minecraft:creaking_heart[axis=z] run data modify storage timber:op recs[-1].p.axis set value "z"
+execute if block ~ ~ ~ minecraft:creaking_heart[active=true] run data modify storage timber:op recs[-1].p.active set value "true"
+execute if block ~ ~ ~ minecraft:creaking_heart[natural=true] run data modify storage timber:op recs[-1].p.natural set value "true"

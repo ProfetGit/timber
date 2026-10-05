@@ -46,4 +46,4 @@ data remove storage timber:placed x
 data remove storage timber:meta version
 data remove storage timber:meta version_id
 data remove storage timber:meta requires
-tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.3.2.zip\") so it does not reinstall on the next /reload.",color:"gray"}]
+tellraw @s ["",{text:"🪓 Timber data removed. ",color:"gold"},{text:"Now delete or disable the datapack (e.g. /datapack disable \"file/Timber-1.3.3.zip\") so it does not reinstall on the next /reload.",color:"gray"}]

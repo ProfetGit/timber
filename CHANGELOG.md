@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.3 — 2026-09-30
+- Now also runs on Minecraft Java 1.21.1, 1.21.4, 1.21.8 and 1.21.11, as a data pack zip and a Fabric/Quilt mod jar for each of them. Nothing changes on 26.2 and 26.3. (The pale oak, creaking heart and resin bits only exist from 1.21.4 on.)
+- For pack authors: `timber:meta version_id` is now 10303.
+
 ## 1.3.2 — 2026-09-28
 - Fixed a flicker at the chop: the tree vanished for a split second before its falling copy appeared (most visible at high frame rates). The falling tree now appears first and the real blocks are removed a tick later.
 - For pack authors: `timber:meta version_id` is now 10302.

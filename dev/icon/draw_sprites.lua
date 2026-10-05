@@ -1,6 +1,6 @@
 -- Timber icon sprites. Run through the aseprite MCP: dofile("<abs>/Timber/dev/icon/draw_sprites.lua")
 dofile("/home/emppu/Projects/Minecraft Datapacks/.claude/skills/pack-icon-animation/assets/pixel_art.lua")
-local OUT = "/home/emppu/Projects/Minecraft Datapacks/Timber/dev/icon/sprites/"
+local OUT = "/home/emppu/Projects/Minecraft Datapacks/packs/Timber/dev/icon/sprites/"
 
 local bark = { Z = "#2B1712", a = "#43251A", b = "#633922", c = "#85522E", d = "#A8703C", e = "#C8944F", f = "#E2B66A" }
 local wood = { g = "#E8C27E", k = "#C99A58", h = "#9E6C36" }
