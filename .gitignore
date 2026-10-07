@@ -22,3 +22,6 @@ dev/lab/baseline/
 dev/lab/probe/mod/build/
 dev/lab/probe/mod/timberprobe.jar
 __pycache__/
+release-art/
+dev/icon/frames60/
+dev/icon/banner_frames60/

@@ -480,12 +480,13 @@ var VM = (function () {
     Timeline.setTime(t);
     Animator.preview();
   }
-  function render(first, last, res, dir) {
+  function render(first, last, res, dir, fps) {
+    const dt = 1 / (fps || FPS);
     res = res || 1600;
     dir = dir || DIR + 'frames/';
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const shot = f => new Promise(done => {
-      setTime(f * DT);
+      setTime(f * dt);
       Screencam.advancedScreenshot(Preview.selected, { angle_preset: 'view', resolution: [res, res], anti_aliasing: 'none', shading: false }, url => {
         fs.writeFileSync(dir + 'frame_' + String(f).padStart(3, '0') + '.png', Buffer.from(url.split(',')[1], 'base64'));
         done();
