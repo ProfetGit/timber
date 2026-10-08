@@ -725,7 +725,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains(System.getProperty("harness.packs", "Timber-")), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10303"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10304"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -1361,7 +1361,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10303,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10304,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
@@ -1401,6 +1401,7 @@ class Scenarios {
         check("hooks: run only after Timber's own checks pass", tb("#calls_a") == 0 && count(Scenarios::isLog, 6) == logs - 1, "a=" + tb("#calls_a"));
 
         TimberTest.chat();
+        cmd("scoreboard players set #welcome timber.config 1");
         cmd("execute as TimberTester run function timber:player/welcome");
         List<String> hello = TimberTest.chat();
         check("hooks: join hint shows add-on requirement", hello.stream().anyMatch(m -> m.contains("Sneak to take a single log. Test requirement. [Toggle]")), hello.toString());
@@ -1661,6 +1662,10 @@ class Scenarios {
         tick(2);
         List<String> t = TimberTest.chat();
         check("/trigger timber toggles off with a message", t.toString().contains("disabled") && cmd("scoreboard players get TimberTester timber.off").toString().contains("has 1"), t.toString());
+        cmd("execute as TimberTester run function timber:player/welcome");
+        List<String> quiet = TimberTest.chat();
+        check("join hint is off by default", quiet.isEmpty(), quiet.toString());
+        cmd("scoreboard players set #welcome timber.config 1");
         cmd("execute as TimberTester run function timber:player/welcome");
         List<String> w = TimberTest.chat();
         check("welcome hint", w.toString().contains("Sneak to take a single log"), w.toString());

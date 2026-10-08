@@ -8,5 +8,5 @@ function timber:config/default {key:"animation",value:1}
 function timber:config/default {key:"drops",value:0}
 function timber:config/default {key:"protect",value:1}
 function timber:config/default {key:"feedback",value:1}
-function timber:config/default {key:"welcome",value:1}
+function timber:config/default {key:"welcome",value:0}
 function timber:config/validate
