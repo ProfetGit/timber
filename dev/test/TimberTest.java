@@ -725,7 +725,7 @@ class Scenarios {
         tick(5);
         List<String> packs = cmd("datapack list enabled");
         check("base pack runs alone", !packs.toString().contains("hookpack") && packs.toString().contains(System.getProperty("harness.packs", "Timber-")), packs.toString());
-        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10304"),
+        check("version_id stored for add-ons", cmd("data get storage timber:meta version_id").toString().contains("10305"),
             cmd("data get storage timber:meta version_id").toString());
         check("no requirement text without add-ons", requiresCount() == -1, "requires=" + requiresCount());
         boolean v263 = cmd("place feature minecraft:red_poplar 2000 -59 2000").toString().contains("Unknown") == false
@@ -1061,7 +1061,8 @@ class Scenarios {
         double pivotY = TimberTest.on(() -> { for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) return e.getY(); return Double.NaN; });
         check("cut mid-trunk: the stump stays", stumpLogs == 2, stumpLogs + " of 2 stump logs");
         check("cut mid-trunk: the part above the cut falls", above == 0 && displays() > 0, above + " logs left above the cut, " + displays() + " displays");
-        check("cut mid-trunk: it hinges at the cut", Math.abs(pivotY - (Y + 2)) < 0.01, "pivot y " + pivotY + ", cut at " + (Y + 2));
+        double settled = settledY();
+        check("cut mid-trunk: it hangs a block over the cut, then hinges at the cut", Math.abs(pivotY - (Y + 3)) < 0.01 && Math.abs(settled - (Y + 2)) < 0.01, "pivot y " + pivotY + " then " + settled + ", cut at " + (Y + 2));
         TimberTest.AnimTrace tr = finish(120);
         float max = 0;
         for (float[] r : tr.rot) max = Math.max(max, r[1] + r[3]);
@@ -1127,9 +1128,9 @@ class Scenarios {
         tick(40);
         hold("minecraft:iron_axe");
         stand(-2, 0, -90);
+        chop(0, 0, 0);
         cmd("summon block_display " + at(6, 0, 6) + " {Tags:[\"timber.d\",\"timber.lg\"],block_state:{Name:\"minecraft:oak_log\",id:\"minecraft:oak_log\"}}");
         cmd("summon block_display " + at(6, 1, 6) + " {Tags:[\"other.pack\"],block_state:{Name:\"minecraft:oak_log\",id:\"minecraft:oak_log\"}}");
-        chop(0, 0, 0);
         int live = displays();
         cmd("function timber:tick/sweep");
         int kept = displays();
@@ -1361,7 +1362,7 @@ class Scenarios {
         cmd("scoreboard players reset * tbtest");
         cmd("datapack enable \"file/hookpack\"");
         tick(5);
-        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10304,
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 10305,
             "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
         cmd("reload");
         tick(5);
@@ -1416,6 +1417,11 @@ class Scenarios {
         check("hooks: removing the add-on clears its requirement and hooks", requiresCount() == -1 && count(Scenarios::isLog, 6) == 0,
             "requires=" + requiresCount() + " logs left " + count(Scenarios::isLog, 6));
         finish(120);
+    }
+
+    static double settledY() throws Exception {
+        tick(6);
+        return ctlY();
     }
 
     static double ctlY() {
@@ -1510,8 +1516,53 @@ class Scenarios {
         finish(160);
     }
 
+    /** Mines the bottom `mined` logs of a tree by hand (setblock), then chops the next log with an axe. Before the tree
+     * leans at all the controller has to be on the ground with every display glued to it; then it tips and ends clean. */
+    static void plungeCase(String name, int mined, boolean big) throws Exception {
+        plot();
+        int h = 7 + mined;
+        if (big) {
+            cmd("fill " + at(-2, h - 3, -2) + " " + at(3, h, 3) + " minecraft:spruce_leaves keep");
+            cmd("fill " + at(0, 0, 0) + " " + at(1, h - 1, 1) + " minecraft:spruce_log");
+            cmd("fill " + at(0, 0, 0) + " " + at(1, mined - 1, 1) + " minecraft:air");
+        } else {
+            customTree(0, 0, h, 2, "oak_log", "oak_leaves");
+            cmd("fill " + at(0, 0, 0) + " " + at(0, mined - 1, 0) + " minecraft:air");
+        }
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        int logs = count(Scenarios::isLog, 6);
+        chop(0, mined, 0);
+        double ground = Y + 0.002, low = 1e9, stray = 0, leanedAt = Double.NaN, rose = 0, last = Double.NaN;
+        int rolling = 0;
+        for (int i = 0; i < 40; i++) {
+            double[] st = TimberTest.on(() -> {
+                net.minecraft.world.entity.Entity ctl = null;
+                for (net.minecraft.world.entity.Entity e : TimberTest.level.getAllEntities()) if (TimberTest.tagsOf(e).contains("timber.ctl")) ctl = e;
+                if (ctl == null) return null;
+                double far = 0;
+                for (var d : TimberTest.treeDisplays()) far = Math.max(far, d.position().distanceTo(ctl.position()));
+                return new double[] {ctl.getY(), far, ctl.getXRot()};
+            });
+            if (st == null) break;
+            low = Math.min(low, st[0]);
+            if (!Double.isNaN(last)) rose = Math.max(rose, st[0] - last);
+            last = st[0];
+            if (i < 14) stray = Math.max(stray, st[1]);
+            if (st[2] != 0 && Double.isNaN(leanedAt)) leanedAt = st[0];
+            tick(1);
+        }
+        check("plunge (" + name + "): the controller reaches the ground", Math.abs(low - ground) < 0.01, "lowest controller y " + low + ", ground " + ground);
+        check("plunge (" + name + "): the tree is on the ground before it leans", !Double.isNaN(leanedAt) && leanedAt < ground + 0.01, "leaning began at y " + leanedAt);
+        check("plunge (" + name + "): the displays ride with the controller and it never rises", stray < 0.001 && rose < 0.001, "farthest display " + stray + ", largest rise " + rose);
+        finish(200);
+        int dropped = itemsOf(big ? "minecraft:spruce_log" : "minecraft:oak_log", 24);
+        check("plunge (" + name + "): it ends clean and every log drops", displays() == 0 && TimberTest.controllers() == 0 && dropped == logs, dropped + " of " + logs + " logs, " + displays() + " displays, " + TimberTest.controllers() + " controllers");
+    }
+
     static void animation() throws Exception {
-        // the tree hangs a block up over the chopped log for a beat, then drops into the gap
+        // the tree hangs a block up over the chopped log for a beat, then drops into the gap; the controller rides with it
         plot();
         customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
         tick(40);
@@ -1520,11 +1571,33 @@ class Scenarios {
         chop(0, 0, 0);
         double cy = ctlY();
         List<net.minecraft.world.entity.Display.BlockDisplay> ds = TimberTest.treeDisplays();
-        long up = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy - 1) < 0.001).count());
-        check("hang: at the chop the whole tree hangs one block up, over the gap", up == ds.size() && up > 0, up + " of " + ds.size() + " displays one block up");
+        long up = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy) < 0.001).count());
+        check("hang: at the chop the controller and the whole tree stand one block up, over the gap", up == ds.size() && up > 0 && Math.abs(cy - (Y + 1.002)) < 0.01, up + " of " + ds.size() + " displays on the controller at y " + cy);
         tick(5);
-        long down = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy) < 0.001).count());
-        check("hang: then it drops into the gap", down == ds.size(), down + " of " + ds.size() + " displays on the pivot after 5 ticks");
+        double cy1 = ctlY();
+        long down = TimberTest.on(() -> ds.stream().filter(d -> Math.abs(d.getY() - cy1) < 0.001).count());
+        check("hang: then both drop into the gap", down == ds.size() && Math.abs(cy1 - (Y + 0.002)) < 0.01, down + " of " + ds.size() + " displays on the controller, controller y " + cy1);
+        finish(160);
+
+        // bottom logs mined by hand, then an axe on the next one: the tree falls onto the ground before it leans and tips
+        plungeCase("1 log mined", 1, false);
+        plungeCase("3 logs mined", 3, false);
+        plungeCase("2x2 trunk, 2 layers mined", 2, true);
+
+        // a stump stays under the cut: nothing to fall through, the tree stays on it
+        plot();
+        customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 1, 0);
+        double low = 1e9;
+        for (int i = 0; i < 20; i++) {
+            double y = ctlY();
+            if (!Double.isNaN(y)) low = Math.min(low, y);
+            tick(1);
+        }
+        check("plunge: a cut above a stump doesn't fall through it", Math.abs(low - (Y + 1.002)) < 0.01, "lowest controller y " + low + ", stump top " + (Y + 1.002));
         finish(160);
 
         // a 2x2 trunk still stands on its other three logs, so it doesn't drop

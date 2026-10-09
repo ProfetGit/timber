@@ -29,5 +29,5 @@ scoreboard players operation #a timber.data = #cw timber.data
 scoreboard players operation #a timber.data *= #9 timber.data
 scoreboard players operation #a timber.data /= #20 timber.data
 execute store result storage timber:op cd.cr double 0.001 run scoreboard players get #a timber.data
-execute store result storage timber:op cd.hy double 0.001 run scoreboard players get #hang timber.data
+data modify storage timber:op cd.hy set value 0.0d
 function timber:disp/leaf_fx

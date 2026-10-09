@@ -3,4 +3,5 @@ execute if score @s timber.ph matches 1 run return run function timber:anim/fall
 execute if score @s timber.ph matches 2 run return run function timber:anim/bounce
 execute if score @s timber.ph matches 4 run return run function timber:anim/tipping
 execute if score @s timber.ph matches 5 run return run function timber:anim/drop
+execute if score @s timber.ph matches 6 run return 0
 function timber:anim/ripple

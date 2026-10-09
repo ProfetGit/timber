@@ -47,6 +47,9 @@ TREES = {
     "darkoak": {"feature": "dark_oak", "at": (128, -60, 64), "w": 2, "h": 9, "len": 5.0},
     "cherry": {"feature": "cherry", "at": (0, -60, 128), "w": 1, "h": 9, "len": 5.0},
     "jungle": {"feature": "mega_jungle_tree", "at": (64, -60, 128), "w": 2, "h": 16, "len": 6.0},
+    # bottom logs mined by hand first: the chop lands on the log above the gap
+    "oakgap": {"dump": "oak_c", "at": (192, -60, 0), "w": 1, "h": 7, "len": 5.6, "mined": 1},
+    "oakgap3": {"dump": "oak_c", "at": (192, -60, 64), "w": 1, "h": 7, "len": 6.4, "mined": 3},
 }
 # (mangroves stand on roots and pale oaks' trunks sit off the feature origin, so the scripted chop misses them; the
 # headless suite covers both)
@@ -69,6 +72,9 @@ def world_spec() -> dict:
         for line in (DUMPS / f"{tree['dump']}.mcfunction").read_text().splitlines():
             if line.startswith("setblock"):
                 cmds.append(f"execute positioned {x} {y} {z} run {line}")
+        if tree.get("mined"):
+            cmds.append(f"execute positioned {x} {y} {z} run fill ~ ~ ~ ~ ~{tree['mined'] - 1} ~ minecraft:air")
+            cmds.append(f"execute positioned {x} {y} {z} run fill ~-1 ~{tree['mined']} ~ ~-1 ~{tree['mined']} ~ minecraft:air replace #minecraft:leaves")
     cmds += ["kill @e[type=item]", "!sleep 2"]
     return {"name": "Timber lab", "seed": "timber-lab", "type": "minecraft:flat", "commands": cmds}
 
@@ -88,7 +94,7 @@ def scene(tag: str, tname: str, cam: str, jar: Path, shaders: bool) -> dict:
     h, w = tree["h"], tree["w"]
     x, y, z = tree["at"]
     stand = [round(x - (2.6 if cam == "fp" else 1.25), 2), y, round(z + w / 2, 2)]
-    base = [x + 0.02, y + 0.5, round(z + w / 2, 2)]
+    base = [x + 0.02, y + 0.5 + tree.get("mined", 0), round(z + w / 2, 2)]
     length = tree["len"]
     script = {
         "fps": FPS, "length": length, "settle": 24 if shaders else 14, "sway": 0.0,

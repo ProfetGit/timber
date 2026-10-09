@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.5 — 2026-10-09
+- Fixed: a tree cut above empty space (for example the bottom log was mined by hand and you chop the second) used to drop one block and then tip over in mid-air. It now falls straight down until it stands on the ground, and only then leans back and tips over.
+- For pack authors: `timber:meta version_id` is now 10305.
+
 ## 1.3.4 — 2026-10-08
 - The join hint is now off by default, so new worlds no longer print the controls reminder when you open them. Operators can turn it back on in `/function timber:settings` (Join hint).
 - For pack authors: `timber:meta version_id` is now 10304.

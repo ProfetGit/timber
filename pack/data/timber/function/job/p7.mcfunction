@@ -3,6 +3,13 @@ execute unless score #stage timber.data matches 6 run return 0
 scoreboard players set #stage timber.data 7
 scoreboard players operation #yaw timber.data = #byaw timber.data
 function timber:fall/pivot
+scoreboard players set #hang timber.data 0
+execute if score #low timber.data matches 1 if score #lymin timber.data > #oy timber.data run scoreboard players set #hang timber.data 1000
+scoreboard players operation #dd timber.data = #gap timber.data
+scoreboard players operation #dd timber.data *= #1000 timber.data
+scoreboard players operation #dd timber.data += #hang timber.data
+execute if score #animation timber.config matches 0 run scoreboard players set #dd timber.data 0
+scoreboard players operation #py timber.data += #dd timber.data
 execute store result storage timber:op s.x double 0.001 run scoreboard players get #px timber.data
 execute store result storage timber:op s.y double 0.001 run scoreboard players get #py timber.data
 execute store result storage timber:op s.z double 0.001 run scoreboard players get #pz timber.data
@@ -10,8 +17,6 @@ execute store result storage timber:op s.yaw double 0.01 run scoreboard players 
 function timber:disp/controller with storage timber:op s
 execute if score #animation timber.config matches 0 run scoreboard players set #stage timber.data 0
 execute if score #animation timber.config matches 0 run return run execute as @e[type=marker,tag=timber.new,limit=1] at @s run function timber:disp/instant
-scoreboard players set #hang timber.data 0
-execute if score #low timber.data matches 1 if score #lymin timber.data > #oy timber.data run scoreboard players set #hang timber.data 1000
 scoreboard players set #km timber.data 0
 scoreboard players set #kn timber.data 1000000
 scoreboard players set #kt timber.data -1000000

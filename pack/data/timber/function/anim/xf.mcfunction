@@ -38,7 +38,4 @@ execute store result storage timber:anim xl.transformation.left_rotation[0] floa
 execute store result storage timber:anim xl.transformation.left_rotation[3] float 0.0001 run scoreboard players get #hc timber.data
 scoreboard players set #oy timber.data 0
 scoreboard players set #oz timber.data 0
-# a tree hanging over its chopped log is still a block (then 0.7) above the controller
-execute if entity @s[tag=timber.hang] if score @s timber.ph matches 0 if score @s timber.t matches ..2 positioned ~ ~1 ~ run return run function timber:anim/xf/rings
-execute if entity @s[tag=timber.hang] if score @s timber.ph matches 0 if score @s timber.t matches 3 positioned ~ ~0.7 ~ run return run function timber:anim/xf/rings
 function timber:anim/xf/rings

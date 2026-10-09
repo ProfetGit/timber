@@ -39,3 +39,5 @@ scoreboard objectives remove timber.lz
 scoreboard objectives remove timber.kn
 scoreboard objectives remove timber.kt
 scoreboard objectives remove timber.yr
+scoreboard objectives remove timber.fd
+scoreboard objectives remove timber.ft

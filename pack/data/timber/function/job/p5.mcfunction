@@ -24,6 +24,9 @@ scoreboard players operation #lz timber.data *= #-1 timber.data
 scoreboard players operation #py timber.data = #by timber.data
 scoreboard players operation #py timber.data *= #1000 timber.data
 scoreboard players add #py timber.data 2
+scoreboard players operation #gm timber.data = #gap timber.data
+scoreboard players operation #gm timber.data *= #1000 timber.data
+scoreboard players operation #py timber.data -= #gm timber.data
 scoreboard players operation #h timber.data = #ymax timber.data
 scoreboard players operation #h timber.data -= #by timber.data
 scoreboard players add #h timber.data 1

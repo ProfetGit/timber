@@ -7,7 +7,6 @@ execute store result score #wz timber.data run data get storage timber:op recs[0
 scoreboard players operation #wx timber.data -= #px timber.data
 scoreboard players operation #wy timber.data -= #py timber.data
 scoreboard players operation #wz timber.data -= #pz timber.data
-scoreboard players operation #wy timber.data -= #hang timber.data
 scoreboard players operation #k timber.data = #wy timber.data
 scoreboard players add #k timber.data 500
 scoreboard players operation #k timber.data /= #1000 timber.data
@@ -38,8 +37,7 @@ function timber:compat/block_state
 data modify storage timber:op d.Tags[2] set value "timber.lg"
 execute if data storage timber:op recs[0].l run data modify storage timber:op d.Tags[2] set value "timber.lf"
 execute unless data storage timber:op recs[0].l run scoreboard players operation #km timber.data > #k timber.data
-execute if score #hang timber.data matches 0 unless data storage timber:op recs[0].h summon block_display run function timber:disp/init
-execute if score #hang timber.data matches 1000 unless data storage timber:op recs[0].h positioned ~ ~1 ~ summon block_display run function timber:disp/init
+execute unless data storage timber:op recs[0].h summon block_display run function timber:disp/init
 scoreboard players set #an timber.data 0
 execute if score #wx timber.data = #awx timber.data if score #wy timber.data = #awy timber.data if score #wz timber.data = #awz timber.data run scoreboard players set #an timber.data 1
 execute if score #an timber.data matches 0 unless data storage timber:op recs[0].h unless data storage timber:op d.block_state{Name:"minecraft:air"} run data modify storage timber:op put append from storage timber:op recs[0]

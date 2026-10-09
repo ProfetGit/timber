@@ -39,3 +39,5 @@ scoreboard objectives add timber.lz dummy
 scoreboard objectives add timber.kn dummy
 scoreboard objectives add timber.kt dummy
 scoreboard objectives add timber.yr dummy
+scoreboard objectives add timber.fd dummy
+scoreboard objectives add timber.ft dummy
