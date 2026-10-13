@@ -7,3 +7,16 @@ execute as @a[scores={timber.m.dark_oak=1..}] at @s run function timber:mined {t
 execute as @a[scores={timber.m.mangrove=1..}] at @s run function timber:mined {t:"mangrove"}
 execute as @a[scores={timber.m.cherry=1..}] at @s run function timber:mined {t:"cherry"}
 execute as @a[scores={timber.m.pale_oak=1..}] at @s run function timber:mined {t:"pale_oak"}
+execute as @a[scores={timber.m.biomesoplenty_dead=1..}] at @s run function timber:mined {t:"biomesoplenty_dead"}
+execute as @a[scores={timber.m.biomesoplenty_empyreal=1..}] at @s run function timber:mined {t:"biomesoplenty_empyreal"}
+execute as @a[scores={timber.m.biomesoplenty_fir=1..}] at @s run function timber:mined {t:"biomesoplenty_fir"}
+execute as @a[scores={timber.m.biomesoplenty_hellbark=1..}] at @s run function timber:mined {t:"biomesoplenty_hellbark"}
+execute as @a[scores={timber.m.biomesoplenty_jacaranda=1..}] at @s run function timber:mined {t:"biomesoplenty_jacaranda"}
+execute as @a[scores={timber.m.biomesoplenty_magic=1..}] at @s run function timber:mined {t:"biomesoplenty_magic"}
+execute as @a[scores={timber.m.biomesoplenty_mahogany=1..}] at @s run function timber:mined {t:"biomesoplenty_mahogany"}
+execute as @a[scores={timber.m.biomesoplenty_origin_oak=1..}] at @s run function timber:mined {t:"biomesoplenty_origin_oak"}
+execute as @a[scores={timber.m.biomesoplenty_palm=1..}] at @s run function timber:mined {t:"biomesoplenty_palm"}
+execute as @a[scores={timber.m.biomesoplenty_pine=1..}] at @s run function timber:mined {t:"biomesoplenty_pine"}
+execute as @a[scores={timber.m.biomesoplenty_redwood=1..}] at @s run function timber:mined {t:"biomesoplenty_redwood"}
+execute as @a[scores={timber.m.biomesoplenty_umbran=1..}] at @s run function timber:mined {t:"biomesoplenty_umbran"}
+execute as @a[scores={timber.m.biomesoplenty_willow=1..}] at @s run function timber:mined {t:"biomesoplenty_willow"}

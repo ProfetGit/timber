@@ -9,6 +9,61 @@
     "minecraft:mangrove_log",
     "minecraft:cherry_log",
     "minecraft:pale_oak_log",
-    {"id": "minecraft:poplar_log", "required": false}
+    {
+      "id": "minecraft:poplar_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:dead_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:empyreal_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:fir_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:hellbark_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:jacaranda_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:magic_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:mahogany_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:origin_oak_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:palm_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:pine_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:redwood_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:umbran_log",
+      "required": false
+    },
+    {
+      "id": "biomesoplenty:willow_log",
+      "required": false
+    }
   ]
 }

@@ -7,4 +7,17 @@ scoreboard players reset @s timber.m.dark_oak
 scoreboard players reset @s timber.m.mangrove
 scoreboard players reset @s timber.m.cherry
 scoreboard players reset @s timber.m.pale_oak
+scoreboard players reset @s timber.m.biomesoplenty_dead
+scoreboard players reset @s timber.m.biomesoplenty_empyreal
+scoreboard players reset @s timber.m.biomesoplenty_fir
+scoreboard players reset @s timber.m.biomesoplenty_hellbark
+scoreboard players reset @s timber.m.biomesoplenty_jacaranda
+scoreboard players reset @s timber.m.biomesoplenty_magic
+scoreboard players reset @s timber.m.biomesoplenty_mahogany
+scoreboard players reset @s timber.m.biomesoplenty_origin_oak
+scoreboard players reset @s timber.m.biomesoplenty_palm
+scoreboard players reset @s timber.m.biomesoplenty_pine
+scoreboard players reset @s timber.m.biomesoplenty_redwood
+scoreboard players reset @s timber.m.biomesoplenty_umbran
+scoreboard players reset @s timber.m.biomesoplenty_willow
 function timber:compat/extra_reset

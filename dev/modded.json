@@ -1,0 +1,67 @@
+[
+  {
+    "log": "biomesoplenty:dead_log",
+    "leaf": "biomesoplenty:dead_leaves",
+    "wood": "biomesoplenty:dead_wood"
+  },
+  {
+    "log": "biomesoplenty:empyreal_log",
+    "leaf": "biomesoplenty:empyreal_leaves",
+    "wood": "biomesoplenty:empyreal_wood"
+  },
+  {
+    "log": "biomesoplenty:fir_log",
+    "leaf": "biomesoplenty:fir_leaves",
+    "wood": "biomesoplenty:fir_wood"
+  },
+  {
+    "log": "biomesoplenty:hellbark_log",
+    "leaf": "biomesoplenty:hellbark_leaves",
+    "wood": "biomesoplenty:hellbark_wood"
+  },
+  {
+    "log": "biomesoplenty:jacaranda_log",
+    "leaf": "biomesoplenty:jacaranda_leaves",
+    "wood": "biomesoplenty:jacaranda_wood"
+  },
+  {
+    "log": "biomesoplenty:magic_log",
+    "leaf": "biomesoplenty:magic_leaves",
+    "wood": "biomesoplenty:magic_wood"
+  },
+  {
+    "log": "biomesoplenty:mahogany_log",
+    "leaf": "biomesoplenty:mahogany_leaves",
+    "wood": "biomesoplenty:mahogany_wood"
+  },
+  {
+    "log": "biomesoplenty:origin_oak_log",
+    "leaf": "biomesoplenty:origin_oak_leaves",
+    "wood": "biomesoplenty:origin_oak_wood"
+  },
+  {
+    "log": "biomesoplenty:palm_log",
+    "leaf": "biomesoplenty:palm_leaves",
+    "wood": "biomesoplenty:palm_wood"
+  },
+  {
+    "log": "biomesoplenty:pine_log",
+    "leaf": "biomesoplenty:pine_leaves",
+    "wood": "biomesoplenty:pine_wood"
+  },
+  {
+    "log": "biomesoplenty:redwood_log",
+    "leaf": "biomesoplenty:redwood_leaves",
+    "wood": "biomesoplenty:redwood_wood"
+  },
+  {
+    "log": "biomesoplenty:umbran_log",
+    "leaf": "biomesoplenty:umbran_leaves",
+    "wood": "biomesoplenty:umbran_wood"
+  },
+  {
+    "log": "biomesoplenty:willow_log",
+    "leaf": "biomesoplenty:willow_leaves",
+    "wood": "biomesoplenty:willow_wood"
+  }
+]

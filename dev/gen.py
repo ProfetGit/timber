@@ -3,7 +3,10 @@
 
 Run after editing the lists below; the hand-written functions call into these files.
 """
+import json
 import math
+import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -22,6 +25,28 @@ OBJECTIVES = ["off", "config", "data", "job", "x", "y", "z", "lab", "ph", "e", "
               # squash per group (x1000), lowest and highest ring, crown ring
               "qs", "xl", "bn", "bv", "bl", "pv", "wv", "gx", "gy", "gz", "lx", "lz", "kn", "kt", "yr"]
 
+# modded species: dev/modded.json is a list of {"log": "ns:x_log", "leaf": "ns:x_leaves", "wood": "ns:x_wood" (optional),
+# "slug": "short_name" (optional), "particle": "item for the falling-leaf effect" (optional)}; see dev/scan_jar.py
+STAND_IN_WOOD = "minecraft:oak_wood"  # visited marker for a species without an all-bark wood block
+
+
+def load_modded() -> list[dict]:
+    f = Path(__file__).resolve().parent / "modded.json"
+    if not f.exists():
+        return []
+    out, seen = [], set()
+    for e in json.loads(f.read_text()):
+        if e["log"] in seen:
+            continue
+        seen.add(e["log"])
+        slug = e.get("slug") or re.sub(r"[^a-z0-9_]", "_", e["log"].replace(":", "_").lower().removesuffix("_log"))
+        out.append({"t": slug, "log": e["log"], "wood": e.get("wood") or STAND_IN_WOOD, "leaf": e["leaf"],
+                    "particle": e.get("particle")})
+    return out
+
+
+MODDED = load_modded()
+
 SIX = {"px": (1, 0, 0), "nx": (-1, 0, 0), "py": (0, 1, 0), "ny": (0, -1, 0), "pz": (0, 0, 1), "nz": (0, 0, -1)}
 AXIS_SCORE = {0: "#cx", 1: "#cy", 2: "#cz"}
 
@@ -39,24 +64,31 @@ def at(d: tuple[int, int, int]) -> str:
     return " ".join(rel(v) for v in d)
 
 
-def type_lines(types: list[str]) -> dict[str, list[str]]:
-    load = [f"scoreboard objectives add timber.m.{t} minecraft.mined:minecraft.{t}_log" for t in types]
-    load += [f'data modify storage timber:types {t} set value {{t:"{t}",log:"minecraft:{t}_log",'
-             f'wood:"minecraft:{t}_wood",leaf:"minecraft:{LEAF_HINT.get(t, t)}_leaves"}}' for t in types]
-    tick = [f'execute as @a[scores={{timber.m.{t}=1..}}] at @s run function timber:mined {{t:"{t}"}}' for t in types]
-    reset = [f"scoreboard players reset @s timber.m.{t}" for t in types]
-    uninstall = [f"scoreboard objectives remove timber.m.{t}" for t in types]
-    uninstall += [f"data remove storage timber:types {t}" for t in types]
+def vanilla_species(types: list[str]) -> list[dict]:
+    return [{"t": t, "log": f"minecraft:{t}_log", "wood": f"minecraft:{t}_wood",
+             "leaf": f"minecraft:{LEAF_HINT.get(t, t)}_leaves"} for t in types]
+
+
+def type_lines(species: list[dict]) -> dict[str, list[str]]:
+    def crit(sp):
+        return sp["log"].replace(":", ".")
+    load = [f"scoreboard objectives add timber.m.{sp['t']} minecraft.mined:{crit(sp)}" for sp in species]
+    load += [f'data modify storage timber:types {sp["t"]} set value {{t:"{sp["t"]}",log:"{sp["log"]}",'
+             f'wood:"{sp["wood"]}",leaf:"{sp["leaf"]}"}}' for sp in species]
+    tick = [f'execute as @a[scores={{timber.m.{sp["t"]}=1..}}] at @s run function timber:mined {{t:"{sp["t"]}"}}' for sp in species]
+    reset = [f"scoreboard players reset @s timber.m.{sp['t']}" for sp in species]
+    uninstall = [f"scoreboard objectives remove timber.m.{sp['t']}" for sp in species]
+    uninstall += [f"data remove storage timber:types {sp['t']}" for sp in species]
     return {"load": load, "tick": tick, "reset": reset, "uninstall": uninstall}
 
 
 def gen_types() -> None:
-    base = type_lines(TYPES)
+    base = type_lines(vanilla_species(TYPES) + MODDED)
     write(BASE / "load/types.mcfunction", base["load"])
     write(BASE / "tick/mined.mcfunction", base["tick"])
     write(BASE / "player/reset_stats.mcfunction", base["reset"] + ["function timber:compat/extra_reset"])
     write(BASE / "uninstall/types.mcfunction", base["uninstall"])
-    extra = type_lines(TYPES_26_3)
+    extra = type_lines(vanilla_species(TYPES_26_3))
     write(BASE / "compat/extra_load.mcfunction", ["return 0"])
     write(BASE / "compat/extra_tick.mcfunction", ["return 0"])
     write(BASE / "compat/extra_reset.mcfunction", ["return 0"])
@@ -159,11 +191,34 @@ def gen_decor() -> None:
 
 
 def gen_leaf_chain() -> None:
+    mod_leaves = list(dict.fromkeys(sp["leaf"] for sp in MODDED))
+
     def chain(names: list[str]) -> list[str]:
-        return [f'execute if block ~ ~ ~ minecraft:{n}_leaves run return run data modify storage timber:op recs[-1].n set value "minecraft:{n}_leaves"'
-                for n in names] + ['data modify storage timber:op recs[-1].n set value "minecraft:oak_leaves"']
+        return ([f'execute if block ~ ~ ~ minecraft:{n}_leaves run return run data modify storage timber:op recs[-1].n set value "minecraft:{n}_leaves"'
+                 for n in names]
+                + [f'execute if block ~ ~ ~ {n} run return run data modify storage timber:op recs[-1].n set value "{n}"'
+                   for n in mod_leaves]
+                + ['data modify storage timber:op recs[-1].n set value "minecraft:oak_leaves"'])
     write(BASE / "rec/leaf_chain.mcfunction", chain(LEAVES))
     write(OVER / "rec/leaf_chain.mcfunction", chain(LEAVES + LEAVES_26_3))
+
+
+def gen_modded() -> None:
+    """Modded logs join #timber:logs (placed-log protection), and modded leaves get their own falling-leaf particle."""
+    f = BASE.parent / "tags/block/logs.json"
+    tag = json.loads(f.read_text())
+    have = {v["id"] if isinstance(v, dict) else v for v in tag["values"]}
+    for sp in MODDED:
+        if sp["log"] not in have:
+            tag["values"].append({"id": sp["log"], "required": False})
+    f.write_text(json.dumps(tag, indent=2) + "\n")
+    lines = [f'execute if data storage timber:op {{seen:"{sp["leaf"]}"}} run data modify storage timber:op cd.lp set value "{sp["particle"]}"'
+             for sp in MODDED if sp.get("particle")] or ["return 0"]
+    write(BASE / "compat/modded_fx.mcfunction", lines)
+    hook = BASE / "disp/leaf_fx.mcfunction"
+    text = hook.read_text()
+    if "timber:compat/modded_fx" not in text:
+        hook.write_text(text + "function timber:compat/modded_fx\n")
 
 
 # anticipation: the tree leans back LEAN degrees (eased in and out) over LEAN_T ticks and holds HOLD_T ticks; the fall
@@ -269,8 +324,9 @@ if __name__ == "__main__":
     gen_leaves()
     gen_decor()
     gen_leaf_chain()
+    gen_modded()
     gen_curve()
     gen_lean()
     gen_rings()
     gen_sincos()
-    print("generated")
+    print(f"generated ({len(MODDED)} modded species)")

@@ -7,3 +7,4 @@ execute if data storage timber:op {seen:"minecraft:flowering_azalea_leaves"} run
 execute if data storage timber:op {seen:"minecraft:cherry_leaves"} run data modify storage timber:op cd.lp set value "minecraft:cherry_leaves"
 execute if data storage timber:op {seen:"minecraft:pale_oak_leaves"} run data modify storage timber:op cd.lp set value "minecraft:pale_oak_leaves"
 function timber:compat/leaf_fx
+function timber:compat/modded_fx
