@@ -350,3 +350,18 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
   Not yet seen in open sky (the singleplayer scenes are in a sea-lantern box). Also notice: rest light is per vertex
   for the standing orientation; a ring that turns 90 degrees in place keeps it while restWeight is high (fine for
   sky-lit faces, watch for other dark faces).
+
+## M1 closed (link 9, 0.0.11, 2026-11-03)
+- 0.0.9's culling fix didn't reach the spruce's dark step faces: they are emitted at rest. Proof by A/B (Host client
+  prop `vanilla_timber.restw=0`, a temporary debug override, since removed): with the rest weight forced to 0 the step
+  matched 1.3.6. Cause: `restWeight` fades by the ring axis point's distance from rest only; the stump-end rings of a
+  giant spruce move < 1 block but turn 90 deg, so they kept ground-level AO and light (0.4 of 1.3.6's brightness).
+  Fix: `g.w = min(turned, restWeight)` with `turned = max(0, 1 - |drawn pitch| / 30)`; culled quads always use w = 0
+  (their bake light is the emptied cell's, 0 until the client light engine catches up).
+- mt.py `mp` case `jvm_props` reach the server only; a client prop goes in that client's `"props"`.
+- What's left between the mesh and 1.3.6 on landed trees is PRD 5.5's cardinal shade (vanilla block displays draw flat,
+  `BlockModelFeatureRenderer.putQuad` with tint only). Kept; director review queue 1 asks.
+- Frame-aligned critic sheets: `dev/m1/sheets.py` (rows mesh / 1.3.6 / vanilla client, columns ms after each chop on
+  the shared epoch clock, from `trees.json` `chop_us` and the frames TSVs).
+- Spruce frame p95 1.58 ms on one run at load 17/24 (builder compiling + other sessions), 0.53 ms on the next: judge
+  client frame times only on a quiet machine.
