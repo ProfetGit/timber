@@ -283,6 +283,7 @@ No keybinds.
 | Iris shadow pass or Sodium draws the mesh wrong | SeamlessDisplays and HavingABlast patterns | M6 | `draw: server` per player |
 
 ## 13. Milestones
+2026-11-03: the user narrowed 2.0 to 26.3 Fabric only. M6 and M7 ship that; M5 (other loaders and versions) is a later backport phase, listed after M7. Work already done there: `STATUS.md` M5.
 Each milestone: build green, version bump, installed in the Fabric 26.3 profile, committed.
 
 | | Milestone | Exit check |
@@ -292,9 +293,9 @@ Each milestone: build green, version bump, installed in the Fabric 26.3 profile,
 | M2 | Parity with 1.3.6 | all ported scene groups green on 26.3 Fabric (`base`, `swap`, `gates`, `protection`, `neighbours`, `direction`, `stump`, `landing`, `modes`, `durability`, `robustness`, `trees`, `decor`, `mangroves`, `anim`, `pose`, `fair`, `paleoaks`, `giants`); pose within 0.5° of 1.3.6 (`lab.py compare`); `perf_spruce` chop ≤ 10 ms |
 | M3 | Any tree | scenes `fungi` (crimson, warped), `mushrooms` (red, brown), `custom_type` (a fixture data pack defines a type), `modded_fallback` (a fixture LeavesBlock subclass in the test mod); one biome mod by hand; feel check |
 | M4 | Server-grade | scenes `claims`, `multibreak`, `conflict`, `hooks` (with Enchanted Timber), `migrate` (a world saved with the 1.3.6 jar: placed builds still protected, mid-fall drops returned, old pack disabled), `crash` (kill mid-fall, reload: loot at the stump), `config_reload`; `mp` with 2 vanilla + 1 modded client, 0 kicks |
-| M5 | Loaders and versions | `mt.py Timber full` smoke on 26.3/26.2 Fabric, NeoForge and Forge, 1.21.1 NeoForge and Fabric, 1.20.1 Forge and Fabric; scene subset (`base`, `swap`, `fair`, `anim`, `hooks`) green on 26.3 Fabric, 1.21.1 NeoForge and 1.20.1 Forge; feel check on 1.20.1 |
-| M6 | Render compatibility and performance | render sheet per §9 row passes the critic; `wb img flicker` clean with shaders; every §10 budget measured and met or re-set with the user; user verdict on the named stills |
-| M7 | Release prep | release tier green on every target; README and CurseForge description, changelog, 60 fps WebP clips; the user's go |
+| M6 | Render compatibility and performance (26.3 Fabric only) | render sheet per §9 row passes the critic; `wb img flicker` clean with shaders; every §10 budget measured and met or re-set with the user; user verdict on the named stills |
+| M7 | Release prep (26.3 Fabric only) | release tier green on 26.3 Fabric; README and CurseForge description, changelog, 60 fps WebP clips; the user's go |
+| M5 | Later backport phase, after the 2.0 release: loaders and versions | `mt.py Timber full` smoke on 26.3/26.2 Fabric, NeoForge and Forge, 1.21.1 NeoForge and Fabric, 1.20.1 Forge and Fabric; scene subset (`base`, `swap`, `fair`, `anim`, `hooks`) green on 26.3 Fabric, 1.21.1 NeoForge and 1.20.1 Forge; feel check on 1.20.1 |
 
 Feel check (M1, ~3 minutes, `studio.py play Timber`, a new world near a forest):
 1. Chop an oak, a birch and a giant spruce, then the same in 1.3.6 (`lab.py` clips side by side).
