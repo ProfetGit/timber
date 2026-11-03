@@ -57,6 +57,8 @@ tasks.processResources {
     )
     inputs.properties(props)
     filesMatching("fabric.mod.json") { expand(props) }
+    // the 1.3.6 sampler's trees, for the self-test scenes
+    from(rootProject.file("dev/fixtures/trees")) { into("selftest/trees") }
 }
 
 tasks.named<Jar>("jar") {

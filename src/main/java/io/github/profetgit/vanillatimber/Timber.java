@@ -1,5 +1,6 @@
 package io.github.profetgit.vanillatimber;
 
+import io.github.profetgit.vanillatimber.server.Falls;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ public final class Timber implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        Falls.register();
         LOG.info("Profet's Timber loaded");
     }
 }

@@ -21,9 +21,10 @@ public record FallSpec(int h, double hit, int dur, double amp, int km, double fd
     public static FallSpec derive(int h, double best, int gap, boolean hang, int dr, int km, int rs) {
         double hit = Math.max(best, 6.0);
         int dur = Math.max(10, Math.min(22, h / 2 + 8));
-        double tilt = Math.max(hit - 90, 0);
-        double amp = (hit - tilt) * 0.12 * 7.0 / Math.max(7, h);
-        amp = Math.max(2.0, Math.min(11.0, amp));
+        // centi-degrees with floor division, as the scoreboard did it
+        int hc = (int) Math.round(hit * 100), tilt = Math.max(hc - 9000, 0);
+        int ac = Math.floorDiv(Math.floorDiv((hc - tilt) * 12, 100) * 7, Math.max(7, h));
+        double amp = Math.max(200, Math.min(1100, ac)) / 100.0;
         double fd = gap + (hang ? 1 : 0);
         int ft = Math.min(gap + 1, 8);
         return new FallSpec(h, hit, dur, amp, km, fd, ft, dr, rs);
