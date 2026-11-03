@@ -24,7 +24,12 @@ public final class SelfTest {
     private static final String OUT = System.getProperty("vanilla_timber.selftest");
     private static final String MODE = System.getProperty("vanilla_timber.selftest.mode", "full");
     private static final List<String> RESULTS = new ArrayList<>();
-    private static final ExecutorService WRITER = Executors.newFixedThreadPool(2);
+    // daemon: a writer still busy at shutdown never keeps the JVM alive (the client shutdown watchdog fires at 15 s)
+    private static final ExecutorService WRITER = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "timber-selftest-writer");
+        t.setDaemon(true);
+        return t;
+    });
 
     private static boolean finished;
     private static int titleTicks, ticks;
@@ -114,11 +119,12 @@ public final class SelfTest {
         finished = true;
         WRITER.shutdown();
         try {
-            WRITER.awaitTermination(30, TimeUnit.SECONDS);
+            // every captured frame is on disk before the game quits; hundreds of PNGs take a while on a busy machine
+            if (!WRITER.awaitTermination(5, TimeUnit.MINUTES)) TimberClient.LOG.warn("[selftest] frame writes still running at exit");
         } catch (InterruptedException ignored) {
         }
         String json = String.format("{\"loader\":\"%s\",\"mc\":\"%s\",\"results\":[%s]}%n",
-            "fabric", net.minecraft.SharedConstants.getCurrentVersion().name(), String.join(",", RESULTS));
+            io.github.profetgit.vanillatimber.platform.Platform.get().loader(), net.minecraft.SharedConstants.getCurrentVersion().name(), String.join(",", RESULTS));
         try {
             Files.createDirectories(Path.of(OUT));
             Files.writeString(Path.of(OUT, "results.json"), json);
