@@ -1964,26 +1964,35 @@ final class Parity {
                 plot();
                 if (fungus) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
                 if (grown.isEmpty()) {
-                    // the same random tree for both rows: grow it once, keep its blocks
-                    for (int roll = 0; roll < 4 && grown.isEmpty(); roll++) {
+                    // the same random tree for both rows: the tallest of up to 6 rolls, its blocks kept
+                    Map<BlockPos, BlockState> roll = new HashMap<>();
+                    for (int r = 0; r < 6 && height(grown, stem) < 7; r++) {
+                        if (r > 0) {
+                            plot();
+                            if (fungus) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
+                        }
                         feature(fungus ? kind + "_fungus" : "huge_" + kind + "_mushroom", 0, 0);
                         tick(20);
+                        roll.clear();
                         on(() -> {
                             if (!is(level.getBlockState(p(0, 0, 0)), stem)) return null;
                             for (BlockPos q : BlockPos.betweenClosed(p(-8, 0, -8), p(8, 30, 8))) {
                                 BlockState st = level.getBlockState(q);
-                                if (!st.isAir()) grown.put(q.subtract(p(0, 0, 0)), st);
+                                if (!st.isAir()) roll.put(q.subtract(p(0, 0, 0)), st);
                             }
                             return null;
                         });
+                        if (height(roll, stem) > height(grown, stem)) {
+                            grown.clear();
+                            grown.putAll(roll);
+                        }
                     }
-                } else {
-                    on(() -> {
-                        for (var e : grown.entrySet()) level.setBlock(p(0, 0, 0).offset(e.getKey()), e.getValue(), net.minecraft.world.level.block.Block.UPDATE_CLIENTS | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
-                        return null;
-                    });
-                    tick(5);
-                }
+                    if (!grown.isEmpty() && !grown.equals(roll)) {
+                        plot();
+                        if (fungus) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
+                        paste(grown);
+                    }
+                } else paste(grown);
                 if (grown.isEmpty()) {
                     info("  " + name + ": nothing grew");
                     break;
@@ -1994,12 +2003,21 @@ final class Parity {
                 for (String w : new String[] {at(-12, 0, -19) + " " + at(24, 30, -19), at(-12, 0, 12) + " " + at(24, 30, 12), at(-12, 0, -19) + " " + at(-12, 30, 12),
                     at(24, 0, -19) + " " + at(24, 30, 12), at(-12, 30, -19) + " " + at(24, 30, 12)})
                     cmd("fill " + w + " minecraft:sea_lantern");
+                // the box is too far to light the tree's front: an invisible light plane between it and the camera
+                cmd("fill " + at(-10, 0, -6) + " " + at(22, 22, -6) + " minecraft:light[level=15] replace air");
                 // chop facing +x (the fall goes that way), then turn to the tree from the side
-                cmd("tp " + who() + " " + (cx + 5) + ".5 " + Y + " " + (cz - 17) + ".5 -90 0");
+                int h = height(grown, stem) + (fungus ? 3 : 2), dist = Math.max(9, Math.min(17, h + 4));
+                cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + h / 2.0) + " " + cz);
                 client(MpHost::hideHud);
-                tick(20);
-                destroy(p(0, 0, 0));
-                cmd("tp " + who() + " " + (cx + 5) + ".5 " + Y + " " + (cz - 17) + ".5 facing " + (cx + 5) + " " + (Y + 7) + " " + cz);
+                tick(40);
+                // the scan reads the chopper's yaw: -90 for the break only, so the camera never turns
+                on(() -> {
+                    float yaw = player.getYRot();
+                    player.setYRot(-90);
+                    destroy(p(0, 0, 0));
+                    player.setYRot(yaw);
+                    return null;
+                });
                 int t = 0;
                 for (int a : at) {
                     tick(a - t);
@@ -2012,6 +2030,21 @@ final class Parity {
         }
         tick(10);
         Viewers.test = Viewers.VANILLA;
+    }
+
+    /** Stem cells straight up from the origin in a kept tree. */
+    static int height(Map<BlockPos, BlockState> tree, String stem) {
+        int y = 0;
+        while (tree.containsKey(new BlockPos(0, y, 0)) && is(tree.get(new BlockPos(0, y, 0)), stem)) y++;
+        return y;
+    }
+
+    static void paste(Map<BlockPos, BlockState> tree) {
+        on(() -> {
+            for (var e : tree.entrySet()) level.setBlock(p(0, 0, 0).offset(e.getKey()), e.getValue(), net.minecraft.world.level.block.Block.UPDATE_CLIENTS | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+            return null;
+        });
+        tick(5);
     }
 
     static void client(java.util.function.Consumer<net.minecraft.client.Minecraft> task) {
