@@ -1,6 +1,6 @@
 # Profet's Timber 2.0 — PRD
 
-Status: draft (2026-11-03). Mod id `vanilla_timber`, package `io.github.profetgit.vanilla_timber`. Tracker: `STATUS.md`.
+Status: draft (2026-11-03). Mod id `vanilla_timber`, package `io.github.profetgit.vanillatimber`. Tracker: `STATUS.md`.
 Replaces the data pack in `packs/Timber` (1.3.6, frozen). That folder's `CLAUDE.md` documents the 1.3.x pipeline this
 port follows; `dev/gen.py` there holds the curve formulas.
 
