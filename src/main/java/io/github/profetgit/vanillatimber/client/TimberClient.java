@@ -12,12 +12,17 @@ import org.slf4j.LoggerFactory;
 /** Client entry: says Hello on join, then draws every TreeFall itself (the server hides its displays from us). */
 public final class TimberClient implements ClientModInitializer {
     public static final Logger LOG = LoggerFactory.getLogger("Profet's Timber");
+    /**
+     * PRD 5.5 {@code draw}: "server" sends no Hello, so the server shows this player its displays like a vanilla
+     * client's. A JVM property until the client config lands (M2).
+     */
+    public static final boolean DRAW_LOCAL = !"server".equals(System.getProperty("vanilla_timber.draw"));
 
     @Override
     public void onInitializeClient() {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ClientFalls.clear();
-            if (ClientPlayNetworking.canSend(Hello.TYPE)) ClientPlayNetworking.send(new Hello(Hello.VERSION));
+            if (DRAW_LOCAL && ClientPlayNetworking.canSend(Hello.TYPE)) ClientPlayNetworking.send(new Hello(Hello.VERSION));
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientFalls.clear());
         ClientPlayNetworking.registerGlobalReceiver(TreeFall.TYPE, (payload, ctx) -> {

@@ -1,6 +1,7 @@
 package io.github.profetgit.vanillatimber.selftest;
 
 import io.github.profetgit.vanillatimber.client.ClientFalls;
+import io.github.profetgit.vanillatimber.client.TimberClient;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -72,6 +73,15 @@ final class MpHost {
         return s;
     }
 
+    /** Block displays this client has within the fixture's box at x. */
+    static int displays(Minecraft mc, int x) {
+        int n = 0;
+        for (var e : mc.level.entitiesForRendering()) {
+            if (e instanceof net.minecraft.world.entity.Display.BlockDisplay && e.getX() > x - 12 && e.getX() < x + 30) n++;
+        }
+        return n;
+    }
+
     static void hideHud(Minecraft mc) {
         try {
             java.lang.reflect.Field f = mc.gui.hud.getClass().getDeclaredField("isHidden");
@@ -129,12 +139,25 @@ final class MpHost {
                 chop[0] = nowMicros();
                 mc.gameMode.startDestroyBlock(new BlockPos(x, -60, 8), Direction.WEST);
             })
-            .until("mp " + name + " payload", 200, mc -> ClientFalls.last != null)
-            .until("mp " + name + " fall to end", 900, mc -> ClientFalls.active() == 0)
+            .until("mp " + name + " payload", 200, mc -> TimberClient.DRAW_LOCAL ? ClientFalls.last != null : displays(mc, x) > 0)
+            .until("mp " + name + " fall to end", 900, mc -> TimberClient.DRAW_LOCAL ? ClientFalls.active() == 0 : displays(mc, x) == 0)
             .waitTicks(30)
             .run(mc -> {
                 SelfTest.frameHook = null;
                 if (probe) cmd(mc, "tellraw Guest \"[probe] stop\"");
+                if (!TimberClient.DRAW_LOCAL) {
+                    // draw: server, this client draws the server's displays (the A/B against the mesh): frames only
+                    TREES.put(name, String.format(Locale.ROOT, "{\"draw\":\"server\",\"x\":%d,\"chop_us\":%d}", x, chop[0]));
+                    StringBuilder cf = new StringBuilder("frame\twall_us\n");
+                    for (long[] r : captured) cf.append(r[0]).append('\t').append(r[1]).append('\n');
+                    try {
+                        Files.writeString(Path.of(System.getProperty("vanilla_timber.selftest"), "frames_" + name + ".tsv"), cf);
+                    } catch (IOException e) {
+                        SelfTest.record("mp " + name + " tsv", false, e.toString());
+                    }
+                    SelfTest.record("mp " + name + " displays drawn", true, captured.size() + " frames captured");
+                    return;
+                }
                 var tl = ClientFalls.timeline();
                 double hit = tl.spec.hit();
                 double max = frames.stream().mapToDouble(r -> r[2]).max().orElse(Double.NaN);

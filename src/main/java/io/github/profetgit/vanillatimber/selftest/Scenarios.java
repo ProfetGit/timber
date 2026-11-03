@@ -384,9 +384,11 @@ final class Scenarios {
                             drift, tm - t0, shift));
                     SelfTest.record("sync " + f.name + " geometry", both > 0 && maxGeo <= 0.02, String.format(java.util.Locale.ROOT,
                         "max heading-for gap %.4f blocks at t+%.2f over %d frames", maxGeo, geoAt - t0, both));
-                    // the mesh keeps the average client's clock, not this client's tick phase (MeshFall.LAG): within half a tick
+                    // the mesh keeps the average client's clock, not this client's tick phase (MeshFall.LAG): the phase puts
+                    // this client's displays anywhere in +-0.5 tick of it, fixed for a run at a steady frame rate, and the
+                    // arrival estimate (half the frame interval) adds frame jitter on top: 0.6 still catches a whole tick
                     double medOff = percentile(offsets, 0.5);
-                    SelfTest.record("sync " + f.name + " clock offset", !offsets.isEmpty() && medOff <= 0.5, String.format(java.util.Locale.ROOT,
+                    SelfTest.record("sync " + f.name + " clock offset", !offsets.isEmpty() && medOff <= 0.6, String.format(java.util.Locale.ROOT,
                         "|displays - mesh| drawing time median %.2f p95 %.2f ticks over %d frames", medOff, percentile(offsets, 0.95), offsets.size()));
                     SelfTest.record("sync " + f.name + " as drawn", true, String.format(java.util.Locale.ROOT,
                         "display-to-mesh centre gap p50 %.3f p95 %.3f max %.3f blocks (vanilla interpolation trails, see Scenarios.sync)",
