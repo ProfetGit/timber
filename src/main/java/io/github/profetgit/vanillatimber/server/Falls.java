@@ -25,6 +25,7 @@ public final class Falls {
     public static volatile Tree last;
     public static volatile Fall lastFall;
     private static final Map<ServerLevel, List<Fall>> ACTIVE = new IdentityHashMap<>();
+    private static int nextId;
 
     private Falls() {}
 
@@ -51,7 +52,7 @@ public final class Falls {
         if (tree == null) return;
         last = tree;
         if (!wear(level, player, tree.logs())) return;
-        Fall fall = new Fall(level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
+        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
         lastFall = fall;
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());

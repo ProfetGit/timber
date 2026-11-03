@@ -4,6 +4,7 @@
   "package": "io.github.profetgit.vanillatimber.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "LevelRendererMixin",
     "MinecraftMixin"
   ],
   "injectors": {

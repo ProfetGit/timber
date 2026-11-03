@@ -64,7 +64,12 @@ public final class SelfTest {
         if (index >= steps.size()) finish(mc);
     }
 
+    /** Called once per rendered frame, after the frame (scenes that sample what was drawn), or null. */
+    static volatile java.util.function.Consumer<Minecraft> frameHook;
+
     public static void onFrame(Minecraft mc) {
+        var hook = frameHook;
+        if (hook != null) hook.accept(mc);
         if (captureLeft <= 0) return;
         Path out = Path.of(OUT, "frames", captureName, String.format("f%03d.png", captureFrame++));
         captureLeft--;

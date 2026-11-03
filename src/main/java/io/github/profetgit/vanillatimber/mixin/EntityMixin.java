@@ -19,6 +19,6 @@ abstract class EntityMixin {
 
     @Inject(method = "broadcastToPlayer", at = @At("HEAD"), cancellable = true)
     private void timber$hide(ServerPlayer player, CallbackInfoReturnable<Boolean> cir) {
-        if (Displays.ours((Entity) (Object) this) && Viewers.local(player)) cir.setReturnValue(false);
+        if (Displays.ours((Entity) (Object) this) && Viewers.hidden(player)) cir.setReturnValue(false);
     }
 }

@@ -4,8 +4,12 @@ import com.mojang.math.Transformation;
 import io.github.profetgit.vanillatimber.core.Layout;
 import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.core.Timeline;
+import io.github.profetgit.vanillatimber.net.TreeFall;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.server.level.ServerLevel;
@@ -55,12 +59,16 @@ public final class Fall {
     private double sentRes, lastY = Double.NaN;
     private float lastRot = Float.NaN;
     private boolean spawned;
-    public int n = -1, rolled, dropped;
+    private final Set<UUID> sentTo = new HashSet<>();
+    private TreeFall payload;
+    public final int id;
+    public int n = -1, rolled, dropped, payloads;
     /** Called after every frame (self-test probes), or null. */
     public static volatile java.util.function.Consumer<Fall> probe;
 
     @SuppressWarnings("unchecked")
-    Fall(ServerLevel level, Tree tree, ServerPlayer cutter, boolean drops) {
+    Fall(int id, ServerLevel level, Tree tree, ServerPlayer cutter, boolean drops) {
+        this.id = id;
         this.level = level;
         this.tree = tree;
         this.cutter = cutter;
@@ -114,6 +122,7 @@ public final class Fall {
         } else if (n == 1) {
             for (Tree.Part p : tree.parts()) if (!p.pos().equals(tree.anchor())) remove(p.pos(), p.state());
         }
+        send();
         if (!spawned && vanillaViewer()) spawn();
         pops();
         if (n == tl.leavesGone) {
@@ -145,8 +154,22 @@ public final class Fall {
     }
 
     private boolean vanillaViewer() {
-        for (ServerPlayer p : level.getChunkSource().chunkMap.getPlayers(chunk, false)) if (!Viewers.local(p)) return true;
+        for (ServerPlayer p : level.getChunkSource().chunkMap.getPlayers(chunk, false)) if (!Viewers.hidden(p)) return true;
         return false;
+    }
+
+    /**
+     * The payload to every modded player with the tree's chunk loaded, once: at frame 0 it leaves before this tick's block
+     * and entity packets; a player who comes into range later gets it with the frames already played.
+     */
+    private void send() {
+        for (ServerPlayer p : level.getChunkSource().chunkMap.getPlayers(chunk, false)) {
+            if (!Viewers.local(p) || sentTo.contains(p.getUUID()) || !TreeFall.canSend(p)) continue;
+            sentTo.add(p.getUUID());
+            if (payload == null || payload.e() != n) payload = TreeFall.of(id, tree, n);
+            payload.send(p);
+            payloads++;
+        }
     }
 
     /** Displays for every block (logs first, up to the cap), at rest on frame 0, at the current pose after that. */

@@ -43,6 +43,8 @@ final class Scenarios {
         if (only.equals("all") || only.contains("smoke")) smoke(s);
         if (only.equals("all") || only.contains("scan")) scan(s);
         if (only.equals("all") || only.contains("fall")) fall(s);
+        if (only.equals("all") || only.contains("mesh")) mesh(s);
+        if (only.equals("all") || only.contains("sync")) sync(s);
         return s;
     }
 
@@ -122,6 +124,253 @@ final class Scenarios {
         }
     }
 
+    /** Sea-lantern walls and ceiling around a fixture's box (the self-test world is solid, so its boxes are dark). */
+    static void light(MinecraftServer server, int x) {
+        CommandSourceStack root = server.createCommandSourceStack().withSuppressedOutput();
+        String[] walls = {(x - 9) + " -60 -13 " + (x - 9) + " -30 29", (x + 28) + " -60 -13 " + (x + 28) + " -30 29",
+            (x - 9) + " -60 -13 " + (x + 28) + " -30 -13", (x - 9) + " -60 29 " + (x + 28) + " -30 29",
+            (x - 9) + " -29 -13 " + (x + 28) + " -29 29"};
+        for (String w : walls) server.getCommands().performPrefixedCommand(root, "fill " + w + " minecraft:sea_lantern");
+    }
+
+    static int clientDisplays(net.minecraft.client.Minecraft mc) {
+        int c = 0;
+        for (var e : mc.level.entitiesForRendering()) if (e instanceof Display.BlockDisplay) c++;
+        return c;
+    }
+
+    static double percentile(List<Double> v, double q) {
+        if (v.isEmpty()) return Double.NaN;
+        List<Double> s = new ArrayList<>(v);
+        Collections.sort(s);
+        return s.get(Math.min(s.size() - 1, (int) Math.floor(q * (s.size() - 1) + 0.5)));
+    }
+
+    /**
+     * A modded viewer (this client said Hello): the server sends the payload and no displays, the client builds the same
+     * timeline and draws the mesh until the displays would have gone. Frames for the flicker check; render time per frame.
+     */
+    private static void mesh(Script s) {
+        s.waitTicks(40).server(server -> server.getCommands().performPrefixedCommand(
+            server.createCommandSourceStack().withSuppressedOutput(), "forceload add -16 -16 160 32"));
+        s.check("mesh hello reached the server", mc -> {
+            ServerPlayer p = mc.getSingleplayerServer().getPlayerList().getPlayers().getFirst();
+            return io.github.profetgit.vanillatimber.server.Viewers.local(p) ? null : "no Hello from " + p.getName().getString();
+        });
+        for (Fix f : FIXES) {
+            int x = 8 + f.dx;
+            List<double[]> frames = Collections.synchronizedList(new ArrayList<>());
+            List<Double> ms = Collections.synchronizedList(new ArrayList<>());
+            int[] serverDisplays = {0}, clientMax = {0}, end = {-1};
+            s.server(server -> {
+                Falls.lastFall = null;
+                plant(server, f.file, x);
+                light(server, x);
+                CommandSourceStack root = server.createCommandSourceStack().withSuppressedOutput();
+                server.getCommands().performPrefixedCommand(root, "kill @e[type=item]");
+                server.getCommands().performPrefixedCommand(root, "tp @p " + (x - 4.5) + " -60 21.8 facing " + (x + 3) + " -55 10");
+            })
+                .waitTicks(30)
+                .run(mc -> {
+                    io.github.profetgit.vanillatimber.client.ClientFalls.last = null;
+                    io.github.profetgit.vanillatimber.client.ClientFalls.spent = 0;
+                    SelfTest.frameHook = m -> {
+                        double p = io.github.profetgit.vanillatimber.client.ClientFalls.drawnPitch();
+                        long ns = io.github.profetgit.vanillatimber.client.ClientFalls.spent;
+                        io.github.profetgit.vanillatimber.client.ClientFalls.spent = 0;
+                        if (!Double.isNaN(p)) {
+                            frames.add(new double[] {io.github.profetgit.vanillatimber.client.ClientFalls.now(), p,
+                                io.github.profetgit.vanillatimber.client.ClientFalls.drawnTau()});
+                            ms.add(ns / 1e6);
+                        }
+                        clientMax[0] = Math.max(clientMax[0], clientDisplays(m));
+                    };
+                })
+                .capture("mesh_" + f.name, 240)
+                .server(server -> {
+                    Fall.probe = fl -> {
+                        serverDisplays[0] = Math.max(serverDisplays[0], fl.displays());
+                        end[0] = fl.n >= fl.tl.end ? fl.n : -1;
+                    };
+                    chop(server, x);
+                })
+                .until("mesh " + f.name + " payload", 100, mc -> io.github.profetgit.vanillatimber.client.ClientFalls.last != null)
+                .check("mesh " + f.name + " payload", mc -> {
+                    var msg = io.github.profetgit.vanillatimber.client.ClientFalls.last;
+                    Fall fl = Falls.lastFall;
+                    if (fl == null) return "no fall on the server";
+                    long solid = fl.tree.parts().stream().filter(p -> !p.state().isAir()).count();
+                    return msg.blocks() == solid && msg.e() == 0 && msg.id() == fl.id ? null
+                        : msg.blocks() + " blocks (server " + solid + "), e " + msg.e() + ", id " + msg.id() + " vs " + fl.id;
+                })
+                .check("mesh " + f.name + " same timeline", mc -> {
+                    var a = io.github.profetgit.vanillatimber.client.ClientFalls.timeline();
+                    var b = Falls.lastFall.tl;
+                    if (a == null) return "no client fall";
+                    if (a.end != b.end || a.leavesGone != b.leavesGone || !java.util.Arrays.equals(a.popTick, b.popTick)) {
+                        return "end " + a.end + "/" + b.end + " leaves " + a.leavesGone + "/" + b.leavesGone;
+                    }
+                    for (int i = 0; i <= a.end; i++) {
+                        if (a.p[i] != b.p[i] || a.bn[i] != b.bn[i] || a.gy[i] != b.gy[i] || a.dy[i] != b.dy[i]) return "frame " + i + " differs";
+                    }
+                    return null;
+                })
+                .check("mesh " + f.name + " baked", mc -> io.github.profetgit.vanillatimber.client.ClientFalls.quads() > 0 ? null : "no quads")
+                .until("mesh " + f.name + " to finish", 600, mc -> end[0] >= 0)
+                .waitTicks(30)
+                .run(mc -> SelfTest.frameHook = null)
+                .server(server -> Fall.probe = null)
+                .check("mesh " + f.name + " no displays", mc -> serverDisplays[0] == 0 && clientMax[0] == 0 ? null
+                    : "server spawned " + serverDisplays[0] + ", client saw " + clientMax[0])
+                .check("mesh " + f.name + " drawn to the slam", mc -> {
+                    double max = frames.stream().mapToDouble(r -> r[1]).max().orElse(Double.NaN);
+                    double hit = Falls.lastFall.tl.spec.hit();
+                    return max >= hit - 0.5 ? null : "max pitch " + max + ", hit " + hit + ", " + frames.size() + " frames";
+                })
+                .check("mesh " + f.name + " gone at the end", mc -> {
+                    double last = frames.isEmpty() ? Double.NaN : frames.getLast()[2];
+                    int e = Falls.lastFall.tl.end;
+                    return io.github.profetgit.vanillatimber.client.ClientFalls.active() == 0 && last < e - 1 && last >= e - 2.2 ? null
+                        : "active " + io.github.profetgit.vanillatimber.client.ClientFalls.active() + ", last drawn tau " + last + " (end " + e + ")";
+                })
+                .run(mc -> SelfTest.record("mesh " + f.name + " frame ms", true, String.format(java.util.Locale.ROOT,
+                    "p50 %.3f p95 %.3f max %.3f over %d frames, %d quads, bake %.2f ms", percentile(ms, 0.5), percentile(ms, 0.95),
+                    percentile(ms, 1.0), ms.size(), io.github.profetgit.vanillatimber.client.ClientFalls.quads(),
+                    io.github.profetgit.vanillatimber.client.ClientFalls.bakeNanos / 1e6)));
+        }
+    }
+
+    /** A display's pitch and model matrix exactly as the renderer draws it this frame (DisplayRenderer.submit). */
+    static org.joml.Matrix4f drawn(Display.BlockDisplay d, float pt, double[] pitch) {
+        Display.RenderState rs = d.renderState();
+        if (rs == null) return null;
+        com.mojang.math.Transformation tr = rs.transformation().get(d.calculateInterpolationProgress(pt));
+        Vec3 pos = d.getPosition(pt);
+        float yr = d.getYRot(pt), xr = d.getXRot(pt);
+        org.joml.Quaternionfc l = tr.leftRotation();
+        pitch[0] = xr + Math.toDegrees(2 * Math.atan2(l.x(), l.w()));
+        return new org.joml.Matrix4f().translation((float) pos.x, (float) pos.y, (float) pos.z)
+            .rotateYXZ((float) Math.toRadians(-yr), (float) Math.toRadians(xr), 0).mul(tr.getMatrix());
+    }
+
+    /**
+     * Both drawings in one client (the server sends this modded viewer the displays as well): every frame, the mesh's
+     * pitch against the displays' as drawn, and each display's centre against the nearest mesh block centre. Slam =
+     * first frame at hit - 0.5 degrees on each; the drift between them is the M1 number (PRD 13: within 1 tick).
+     */
+    private static void sync(Script s) {
+        s.waitTicks(40).server(server -> {
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "forceload add -16 -16 160 32");
+            io.github.profetgit.vanillatimber.server.Viewers.test = io.github.profetgit.vanillatimber.server.Viewers.BOTH;
+        });
+        for (Fix f : FIXES) {
+            int x = 8 + f.dx;
+            // per frame: client time, mesh pitch, display pitch (NaN without displays), max centre gap
+            List<double[]> frames = Collections.synchronizedList(new ArrayList<>());
+            int[] end = {-1};
+            s.server(server -> {
+                Falls.lastFall = null;
+                plant(server, f.file, x);
+                light(server, x);
+                CommandSourceStack root = server.createCommandSourceStack().withSuppressedOutput();
+                server.getCommands().performPrefixedCommand(root, "kill @e[type=item]");
+                server.getCommands().performPrefixedCommand(root, "tp @p " + (x - 4.5) + " -60 21.8 facing " + (x + 3) + " -55 10");
+            })
+                .waitTicks(30)
+                .run(mc -> {
+                    io.github.profetgit.vanillatimber.client.ClientFalls.last = null;
+                    double[] mesh = new double[3 * 4096], pitch = new double[1];
+                    org.joml.Vector3f c = new org.joml.Vector3f();
+                    SelfTest.frameHook = m -> {
+                        double mp = io.github.profetgit.vanillatimber.client.ClientFalls.drawnPitch();
+                        if (Double.isNaN(mp)) return;
+                        float pt = m.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+                        int nm = io.github.profetgit.vanillatimber.client.ClientFalls.centres(mesh);
+                        double dp = Double.NaN, gap = 0;
+                        int nd = 0;
+                        for (var e : m.level.entitiesForRendering()) {
+                            if (!(e instanceof Display.BlockDisplay d)) continue;
+                            org.joml.Matrix4f mat = drawn(d, pt, pitch);
+                            if (mat == null) continue;
+                            if (Double.isNaN(dp)) dp = pitch[0];
+                            mat.transformPosition(0.5f, 0.5f, 0.5f, c);
+                            double best = Double.MAX_VALUE;
+                            for (int i = 0; i < nm; i++) {
+                                double dx = mesh[i * 3] - c.x, dy = mesh[i * 3 + 1] - c.y, dz = mesh[i * 3 + 2] - c.z;
+                                best = Math.min(best, dx * dx + dy * dy + dz * dz);
+                            }
+                            if (nm > 0) gap = Math.max(gap, Math.sqrt(best));
+                            nd++;
+                        }
+                        frames.add(new double[] {io.github.profetgit.vanillatimber.client.ClientFalls.now(), mp, dp, nd == 0 ? Double.NaN : gap, nd, nm});
+                    };
+                })
+                .capture("sync_" + f.name, 240)
+                .server(server -> {
+                    Fall.probe = fl -> end[0] = fl.n >= fl.tl.end ? fl.n : -1;
+                    chop(server, x);
+                })
+                .until("sync " + f.name + " to finish", 600, mc -> end[0] >= 0)
+                .waitTicks(30)
+                .run(mc -> SelfTest.frameHook = null)
+                .server(server -> Fall.probe = null)
+                .run(mc -> {
+                    double hit = Falls.lastFall.tl.spec.hit();
+                    double tm = cross(frames, 1, hit - 0.5), td = cross(frames, 2, hit - 0.5);
+                    double drift = td - tm, maxd = 0, maxGap = 0, at = 0, gapAt = 0;
+                    int both = 0;
+                    for (double[] r : frames) {
+                        if (Double.isNaN(r[2])) continue;
+                        both++;
+                        if (Math.abs(r[1] - r[2]) > maxd) {
+                            maxd = Math.abs(r[1] - r[2]);
+                            at = r[0];
+                        }
+                        if (r[3] > maxGap) {
+                            maxGap = r[3];
+                            gapAt = r[0];
+                        }
+                    }
+                    double t0 = frames.isEmpty() ? 0 : frames.getFirst()[0];
+                    SelfTest.record("sync " + f.name + " slam drift", !Double.isNaN(drift) && Math.abs(drift) <= 1.0,
+                        String.format(java.util.Locale.ROOT, "displays %.2f ticks after the mesh (slam at mesh t+%.2f)", drift, tm - t0));
+                    SelfTest.record("sync " + f.name + " pitch", both > 0 && maxd <= 1.5, String.format(java.util.Locale.ROOT,
+                        "max |mesh - displays| %.3f deg at t+%.2f over %d frames with both", maxd, at - t0, both));
+                    SelfTest.record("sync " + f.name + " blocks", both > 0 && maxGap <= 0.25, String.format(java.util.Locale.ROOT,
+                        "max display-to-mesh centre gap %.3f blocks at t+%.2f", maxGap, gapAt - t0));
+                    dump("sync_" + f.name, frames);
+                });
+        }
+        s.server(server -> io.github.profetgit.vanillatimber.server.Viewers.test = 0);
+    }
+
+    /** Client time column 0 at which column {@code col} first reaches {@code v}, linear between frames; NaN if never. */
+    static double cross(List<double[]> frames, int col, double v) {
+        double[] prev = null;
+        for (double[] r : frames) {
+            if (Double.isNaN(r[col])) continue;
+            if (r[col] >= v) {
+                if (prev == null) return r[0];
+                double f = (v - prev[col]) / (r[col] - prev[col]);
+                return prev[0] + (r[0] - prev[0]) * f;
+            }
+            prev = r;
+        }
+        return Double.NaN;
+    }
+
+    static void dump(String name, List<double[]> rows) {
+        StringBuilder sb = new StringBuilder();
+        for (double[] r : rows) {
+            for (int i = 0; i < r.length; i++) sb.append(i == 0 ? "" : "\t").append(String.format(java.util.Locale.ROOT, "%.4f", r[i]));
+            sb.append('\n');
+        }
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("vanilla_timber.selftest"), name + ".tsv"), sb);
+        } catch (java.io.IOException ignored) {
+        }
+    }
+
     static int items(MinecraftServer server, int x) {
         int c = 0;
         AABB box = new AABB(x - 8, -64, -12, x + 28, -20, 29);
@@ -135,8 +384,10 @@ final class Scenarios {
      * drop in the world. Frames are captured from the side for the flicker check.
      */
     private static void fall(Script s) {
-        s.waitTicks(120).server(server -> server.getCommands().performPrefixedCommand(
-            server.createCommandSourceStack().withSuppressedOutput(), "forceload add -16 -16 160 32"));
+        s.waitTicks(120).server(server -> {
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "forceload add -16 -16 160 32");
+            io.github.profetgit.vanillatimber.server.Viewers.test = io.github.profetgit.vanillatimber.server.Viewers.VANILLA;
+        });
         for (Fix f : FIXES) {
             int x = 8 + f.dx;
             List<int[]> frames = Collections.synchronizedList(new ArrayList<>());
@@ -190,6 +441,7 @@ final class Scenarios {
                         "rolled " + a[4] + ", dropped " + a[5] + ", in the world " + got + " (+1 chopped log)");
                 });
         }
+        s.server(server -> io.github.profetgit.vanillatimber.server.Viewers.test = 0);
     }
 
     private static void smoke(Script s) {
