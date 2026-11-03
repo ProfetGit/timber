@@ -162,14 +162,23 @@ public final class TreeScan {
         }
         // a connected crown (fungus hat, mushroom cap) touches its stem only at the top: no per-log ratio
         if (leafCount <= 0 || !connected && leafCount * 8 < owned) return no("build: " + leafCount + " crown faces on " + owned + " logs");
+        // 1.3.6: a crown block 1-2 straight above a top log. A random-spread crown (azalea) misses that cell ~6% of the
+        // time, so a top log inside the crown counts too: crown on 2+ of its four sides or of the four around the cell above
         boolean crown = false;
         for (BlockPos p : ours) {
-            if (p.getY() >= top - 1 && (type.isCrown(level.getBlockState(p.above())) || type.isCrown(level.getBlockState(p.above(2))))) {
-                crown = true;
-                break;
+            if (p.getY() < top - 1) continue;
+            if (type.isCrown(level.getBlockState(p.above())) || type.isCrown(level.getBlockState(p.above(2)))) crown = true;
+            else {
+                int side = 0, over = 0;
+                for (Direction d : Direction.Plane.HORIZONTAL) {
+                    if (type.isCrown(level.getBlockState(p.relative(d)))) side++;
+                    if (type.isCrown(level.getBlockState(p.above().relative(d)))) over++;
+                }
+                crown = side >= 2 || over >= 2;
             }
+            if (crown) break;
         }
-        if (!crown) return no("build: no crown 1-2 above the top");
+        if (!crown) return no("build: no crown over or around the top");
         int oy = origin.getY();
         List<BlockPos> logs = new ArrayList<>();
         List<BlockPos> kept = new ArrayList<>();
@@ -361,13 +370,19 @@ public final class TreeScan {
             }
         }
 
-        /** Natural leaves of distance exactly {@code d} next to {@code from}, then theirs of d + 1, up to 7. */
+        /**
+         * Natural leaves next to {@code from} of distance {@code d} or more, then theirs above their own distance, up to 7.
+         * 1.3.6 took exactly d (vanilla's rule, the same set while distances are settled); a rising chain also takes a
+         * patch whose stored distances are stale (worldgen across a chunk corner leaves a swamp oak's quadrant one too high).
+         */
         void leaves(BlockPos from, int d) {
             if (d > LeavesBlock.DECAY_DISTANCE) return;
             for (Direction dir : FACES) {
                 BlockPos q = from.relative(dir);
                 BlockState s = level.getBlockState(q);
-                if (!natural(s) || !s.hasProperty(LeavesBlock.DISTANCE) || s.getValue(LeavesBlock.DISTANCE) != d) continue;
+                if (!natural(s) || !s.hasProperty(LeavesBlock.DISTANCE)) continue;
+                int dq = s.getValue(LeavesBlock.DISTANCE);
+                if (dq < d) continue;
                 if (blocks >= max || !taken.add(q.asLong())) continue;
                 blocks++;
                 leafCount++;
@@ -376,7 +391,7 @@ public final class TreeScan {
                 around(q);
                 BlockPos up = q.above();
                 if (level.getBlockState(up).is(Blocks.SNOW)) decor(up);
-                leaves(q, d + 1);
+                leaves(q, dq + 1);
             }
         }
 

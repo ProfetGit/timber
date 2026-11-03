@@ -174,9 +174,10 @@ public final class Fall {
         finish(new Vec3(x, y0, z));
     }
 
+    /** Clears a tree cell unless something else stands there now; same block is enough (a leaf's distance or a vine's faces change when the anchor goes). */
     private void remove(BlockPos pos, BlockState expect) {
         BlockState s = level.getBlockState(pos);
-        if (expect != null && s != expect) return;
+        if (expect != null && s.getBlock() != expect.getBlock()) return;
         boolean wet = s.hasProperty(BlockStateProperties.WATERLOGGED) && s.getValue(BlockStateProperties.WATERLOGGED);
         level.setBlock(pos, wet ? Blocks.WATER.defaultBlockState() : Blocks.AIR.defaultBlockState(), STRICT);
     }

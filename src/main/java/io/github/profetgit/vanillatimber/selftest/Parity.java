@@ -528,7 +528,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -582,6 +582,10 @@ final class Parity {
                     case "custom_type" -> customType();
                     case "modded_fallback" -> moddedFallback();
                     case "azaleas" -> azaleas();
+                    case "swamps" -> leafWalk("swamp_oak", 12);
+                    case "jungles" -> leafWalk("jungle_tree", 16);
+                    case "m3sheet" -> m3sheet();
+                    case "azshapes" -> azaleaShapes();
                     default -> { }
                 }
             } catch (Throwable t) {
@@ -1873,7 +1877,7 @@ final class Parity {
     static void azaleas() {
         int ok = 0, total = 0;
         StringBuilder bad = new StringBuilder();
-        for (int k = 0; k < 16; k++) {
+        for (int k = 0; k < 48; k++) {
             plot();
             feature("azalea_tree", 0, 0);
             tick(40);
@@ -1885,9 +1889,195 @@ final class Parity {
             tick(2);
             int left = count(Parity::isLog, 14);
             if (left == 0) ok++;
-            else bad.append(k).append(' ');
+            else bad.append(k).append(" (").append(io.github.profetgit.vanillatimber.server.TreeScan.why).append(") ");
             finish(140);
         }
-        check("azaleas: every random azalea tree felled", ok == total && total >= 12, ok + "/" + total + (bad.length() > 0 ? ", missed " + bad : ""));
+        check("azaleas: every random azalea tree felled", ok == total && total >= 36, ok + "/" + total + (bad.length() > 0 ? ", missed " + bad : ""));
+    }
+
+    /** Random features: every natural leaf with a live distance goes with the tree; a miss dumps the left leaves as they stood before the chop. */
+    static void leafWalk(String f, int runs) {
+        int ok = 0, total = 0;
+        StringBuilder bad = new StringBuilder();
+        for (int k = 0; k < runs; k++) {
+            plot();
+            feature(f, 0, 0);
+            tick(40);
+            BlockPos base = trunkAt(8);
+            if (base == null) continue;
+            total++;
+            java.util.Map<BlockPos, String> before = on(() -> {
+                java.util.Map<BlockPos, String> m = new java.util.HashMap<>();
+                for (BlockPos q : BlockPos.betweenClosed(cx - 14, Y - 1, cz - 14, cx + 14, Y + 40, cz + 14)) {
+                    BlockState s = level.getBlockState(q);
+                    if (!natLeaf(s)) continue;
+                    StringBuilder n = new StringBuilder("d" + s.getValue(LeavesBlock.DISTANCE) + " [");
+                    for (Direction dir : Direction.values()) {
+                        BlockState o = level.getBlockState(q.relative(dir));
+                        n.append(dir.getName().charAt(0)).append('=').append(BuiltInRegistries.BLOCK.getKey(o.getBlock()).getPath());
+                        if (o.hasProperty(LeavesBlock.DISTANCE)) n.append(o.getValue(LeavesBlock.DISTANCE)).append(o.getValue(LeavesBlock.PERSISTENT) ? "p" : "");
+                        n.append(' ');
+                    }
+                    m.put(q.immutable(), n.append(']').toString());
+                }
+                return m;
+            });
+            int orphans = count(q -> natLeaf(q) && q.getValue(LeavesBlock.DISTANCE) == 7, 14);
+            hold("minecraft:netherite_axe");
+            destroy(base);
+            tick(2);
+            Fall fall = cur;
+            List<String> left = on(() -> {
+                List<String> l = new ArrayList<>();
+                for (var e : before.entrySet()) {
+                    BlockState now = level.getBlockState(e.getKey());
+                    if (!natLeaf(now)) continue;
+                    String part = "not in the tree";
+                    if (fall != null) for (var pt : fall.tree.parts()) if (pt.pos().equals(e.getKey())) part = "scanned " + pt.state() + (pt.hidden() ? " hidden" : "");
+                    l.add((e.getKey().getX() - base.getX()) + "," + (e.getKey().getY() - base.getY()) + "," + (e.getKey().getZ() - base.getZ()) + " " + e.getValue()
+                        + " now " + now + ", " + part);
+                }
+                return l;
+            });
+            if (left.size() <= orphans) ok++;
+            else {
+                bad.append(k).append(": ").append(left.size()).append(" of ").append(before.size()).append(" left (").append(orphans).append(" detached); ");
+                for (String l : left) info("  " + f + " " + k + " left " + l);
+            }
+            finish(140);
+        }
+        check("leaf walk " + f + ": every live leaf goes with the tree", ok == total && total >= runs * 2 / 3, ok + "/" + total + " " + bad);
+    }
+
+    /**
+     * M3 critic stills: a crimson and a warped fungus, a red and a brown mushroom, each felled twice (mesh, then
+     * displays), seen from the side at fixed ticks after the chop: frames/m3_&lt;kind&gt;_&lt;mesh|displays&gt;_tNN/f000.png.
+     */
+    static void m3sheet() {
+        int[] at = {1, 4, 8, 12, 16, 22, 30, 42, 60};
+        for (String kind : List.of("crimson", "warped", "red", "brown")) {
+            boolean fungus = kind.equals("crimson") || kind.equals("warped");
+            String stem = fungus ? "minecraft:" + kind + "_stem" : "minecraft:mushroom_stem";
+            Map<BlockPos, BlockState> grown = new HashMap<>();
+            for (int mode : new int[] {0, Viewers.VANILLA}) {
+                String name = "m3_" + kind + (mode == 0 ? "_mesh" : "_displays");
+                plot();
+                if (fungus) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
+                if (grown.isEmpty()) {
+                    // the same random tree for both rows: grow it once, keep its blocks
+                    for (int roll = 0; roll < 4 && grown.isEmpty(); roll++) {
+                        feature(fungus ? kind + "_fungus" : "huge_" + kind + "_mushroom", 0, 0);
+                        tick(20);
+                        on(() -> {
+                            if (!is(level.getBlockState(p(0, 0, 0)), stem)) return null;
+                            for (BlockPos q : BlockPos.betweenClosed(p(-8, 0, -8), p(8, 30, 8))) {
+                                BlockState st = level.getBlockState(q);
+                                if (!st.isAir()) grown.put(q.subtract(p(0, 0, 0)), st);
+                            }
+                            return null;
+                        });
+                    }
+                } else {
+                    on(() -> {
+                        for (var e : grown.entrySet()) level.setBlock(p(0, 0, 0).offset(e.getKey()), e.getValue(), net.minecraft.world.level.block.Block.UPDATE_CLIENTS | net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+                        return null;
+                    });
+                    tick(5);
+                }
+                if (grown.isEmpty()) {
+                    info("  " + name + ": nothing grew");
+                    break;
+                }
+                Viewers.test = mode;
+                hold("minecraft:netherite_axe");
+                // a sea-lantern box (the M1 sheets' light) inside the plot pit
+                for (String w : new String[] {at(-12, 0, -19) + " " + at(24, 30, -19), at(-12, 0, 12) + " " + at(24, 30, 12), at(-12, 0, -19) + " " + at(-12, 30, 12),
+                    at(24, 0, -19) + " " + at(24, 30, 12), at(-12, 30, -19) + " " + at(24, 30, 12)})
+                    cmd("fill " + w + " minecraft:sea_lantern");
+                // chop facing +x (the fall goes that way), then turn to the tree from the side
+                cmd("tp " + who() + " " + (cx + 5) + ".5 " + Y + " " + (cz - 17) + ".5 -90 0");
+                client(MpHost::hideHud);
+                tick(20);
+                destroy(p(0, 0, 0));
+                cmd("tp " + who() + " " + (cx + 5) + ".5 " + Y + " " + (cz - 17) + ".5 facing " + (cx + 5) + " " + (Y + 7) + " " + cz);
+                int t = 0;
+                for (int a : at) {
+                    tick(a - t);
+                    t = a;
+                    String shot = name + String.format(java.util.Locale.ROOT, "_t%02d", a);
+                    client(mc -> SelfTest.startCapture(shot, 1));
+                }
+                finish(160);
+            }
+        }
+        tick(10);
+        Viewers.test = Viewers.VANILLA;
+    }
+
+    static void client(java.util.function.Consumer<net.minecraft.client.Minecraft> task) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        mc.execute(() -> task.accept(mc));
+    }
+
+    /** Measurement: 64 random azaleas, which crown rules accept them (1.3.6 straight up; B1/B2: crown on 2+ sides above/beside a top log); dumps 1.3.6 misses. */
+    static void azaleaShapes() {
+        int total = 0, up = 0, b1 = 0, b2 = 0, any = 0;
+        for (int k = 0; k < 64; k++) {
+            plot();
+            feature("azalea_tree", 0, 0);
+            tick(10);
+            int[] r = on(() -> {
+                int top = Integer.MIN_VALUE;
+                List<BlockPos> logs = new ArrayList<>();
+                for (BlockPos q : BlockPos.betweenClosed(cx - 6, Y, cz - 6, cx + 6, Y + 14, cz + 6))
+                    if (isLog(level.getBlockState(q))) {
+                        logs.add(q.immutable());
+                        top = Math.max(top, q.getY());
+                    }
+                if (logs.isEmpty()) return null;
+                boolean a = false, c1 = false, c2 = false;
+                int sx = 0, sz = 0, nt = 0;
+                for (BlockPos q : logs) {
+                    if (q.getY() < top - 1) continue;
+                    if (q.getY() == top) {
+                        sx += q.getX();
+                        sz += q.getZ();
+                        nt++;
+                    }
+                    if (natLeaf(level.getBlockState(q.above())) || natLeaf(level.getBlockState(q.above(2)))) a = true;
+                    int s1 = 0, s2 = 0;
+                    for (Direction d : Direction.Plane.HORIZONTAL) {
+                        if (natLeaf(level.getBlockState(q.above().relative(d)))) s1++;
+                        if (natLeaf(level.getBlockState(q.relative(d)))) s2++;
+                    }
+                    c1 |= s1 >= 2;
+                    c2 |= s2 >= 2;
+                }
+                if (!a) {
+                    int mx = Math.round((float) sx / nt), mz = Math.round((float) sz / nt);
+                    for (int y = top + 2; y >= top - 1; y--) {
+                        StringBuilder row = new StringBuilder("  az " + (y - top) + ": ");
+                        for (int z = mz - 4; z <= mz + 4; z++) {
+                            for (int x = mx - 4; x <= mx + 4; x++) {
+                                BlockState st = level.getBlockState(new BlockPos(x, y, z));
+                                row.append(isLog(st) ? 'L' : natLeaf(st) ? '#' : st.isAir() ? '.' : '?');
+                            }
+                            row.append(' ');
+                        }
+                        info(row.toString());
+                    }
+                }
+                return new int[] {a ? 1 : 0, c1 ? 1 : 0, c2 ? 1 : 0};
+            });
+            if (r == null) continue;
+            total++;
+            up += r[0];
+            b1 += r[1];
+            b2 += r[2];
+            if (r[0] + r[1] > 0) any++;
+            if (r[0] == 0) info("  az " + k + ": 1.3.6 misses, B1 " + r[1] + ", B2 " + r[2]);
+        }
+        info("azshapes: " + total + " trees, 1.3.6 rule " + up + ", B1 " + b1 + ", B2 " + b2 + ", 1.3.6 or B1 " + any);
+        check("azshapes: measured", total >= 48, total + " trees");
     }
 }
