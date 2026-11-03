@@ -59,9 +59,9 @@ public final class ForgeEntry implements Platform {
         ServerStartedEvent.BUS.addListener(e -> Hooks.serverStarted(e.getServer()));
         ServerStoppingEvent.BUS.addListener(e -> Hooks.serverStopping(e.getServer()));
         ServerStoppedEvent.BUS.addListener(e -> Hooks.serverStopped(e.getServer()));
-        // a null player is the sync after /reload (a join syncs to that player only)
+        // a null player is the sync after /reload (a join syncs to that player only); it comes before the new functions
         OnDatapackSyncEvent.BUS.addListener(e -> {
-            if (e.getPlayer() == null) Hooks.dataReloaded(e.getPlayerList().getServer(), true);
+            if (e.getPlayer() == null) Hooks.dataReloadedSoon();
         });
         TickEvent.LevelTickEvent.Pre.BUS.addListener(e -> {
             if (e.level() instanceof ServerLevel level) Hooks.levelTickStart(level);

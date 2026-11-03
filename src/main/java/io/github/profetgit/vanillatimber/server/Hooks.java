@@ -43,11 +43,25 @@ public final class Hooks {
         if (success) Api.load(server);
     }
 
+    private static boolean reloadPending;
+
+    /**
+     * NeoForge and Forge announce a reload (their datapack sync) before the server swaps in the new functions, so
+     * {@code #timber:api/loaded} would run the old ones: run it at the end of that tick instead.
+     */
+    public static void dataReloadedSoon() {
+        reloadPending = true;
+    }
+
     public static void levelTickStart(ServerLevel level) {
         Falls.tick(level);
     }
 
     public static void serverTickEnd(MinecraftServer server) {
+        if (reloadPending) {
+            reloadPending = false;
+            Api.load(server);
+        }
         Migrate.tick(server);
         Players.tick(server);
         Consumer<MinecraftServer> t = testTick;

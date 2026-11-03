@@ -53,9 +53,9 @@ public final class NeoForgeEntry implements Platform {
         bus.addListener((ServerStartedEvent e) -> Hooks.serverStarted(e.getServer()));
         bus.addListener((ServerStoppingEvent e) -> Hooks.serverStopping(e.getServer()));
         bus.addListener((ServerStoppedEvent e) -> Hooks.serverStopped(e.getServer()));
-        // a null player is the sync after /reload (a join syncs to that player only)
+        // a null player is the sync after /reload (a join syncs to that player only); it comes before the new functions
         bus.addListener((OnDatapackSyncEvent e) -> {
-            if (e.getPlayer() == null) Hooks.dataReloaded(e.getPlayerList().getServer(), true);
+            if (e.getPlayer() == null) Hooks.dataReloadedSoon();
         });
         bus.addListener((LevelTickEvent.Pre e) -> {
             if (e.getLevel() instanceof ServerLevel level) Hooks.levelTickStart(level);

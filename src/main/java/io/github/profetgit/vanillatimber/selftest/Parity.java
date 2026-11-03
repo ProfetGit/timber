@@ -152,6 +152,18 @@ final class Parity {
                 return b == null || !b.isInside(pos);
             });
             //?}
+            //? if neoforge {
+            /*net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.level.block.BreakBlockEvent e) -> {
+                var b = denyBox;
+                if (b != null && b.isInside(e.getPos())) e.setCanceled(true);
+            });
+            *///?}
+            //? if forge {
+            /*net.minecraftforge.event.level.BlockEvent.BreakEvent.BUS.addListener(e -> {
+                var b = denyBox;
+                return b != null && b.isInside(e.getPos());
+            });
+            *///?}
         }
         Say.tap = (p, c) -> {
             synchronized (CHAT) {
