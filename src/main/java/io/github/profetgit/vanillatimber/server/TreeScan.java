@@ -151,13 +151,14 @@ public final class TreeScan {
         BlockPos anchorCell = BlockPos.containing(px / 1000.0, py / 1000.0, pz / 1000.0);
         BlockPos anchor = null;
         List<Tree.Part> parts = new ArrayList<>(leaves.size() + logs.size());
-        int km = 0;
+        int km = 0, cw = 600;
         for (int pass = 0; pass < 2; pass++) {
             for (BlockPos p : pass == 0 ? leaves : logs) {
                 int wx = p.getX() * 1000 - px, wy = p.getY() * 1000 - py, wz = p.getZ() * 1000 - pz;
-                int k = Layout.ring(wy);
+                int k = Layout.ring(wy), tx = Layout.tx(wx, wz, bin);
                 if (pass == 1) km = Math.max(km, k);
-                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, Layout.tx(wx, wz, bin), wy, Layout.tz(wx, wz, bin), k));
+                else cw = Math.max(cw, Math.abs(tx) + 500);
+                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, tx, wy, Layout.tz(wx, wz, bin), k));
                 if (p.equals(anchorCell)) anchor = p;
             }
         }
@@ -165,7 +166,9 @@ public final class TreeScan {
         for (Tree.Part part : parts) if (!part.leaf()) logRings[part.k()] = true;
         int rs = lymin == Integer.MAX_VALUE ? h : lymin - by - (hang ? 1 : 0);
         FallSpec spec = FallSpec.derive(h, best / 100.0, gap, hang, dr, km, rs);
-        return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), leaves.size());
+        BlockState leaf = leaves.isEmpty() ? null : level.getBlockState(leaves.getLast());
+        return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), leaves.size(), hw,
+            Math.min(cw, 4000), chopped, leaf);
     }
 
     private static void walk(ServerLevel level, BlockPos from, int d, List<BlockPos> out, LongOpenHashSet taken) {

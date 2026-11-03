@@ -11,6 +11,88 @@ sources. Durable decisions go to `CLAUDE.md` Decisions when M1 closes; this file
   (1.3.6 controller scores sampled every tick by `dev/m1/sample136.py`, frozen-tick stepping).
 - `core/Rig`: ring-origin chain (shear bend), block corner pose, byte step.
 
+## Done (step 2, commit cbe775e)
+- `server/TreeScan` + `server/Tree` + `core/Layout` (yaw table, integer rest math); `server/Falls` hooks
+  `PlayerBlockBreakEvents.AFTER` (gates: not creative/spectator, not sneaking, `#minecraft:axes`) and keeps
+  `Falls.last` for tests. Tags `data/timber/tags/block/{logs,passable,gap_open}.json` copied from 1.3.6.
+- Scene `scan` (`Scenarios.scan`): oak_c, birch_a, spruce_b at x 8/56/104; pivot, bin 27, spec, ring mask equal the
+  sampler's start. Not ported yet (M2): ownership split, decor, creaking heart, too-big actionbar.
+
+## Found in session 2 (for steps 3-6)
+- **Use `mt.py mods/Timber ...`**: the bare name `Timber` resolves to `packs/Timber`.
+- **Self-test world is solid** (sandstone) around y -60: `Scenarios.plant` lays grass at -61 and clears air above.
+- **Frame clock = `ServerTickEvents.START_LEVEL_TICK`** (Fabric names: START/END_LEVEL_TICK). `ServerLevel.tick`
+  runs `chunkSource.tick` (block broadcasts + entity tracker, ServerLevel.java:407) before entities, so: scan at the
+  break event; frame 0 at the START of the next tick (spawn displays at rest, remove the anchor block, CHOP, send
+  TreeFall with e = 0: it leaves before that tick's anchor removal and spawn packets); frame n at the START of the n-th
+  tick after (n = 1 also removes the other blocks). Poses and sounds of frame n then leave in the same tick, as 1.3.6's
+  tick functions did. END_LEVEL_TICK would put every pose one tick behind its sound.
+- **Modded clock, exact:** c0 = the first client tick after TreeFall is handled (a display is first ticked, so first
+  drawn, there); tau = clientTicks + partial - c0 - 1 + e. Frame n's pose: c0 + n + 1. Use a client tick counter
+  (END_CLIENT_TICK) + `getGameTimeDeltaPartialTick`, not level game time (synced, jumps).
+- **26.3 names:** `EntityTypes.BLOCK_DISPLAY`; `new Display.BlockDisplay(type, level)`; `Entity.entityTags()`,
+  `addTag`; `snapTo(x, y, z, yRot, xRot)`; Display private setters at Display.java:231 setTransformation, 283
+  setTransformationInterpolationDuration, 291 setTransformationInterpolationDelay (forces resend), 299
+  setPosRotInterpolationDuration, 328 setViewRange; BlockDisplay.setBlockState :499. `shouldBeSaved` and
+  `broadcastToPlayer` are not overridden in Display (Entity.java:4108, :3569). `Block.getDrops(state, level, pos, be,
+  breaker, ItemInstance tool)` :364; `ItemStack.hurtAndBreak(int, LivingEntity, EquipmentSlot)`;
+  `level.getGameRules().get(GameRules.BLOCK_DROPS)`; `ServerLevel.sendParticles(opt, x, y, z, count, dx, dy, dz,
+  speed)`; `Level.playSound(null, x, y, z, SoundEvent, SoundSource.BLOCKS, v, p)`; SoundEvents WOOD_BREAK, WOOD_FALL,
+  GENERIC_BIG_FALL, WOODEN_DOOR_OPEN, ZOMBIE_BREAK_WOODEN_DOOR, PLAYER_ATTACK_SWEEP, AZALEA_LEAVES_BREAK, CHICKEN_EGG;
+  `LocalCoordinates.apply(Vec3, Vec2(pitch, yaw))` reproduces `execute positioned ^..` exactly (TreeScan uses it).
+- **Display pose per frame** (`anim/xf`, `move`): entity pos (px, spawnY + dy, pz), xRot = `Rig.step(p)`; for every
+  live non-popping display whose frame values changed: `Rig.origins(res, bend, gy, h, kn, kt)`, translation
+  `Rig.corner(tx/1000, wy/1000, tz/1000, k, sx, gy, sz, res, ..)`, left Rx(res), scale (gx|lx, gy, gz|lz), right
+  rotation kept from the spawn, interpolation 1 + delay 0. Spawn: translation ((tx+ox)/1000, (wy-3)/1000,
+  (tz+oz)/1000), right (0, qs, 0, qc), scale 1.006, teleport_duration 1, view_range 1.5, Rotation [bin*11.25, 0].
+- **Pops** (`pop_tick`, `pop_key`): ring k tagged at n_k (= popTick[k]): keys at n_k (1.25/0.7, duration 3),
+  n_k+3 (0.8/1.45, 1), n_k+4 (0/0, 2); discard at n_k+6. Key translation = Rx(res now)((tx, wy, tz) + Ry(yaw)(u, v,
+  u)) with (u, v) = (-0.125, 0.15), (0.1, -0.225), (0.5, 0.5) (= (1-a)/2, (1-b)/2); scale (a, b, a); left rotation
+  untouched; the entity keeps teleporting with the tree.
+- **Places:** ring k lying centre = pivot + (0, dy, 0) + Ry(-yaw) Rx(p)(0, k + 0.5, -hw); crown = same with
+  k + 0.5 -> cy = (rs + h) / 2 (shake at the chop uses the rest pose, flutter at the slam the landed one + 0.6 up).
+  Particles (`anim/fx`, `ring_pop`): crack = block(log) at pivot + 0.2 up, spread (0.3, 0.1, 0.3), 6; ring pop =
+  block(log) spread 0.35 speed 0.12 x22 + small_gust x2; chop shake = block(leaf) at the crown, spread (cr, 0.8, cr)
+  speed 0.05 x20 (cr = 0.45 * crown width).
+
+## Done (steps 3 + 5, session 3)
+- `server/Fall` (one fall, stepped from `ServerTickEvents.START_LEVEL_TICK` in `Falls`): frame 0 spawns displays at
+  rest (logs first, cap 600) and clears the anchor; frame 1 removes the rest with setblock-strict flags (818, water
+  for waterlogged); pops (keys u = 1/4/5, discard u = 7, left rotation kept from the tag tick, translation at the last
+  sent residual), leaves killed at `leavesGone`, then the frame's events, `move` (snapTo on y or byte-step change),
+  `pose` (transformation when any frame value changed). `finish` drops leftovers at pivot + 0.5.
+- `server/Fx`: every 1.3.6 sound and particle with its position (`LocalCoordinates` = `execute rotated/positioned ^`).
+  The crack uses the tree's own log (1.3.6 hardcoded oak_log). Leaf particle table = `disp/leaf_fx`.
+- Drops rolled at the chop (`Block.getDrops` with the axe, `BLOCK_DROPS` rule), logs by ring at RING k (hop), leaves
+  at the slam from the even crown rings (burst), leftovers at FINISH. Axe wear = `processDurabilityChange(logs)`, too
+  worn = actionbar + no fell. Feedback actionbar "Timber! N logs" at frame 0 (translatableWithFallback).
+- `mixin/EntityMixin`: tagged displays (`vanilla_timber.fall`) never saved; hidden from `Viewers.local` players.
+  `Viewers` is the Hello set (empty until step 4). Displays are only spawned while a vanilla player tracks the chunk
+  (`chunkMap.getPlayers`), lazily at the current pose if one walks in.
+- Scene `fall` (oak, birch, spruce): 18/18 on 0.0.3 — displays reach the client, frame 0 all displays + blocks
+  standing but the anchor, frame 1 no blocks, end 0 displays at `tl.end`, rolled = dropped = items in the world - 1.
+  `wb img flicker` on the 240 captured frames of each: no one-frame pops. The test box is under the solid test world,
+  so the frames are dark: light the box (or a sky-open spot) before the critic or flicker review of the mesh.
+
+## Client mesh: 26.3 API found (session 3, for step 4)
+- Vanilla block displays draw through `BlockModelFeatureRenderer.putQuad` = `buffer.putBakedQuad(pose, quad,
+  QuadInstance)` with only the tint colour: no directional shade at all (1.3.6 displays are flat). The mesh uses
+  `Shade.table` (SeamlessDisplays) so its rest pose matches the shaded terrain blocks at the swap.
+- `BakedQuad` (26.3 `client/resources/model/geometry/BakedQuad.java`): record of 4 `Vector3fc` positions, 4 packed UVs
+  (`UVPair.unpackU/V`), `direction`, `materialInfo` (sprite, `layer` ChunkSectionLayer, `tintIndex`,
+  `shadeDirectionOverride`, `lightEmission`). Parts: `getModelManager().getBlockStateModelSet().get(state)
+  .collectParts(RandomSource, list)`, `part.getQuads(dir)` for 6 dirs + null (HavingABlast `Blasts.model`).
+- Render types: `RenderTypes.solidMovingBlock()/cutoutMovingBlock()/translucentMovingBlock()`; submit with
+  `collector.submitCustomGeometry(poseStack, type, (pose, vc) -> vc.addVertex(x, y, z, argb, u, v, overlay, light, nx,
+  ny, nz))` from a `LevelRenderer.submitEntities` TAIL mixin (HavingABlast `LevelRendererMixin`, args `PoseStack,
+  LevelRenderState, SubmitNodeCollector`; camera = `state.cameraRenderState.pos`). `CardinalLighting` =
+  `level.cardinalLighting()`, read through `byFace` (Iris patches it).
+- Plan: bake per (ring, leaf|log, render type) arrays of tree-frame vertices p = (tx, wy, tz)/1000 + Ry(yaw) m (from
+  `Layout`, the same ints as the server); per frame one pose per group M_k = T(pivot + dy - cam) Ry(-yaw) T(0, oy_k,
+  oz_k) Rx(theta) S T(0, -k, 0) with `Rig.origins` at the exact theta; one shade table per frame (Ry(-yaw) Rx(theta)
+  Ry(yaw) for all groups); leaf tint = `getBlockColors().getTintSources(state)` `colorInWorld` at the rest cell.
+  Check the Ry sign against the displays with a frame where both are visible (`draw: server` on one client).
+
 ## Timing model (why tau = n means "tick n's pose fully drawn")
 - Displays get every pose with interpolation 1 (transformation) and teleport_duration 1 (pos/rot). Tick n's packets
   arrive at client time c(n); the pose is reached at c(n) + 1. So drawing time tau = clientTicks - c(0) - 1.

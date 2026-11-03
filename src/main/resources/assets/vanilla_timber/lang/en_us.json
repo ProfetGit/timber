@@ -1,3 +1,6 @@
 {
-  "vanilla_timber.name": "Profet's Timber"
+  "vanilla_timber.name": "Profet's Timber",
+  "vanilla_timber.msg.timber": "Timber! ",
+  "vanilla_timber.msg.logs": " logs",
+  "vanilla_timber.msg.worn": "Timber: your axe is too worn to fell this tree"
 }

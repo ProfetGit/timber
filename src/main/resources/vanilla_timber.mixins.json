@@ -8,5 +8,10 @@
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "mixins": [
+    "BlockDisplayAccess",
+    "DisplayAccess",
+    "EntityMixin"
+  ]
 }
