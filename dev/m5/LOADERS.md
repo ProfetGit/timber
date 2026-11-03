@@ -51,7 +51,7 @@ From decompiled loader sources (mc-source agent; nothing booted). Source keys un
 - Client: `ClientPlayerNetworkEvent.LoggingIn.BUS/LoggingOut.BUS`, `TickEvent.LevelTickEvent.Post.BUS` with
   `side() == LogicalSide.CLIENT`.
 
-## The chop on NeoForge/Forge (open)
+## The chop on NeoForge/Forge (done link 16: `mixin/ServerPlayerGameModeMixin`, HEAD state + RETURN true and state changed; both loaders wear the tool before removal, so Fabric keeps AFTER)
 Neither loader has an event after the block is gone (Fabric `PlayerBlockBreakEvents.AFTER`); their break events fire
 at the head of `destroyBlock`, before removal, and `Falls.chop` expects the log gone (else the scan and loot count it
 twice). `ServerPlayerGameMode.destroyBlock(BlockPos)Z` keeps vanilla's descriptor on both. Plan: one loader-neutral
@@ -59,3 +59,10 @@ mixin (`ServerPlayerGameModeMixin`, `//? if !fabric` or applied on all and Fabri
 `level.getBlockState(pos)` into a field/local, RETURN with `cir.getReturnValue() == true` calls
 `Hooks.blockBroken(level, player, pos, state)`. Don't target `removeBlock` (each loader removes differently). Check it
 with `check_mixins.py mods/Timber 26.3 --loader neoforge,forge`.
+
+## Link 16 facts (2026-11-03)
+- `OnDatapackSyncEvent` (null player) fires before the new function library is in: `Hooks.dataReloadedSoon()` runs
+  `Api.load` at the end of the tick on NeoForge/Forge.
+- Forge 26.3 needs `pack.mcmeta` (LoadingErrorScreen otherwise). Forge payloads: one optional `SimpleChannel`
+  `vanilla_timber:main`, `addMain` handlers; `channel.isRemotePresent(connection)`.
+- Forge `BreakEvent` claim check: `BUS.post(e) | e.getResult().isDenied()`; Forge's own hook only reads the result.
