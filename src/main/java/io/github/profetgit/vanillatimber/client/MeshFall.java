@@ -218,7 +218,7 @@ final class MeshFall {
     /**
      * How much of the terrain's own AO and light a group keeps at this pose: all of it at rest (the swap shows nothing),
      * none once it has moved 4 blocks from where it stood (SeamlessDisplays' fade), where the eased light along its path
-     * takes over.
+     * takes over. {@link #submit} also fades it by the pitch: the stump end barely moves but turns face up.
      */
     private static float restWeight(Matrix4f m, Group g, Vec3 cam, Vector3f tmp) {
         m.transformPosition(0, g.k + 0.5f, 0, tmp);
@@ -364,6 +364,8 @@ final class MeshFall {
             shade[d.ordinal()] = Shading.factor(n.x, n.y, n.z, cl);
         }
         float inflate = (float) s.inflate;
+        // a ring that turns in place (the stump end) keeps none of its rest AO and light once it has turned 30 degrees
+        float turned = (float) Math.max(0, 1 - Math.abs(drawnPitch) / 30);
         Matrix4f m = new Matrix4f();
         Vector3f tmp = new Vector3f();
         for (Group g : groups) {
@@ -381,7 +383,7 @@ final class MeshFall {
             g.ex = ex;
             g.ey = ey;
             pose(m, g.k, g.leaf, s, cam.x, cam.y, cam.z);
-            g.w = restWeight(m, g, cam, tmp);
+            g.w = Math.min(turned, restWeight(m, g, cam, tmp));
             ps.pushPose();
             ps.mulPose(m);
             out.submitCustomGeometry(ps, g.type, g);
@@ -400,6 +402,8 @@ final class MeshFall {
         /** Per vertex: the terrain's colour (AO x tint) and light where the block stood (RestLight). */
         int[] rcol = new int[16], rlight = new int[16];
         byte[] dir = new byte[4], emission = new byte[4];
+        /** Quads vanilla culls at rest: no rest colour or light to keep, so they always take the path light. */
+        boolean[] culled = new boolean[4];
         int quads;
         float ex, ey;
         /** This frame's share of the rest colour and light, see {@link MeshFall#restWeight}. */
@@ -428,6 +432,7 @@ final class MeshFall {
                 rlight = java.util.Arrays.copyOf(rlight, n * 4);
                 dir = java.util.Arrays.copyOf(dir, n);
                 emission = java.util.Arrays.copyOf(emission, n);
+                culled = java.util.Arrays.copyOf(culled, n);
             }
             for (int v = 0; v < 4; v++) {
                 var p = quad.position(v);
@@ -450,6 +455,7 @@ final class MeshFall {
             // the shade and normal follow the face's model direction, turned by Ry(yaw) like the block
             dir[quads] = (byte) sdir;
             emission[quads] = (byte) em;
+            culled[quads] = lv == null;
             quads++;
         }
 
@@ -464,16 +470,18 @@ final class MeshFall {
                 int d = dir[qi];
                 int path = lights[block[qi]], pu = path & 0xFFFF, pv = path >>> 16;
                 float nx = nr[d * 3], ny = nr[d * 3 + 1], nz = nr[d * 3 + 2];
+                // the bake-time light of a culled face is its emptied cell's (0 until the client's light engine catches up)
+                float qw = culled[qi] ? 0 : rw;
                 for (int v = 0; v < 4; v++) {
                     int i = (qi * 4 + v) * 3, u = (qi * 4 + v) * 2, rv = qi * 4 + v;
                     int col, li;
-                    if (rw >= 1) {
+                    if (qw >= 1) {
                         col = rcol[rv];
                         li = rlight[rv];
                     } else {
-                        col = rw <= 0 ? tint[qi] : ARGB.srgbLerp(rw, tint[qi], rcol[rv]);
+                        col = qw <= 0 ? tint[qi] : ARGB.srgbLerp(qw, tint[qi], rcol[rv]);
                         int rl = rlight[rv];
-                        li = Math.round(pu + ((rl & 0xFFFF) - pu) * rw) | Math.round(pv + ((rl >>> 16) - pv) * rw) << 16;
+                        li = Math.round(pu + ((rl & 0xFFFF) - pu) * qw) | Math.round(pv + ((rl >>> 16) - pv) * qw) << 16;
                     }
                     if (emission[qi] > 0) li = LightCoordsUtil.pack(Math.max(LightCoordsUtil.block(li), emission[qi]), LightCoordsUtil.sky(li));
                     vc.addVertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
