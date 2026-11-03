@@ -297,3 +297,28 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
   `chop_us`), exit.py counts pops "at the chop" (PRD 13: chop - 0.1 s .. mesh tau 6) and the whole clip as info.
 - Not fixed, seen in SeamlessDisplays: the client light engine floods when the tree's blocks vanish (ground under the
   crown brightens at frame 1; 1.3.6 does the same). SeamlessDisplays' `LightPin` is the known fix (M6 candidate).
+
+## Birch Host pops read (session 8, 2026-11-03)
+- **Where:** m1 frame 21 (mesh tau 5.157), m1_200 frame 34 (tau 5.167): the first frame after the tick-5 key. Ground
+  still (camera fine); the crown widens and drops ~4 px on that frame and comes back on the next (tile shifts 20->21
+  (-4, +2), 21->22 (+4, -2), 20->22 (-1, 0)). Tick 5 of a hang tree is three keys reversing at once: landing squash
+  gy 1000 -> 957 -> 982 and gx 1000 -> 1021 -> 1009 (`lean()` shapeY 350/150), the shiver's last key bend -2.37 ->
+  +1.07 -> +0.50 deg, and the lean-back start. The port's values equal the 1.3.6 fixture on every tick (JUnit).
+- **A/B (case `m1_ab`, 2026-11-03 13:23):** the Host with `-Dvanilla_timber.draw=server` (no Hello, so the server shows
+  it the displays: 1.3.6's drawing) at the same spot, same window (chop - 0.1 s .. chop + the m1 run's mesh-tau-6
+  offset: oak 466, birch 416, spruce 440 ms): chop pops oak 1 (frame 9), **birch 0**, spruce 0; whole clip 8 / 27
+  (birch frame 42, vanilla's own) / 2. The mesh in m1: birch 10 at frame 21. Script:
+  `python3 dev/m1/ab.py m1_ab m1`.
+- **Root cause:** the mesh draws the timeline's keys exactly (call 2026-11-03: no copy of the displays' trail). Vanilla
+  `Display.tick` restarts each transformation interpolation from `lastProgress` (Display.java:102, :176, :181,
+  :372-381, :428), the last drawn frame's progress (~0.84 at this phase), so a one-tick out-and-back key is rounded:
+  gy reaches ~964 instead of 957 and the turn is A-B-B' (fast in, slow out), while the mesh's exact corner gives the
+  frame on each side of the key the same pose (A-B-A) from 4 blocks. The earlier call was right for the slam splat
+  (invisible there) but makes the mesh visibly differ from 1.3.6 at sharp keys.
+- **Fix (next):** the mesh plays the transformation's share of the pose like a display does: per fall keep a "from"
+  sample; when tau enters [n, n+1), from = lerp(from, frame n, f_last) with f_last = the last drawn frame's fraction in
+  the previous segment, to = frame n+1; draw lerp(from, to, frac(tau)). Apply to what the display carries in its
+  transformation (bend, gx gy gz lx lz, ring origins, pop scale, inflate, the pitch residual below the byte step);
+  keep what the entity's interpolation handler carries exact (the pitch byte step `Rig.step`, position/dy). Then
+  scene `sync`'s "as drawn" gap should fall to ~0 and the vanilla pops of its own (birch frame 42: step vs residual
+  split) are not copied. Re-run `exit.py` (m1, m1_200) and `m1_ab` as the baseline.
