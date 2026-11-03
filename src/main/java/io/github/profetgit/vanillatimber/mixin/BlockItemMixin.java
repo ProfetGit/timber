@@ -1,5 +1,6 @@
 package io.github.profetgit.vanillatimber.mixin;
 
+import io.github.profetgit.vanillatimber.server.Migrate;
 import io.github.profetgit.vanillatimber.server.Placed;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.BlockItem;
@@ -15,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 abstract class BlockItemMixin {
     @Inject(method = "placeBlock", at = @At("RETURN"))
     private void vanilla_timber$placed(BlockPlaceContext context, BlockState state, CallbackInfoReturnable<Boolean> cir) {
-        if (cir.getReturnValueZ() && context.getPlayer() != null && context.getLevel() instanceof ServerLevel level
+        if (!Migrate.inert && cir.getReturnValueZ() && context.getPlayer() != null && context.getLevel() instanceof ServerLevel level
             && Placed.isLog(level.getBlockState(context.getClickedPos()))) Placed.add(level, context.getClickedPos());
     }
 }

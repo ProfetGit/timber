@@ -5,6 +5,7 @@ import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.server.Config;
 import io.github.profetgit.vanillatimber.server.Conflicts;
 import io.github.profetgit.vanillatimber.server.Fall;
+import io.github.profetgit.vanillatimber.server.Migrate;
 import io.github.profetgit.vanillatimber.server.Falls;
 import io.github.profetgit.vanillatimber.server.Placed;
 import io.github.profetgit.vanillatimber.server.Pending;
@@ -551,10 +552,14 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "hooks"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks"};
 
     /** World rules and defaults every group assumes; run again after the world is reopened. */
     static void setup() {
+        setup(true);
+    }
+
+    static void setup(boolean resetConfig) {
         cmd("forceload add 0 224 255 351");
         cmd("gamerule max_block_modifications 10000000");
         cmd("gamerule random_tick_speed 0");
@@ -563,10 +568,12 @@ final class Parity {
         cmd("gamerule advance_time false");
         cmd("gamerule advance_weather false");
         cmd("time set 6000");
-        on(() -> {
-            Config.reset();
-            return null;
-        });
+        if (resetConfig) {
+            on(() -> {
+                Config.reset();
+                return null;
+            });
+        }
         tick(80);
     }
 
@@ -619,6 +626,7 @@ final class Parity {
                     case "config_reload" -> configReload();
                     case "conflict" -> conflict();
                     case "crash" -> crash();
+                    case "migrate" -> migrate();
                     case "hooks" -> hooks();
                     default -> { }
                 }
@@ -2260,6 +2268,10 @@ final class Parity {
      * Dynamic registries (enchantments, ...) of a data pack load only with the world, never with /reload.
      */
     static void reopen() {
+        reopen(true);
+    }
+
+    static void reopen(boolean resetConfig) {
         String id = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR).getParent().getFileName().toString();
         MinecraftServer old = server;
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
@@ -2297,7 +2309,7 @@ final class Parity {
         cur = null;
         plotFalls.clear();
         chat();
-        setup();
+        setup(resetConfig);
     }
 
     static int tb(String holder) {
@@ -2471,6 +2483,229 @@ final class Parity {
         Map<String, Integer> stopped = itemsNear(p(0, 0, 0), 24);
         check("crash: a normal stop drops all the loot once", stopped.equals(loot), stopped + " vs " + loot);
         check("crash: a normal stop leaves nothing pending", pendingFalls() == 0 && pendingItems().isEmpty(), pendingFalls() + " entries, " + pendingItems());
+    }
+
+    // ---- migration from the 1.3.6 data pack (PRD 5.9) ----
+
+    static final String OLD_PACK = "Timber-1.3.6";
+
+    static int objectiveCount(String needle) {
+        return on(() -> {
+            int n = 0;
+            for (String o : server.getScoreboard().getObjectiveNames()) if (o.contains(needle)) n++;
+            return n;
+        });
+    }
+
+    /** The 1.3.6 pack's leftovers in the world: entities with a {@code timber.} tag, markers and block displays. */
+    static int oldEntities() {
+        return on(() -> {
+            int n = 0;
+            for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                if (!(e instanceof net.minecraft.world.entity.Marker) && !(e instanceof Display.BlockDisplay)) continue;
+                for (String t : e.entityTags()) if (t.startsWith("timber.")) {
+                    n++;
+                    break;
+                }
+            }
+            return n;
+        });
+    }
+
+    static void deleteWorldPack(String name) {
+        java.nio.file.Path dir = worldPacks().resolve(name);
+        if (!java.nio.file.Files.exists(dir)) return;
+        try (var old = java.nio.file.Files.walk(dir)) {
+            for (java.nio.file.Path q : (Iterable<java.nio.file.Path>) old.sorted(java.util.Comparator.reverseOrder())::iterator) java.nio.file.Files.delete(q);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    static void migrate() {
+        Migrate.inert = true;
+        try {
+            migrateRun();
+        } finally {
+            Migrate.inert = false;
+            on(() -> {
+                Players.setEnabled(server, player.getUUID(), true);
+                Config.reset();
+                return null;
+            });
+            deleteWorldPack(OLD_PACK);
+        }
+    }
+
+    private static void migrateRun() {
+        // phase 1: a world saved with 1.3.6, 2.0 inert
+        installPack(OLD_PACK, workspace().resolve("packs/Timber/pack"));
+        cmd("reload");
+        tick(10);
+        info("  " + cmd("datapack enable \"file/" + OLD_PACK + "\""));
+        tick(60);
+        boolean loaded = on(() -> server.getScoreboard().getObjective("timber.config") != null && server.getScoreboard().getObjective("timber.off") != null);
+        check("migrate: the 1.3.6 pack is loaded (objectives exist)", loaded, cmd("datapack list enabled").toString());
+        if (!loaded) return;
+
+        // a small build placed by the player, with natural leaves, so only protection keeps it from felling
+        plot();
+        BlockPos origin = p(0, 0, 0);
+        holdCmd("minecraft:oak_log 64");
+        cmd("tp " + who() + " " + (cx - 3) + ".5 " + (Y + 3) + " " + cz + ".5 -90 60");
+        cmd("fill " + at(-4, 0, -1) + " " + at(-3, 2, 1) + " minecraft:stone");
+        for (int y = 0; y < 4; y++) place(p(0, y - 1, 0), Direction.UP);
+        for (int ly = 1; ly <= 4; ly++) {
+            int rr = ly >= 3 ? 1 : 2;
+            cmd("fill " + at(-rr, ly, -rr) + " " + at(rr, ly, rr) + " minecraft:oak_leaves keep");
+        }
+        tick(40);
+        Set<BlockPos> recorded = on(() -> {
+            Set<BlockPos> out = new TreeSet<>();
+            if (server.getCommandStorage().get(Identifier.fromNamespaceAndPath("timber", "placed")).get("o") instanceof net.minecraft.nbt.CompoundTag chunks) {
+                for (String c : chunks.keySet()) {
+                    if (!(chunks.get(c) instanceof net.minecraft.nbt.CompoundTag keys)) continue;
+                    for (String k : keys.keySet()) {
+                        String[] v = k.split(",");
+                        out.add(new BlockPos(Integer.parseInt(v[0]), Integer.parseInt(v[1]), Integer.parseInt(v[2])));
+                    }
+                }
+            }
+            return out;
+        });
+        int buildLogs = count(Parity::isLog, 6);
+        check("migrate: 1.3.6 recorded a placed log", buildLogs == 4 && !recorded.isEmpty(), buildLogs + " logs, storage " + recorded);
+
+        cmd("scoreboard players set #max_logs timber.config 100");
+        cmd("scoreboard players set #radius timber.config 20");
+        cmd("scoreboard players set #max_blocks timber.config 1000");
+        try {
+            java.nio.file.Files.writeString(Config.file(), "{\n  \"max_blocks\": 700\n}\n");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        on(() -> {
+            Config.rescan();
+            return null;
+        });
+
+        // an oak chopped under 1.3.6, caught mid-fall
+        plot();
+        customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        BlockPos stump = p(0, 0, 0);
+        chop(0, 0, 0);
+        List<ItemStack>[] held = new List[] {null};
+        net.minecraft.world.phys.Vec3[] at = new net.minecraft.world.phys.Vec3[1];
+        Map<String, Integer> base = new TreeMap<>();
+        for (int i = 0; i < 200 && held[0] == null; i++) {
+            on(() -> {
+                for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
+                    if (!(e instanceof net.minecraft.world.entity.Marker) || !e.entityTags().contains("timber.ctl")) continue;
+                    var data = e.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
+                    held[0] = data == null ? List.of() : Migrate.loot(server, data.copyTag());
+                    at[0] = e.position();
+                    cmd("tick freeze");
+                    base.putAll(itemsNear(stump, 24));
+                    cmd("save-all flush");
+                    break;
+                }
+                return null;
+            });
+            if (held[0] == null) tick(1);
+        }
+        check("migrate: 1.3.6 fell caught mid-way (a timber.ctl controller with loot)", held[0] != null && !held[0].isEmpty(), held[0] == null ? "no controller" : "empty data");
+        if (held[0] == null || held[0].isEmpty()) {
+            cmd("tick unfreeze");
+            return;
+        }
+        Map<String, Integer> loot = new TreeMap<>();
+        for (ItemStack s : held[0]) loot.merge(BuiltInRegistries.ITEM.getKey(s.getItem()).toString(), s.getCount(), Integer::sum);
+        Map<String, Integer> expected = plus(base, loot);
+        info("  controller at " + at[0] + " holds " + loot + ", world already has " + base);
+        cmd("scoreboard players set " + who() + " timber.off 1");
+        cmd("save-all flush");
+        int offBefore = on(() -> objectiveCount("timber."));
+        info("  1.3.6 objectives: " + offBefore);
+
+        // phase 2: 2.0 back on, the world reopened
+        Migrate.inert = false;
+        int runs = Migrate.runs;
+        reopen(false);
+        tick(40);
+        List<String> packs = cmd("datapack list enabled");
+        check("migrate: the old pack is disabled", !packs.toString().contains(OLD_PACK), packs.toString());
+        check("migrate: 2.0 wrote its meta (version_id 20000)", cmd("data get storage timber:meta version_id").toString().contains("20000"), cmd("data get storage timber:meta version_id").toString());
+        check("migrate: one migration ran", Migrate.runs == runs + 1, Migrate.summary);
+        Set<BlockPos> placedKeys = on(() -> {
+            Set<BlockPos> out = new TreeSet<>();
+            for (long k : Placed.all(level)) out.add(BlockPos.of(k));
+            return out;
+        });
+        check("migrate: the recorded placed logs were imported", placedKeys.containsAll(recorded) && placedKeys.size() == recorded.size(), placedKeys + " vs " + recorded);
+        String json;
+        try {
+            json = java.nio.file.Files.readString(Config.file());
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        check("migrate: timber.json has max_logs 100 and radius 20 from the scores", json.contains("\"max_logs\": 100") && json.contains("\"radius\": 20"), json);
+        check("migrate: a key the file already set is unchanged", json.contains("\"max_blocks\": 700") && Config.maxBlocks() == 700, json);
+        check("migrate: the player's toggle is off", !on(() -> Players.enabled(server, player.getUUID())), "enabled");
+        tick(60);
+        Map<String, Integer> after = itemsNear(stump, 24);
+        check("migrate: the controller's items lie at its position", after.equals(expected), after + " vs " + expected);
+        check("migrate: no timber.d displays or timber.* markers remain", oldEntities() == 0, oldEntities() + " left");
+        List<String> ctl = cmd("execute if entity @e[tag=timber.ctl]");
+        check("migrate: no controller by selector either", ctl.toString().contains("failed") || ctl.toString().contains("Test failed"), ctl.toString());
+        int left = on(() -> {
+            int n = 0;
+            for (String o : server.getScoreboard().getObjectiveNames()) if (o.startsWith("timber.")) n++;
+            return n;
+        });
+        check("migrate: no timber.* objectives remain", left == 0, left + " left");
+        check("migrate: the trigger objective timber survives", on(() -> server.getScoreboard().getObjective("timber") != null), "gone");
+        boolean empty = on(() -> {
+            for (String id : new String[] {"placed", "types", "curve", "menu", "op", "anim"}) {
+                if (!server.getCommandStorage().get(Identifier.fromNamespaceAndPath("timber", id)).isEmpty()) return false;
+            }
+            return true;
+        });
+        check("migrate: the old storages are empty", empty, "not empty");
+
+        // the imported placed logs protect the build
+        BlockPos mark = recorded.iterator().next();
+        cmd("tp " + who() + " " + (origin.getX() - 2) + ".5 " + origin.getY() + " " + origin.getZ() + ".5 -90 20");
+        hold("minecraft:iron_axe");
+        on(() -> {
+            Players.setEnabled(server, player.getUUID(), true);
+            return null;
+        });
+        int fallsBefore = on(() -> Falls.active(level));
+        java.util.function.Supplier<Integer> buildLogsNow = () -> on(() -> {
+            int n = 0;
+            for (BlockPos q : BlockPos.betweenClosed(mark.offset(-3, -5, -3), mark.offset(3, 6, 3))) if (isLog(level.getBlockState(q))) n++;
+            return n;
+        });
+        int logsBefore = buildLogsNow.get();
+        destroy(mark);
+        tick(4);
+        check("migrate: an imported placed log is protected (no fell)", on(() -> Falls.active(level)) == fallsBefore && displays() == 0
+            && logsBefore == 4 && buildLogsNow.get() == 3, "falls " + on(() -> Falls.active(level)) + ", logs " + logsBefore + " -> " + buildLogsNow.get());
+
+        // a second start imports and spawns nothing more
+        tick(40);
+        Map<String, Integer> settled = itemsNear(stump, 24);
+        int keys = on(() -> Placed.all(level).size());
+        runs = Migrate.runs;
+        reopen(false);
+        tick(40);
+        Map<String, Integer> again = itemsNear(stump, 24);
+        check("migrate: a second start migrates nothing", Migrate.runs == runs, Migrate.summary);
+        check("migrate: a second start spawns nothing more", again.equals(settled) && oldEntities() == 0, again + " vs " + settled);
+        check("migrate: a second start imports no more placed logs", on(() -> Placed.all(level).size()) == keys, keys + " keys");
     }
 
     /** The fall's rolled loot plus the log the player's own break dropped. */

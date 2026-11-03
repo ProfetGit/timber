@@ -60,8 +60,21 @@ public final class Config {
     /** The file failed to parse at the last read: the values in use are the last good ones. */
     static boolean broken;
     private static int poll;
+    /** The keys the file held when it was first read this run (before the first rewrite filled in the rest): what the operator set. */
+    private static java.util.Set<String> authored;
 
     private Config() {}
+
+    /** The operator's file set this key (1.3.x migration imports only keys it did not). */
+    public static boolean authored(Key key) {
+        return authored != null && authored.contains(key.json);
+    }
+
+    /** Tests: forget what was authored and read the file again as if it were the first read. */
+    public static void rescan() {
+        authored = null;
+        load();
+    }
 
     public static Path file() {
         return FILE;
@@ -118,6 +131,7 @@ public final class Config {
             return;
         }
         broken = false;
+        if (authored == null) authored = new java.util.HashSet<>(raw.keySet());
         int[] v = defaults();
         for (Key k : Key.values()) {
             JsonElement e = raw.get(k.json);

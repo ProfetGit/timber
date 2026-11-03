@@ -44,6 +44,7 @@ public final class Falls {
     private Falls() {}
 
     public static void register() {
+        Migrate.register();
         Api.register();
         Hold.register();
         ServerLifecycleEvents.SERVER_STARTED.register(Pending::returnAll);
@@ -75,6 +76,7 @@ public final class Falls {
     }
 
     static void chop(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
+        if (Migrate.inert) return;
         long t0 = System.nanoTime();
         boolean placed = Placed.remove(level, pos);
         if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || !mayFell(player) || busy(level, pos)) return;

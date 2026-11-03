@@ -45,6 +45,7 @@ public final class Api {
     }
 
     static void load(MinecraftServer server) {
+        if (Migrate.inert) return;
         // 1.3.6 set only these keys (data modify), so other keys an add-on keeps here survive
         CompoundTag meta = server.getCommandStorage().get(META).copy();
         meta.putString("version", VERSION);
