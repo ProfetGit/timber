@@ -263,10 +263,10 @@ final class Scenarios {
      * within 1 tick;</li>
      * <li>geometry: where each display is heading (its last update fully reached) against the mesh at that server
      * frame, popping rings left out (their pop keys run over 3/1/2 ticks): the same pose maths, so ~0;</li>
-     * <li>as drawn: each display's centre against the nearest mesh block this frame. Not exact by design: a display
-     * restarts its interpolation from the last rendered frame's progress (Display.tick, lastProgress), so at 60 fps
-     * it trails a pose that changes every tick by a quarter of that tick's motion (the crown splat at the slam). The
-     * mesh draws the timeline itself.</li>
+     * <li>as drawn: each display's centre against the nearest mesh block this frame. The mesh copies the displays'
+     * trail (core.DrawnPose), so what is left is this client's tick phase against the mesh's average-client clock
+     * (MeshFall.LAG): the tree's speed times the clock offset (0.0.8: ~0.03 blocks at the tick-5 key, up to a block
+     * on the giant spruce's tip mid-fall).</li>
      * </ul>
      */
     private static void sync(Script s) {
@@ -391,7 +391,7 @@ final class Scenarios {
                     SelfTest.record("sync " + f.name + " clock offset", !offsets.isEmpty() && medOff <= 0.6, String.format(java.util.Locale.ROOT,
                         "|displays - mesh| drawing time median %.2f p95 %.2f ticks over %d frames", medOff, percentile(offsets, 0.95), offsets.size()));
                     SelfTest.record("sync " + f.name + " as drawn", true, String.format(java.util.Locale.ROOT,
-                        "display-to-mesh centre gap p50 %.3f p95 %.3f max %.3f blocks (vanilla interpolation trails, see Scenarios.sync)",
+                        "display-to-mesh centre gap p50 %.3f p95 %.3f max %.3f blocks (this client's phase vs the mesh clock, see Scenarios.sync)",
                         percentile(drawnGaps, 0.5), percentile(drawnGaps, 0.95), percentile(drawnGaps, 1.0)));
                     dump("sync_" + f.name, frames);
                 });

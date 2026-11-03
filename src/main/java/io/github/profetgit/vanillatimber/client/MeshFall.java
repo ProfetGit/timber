@@ -2,6 +2,7 @@ package io.github.profetgit.vanillatimber.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import io.github.profetgit.vanillatimber.core.DrawnPose;
 import io.github.profetgit.vanillatimber.core.Layout;
 import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.core.Timeline;
@@ -37,9 +38,10 @@ import org.joml.Vector3f;
 
 /**
  * One fall drawn by this client (PRD 5.5): the tree's block models baked once into tree-frame vertices, grouped by
- * (ring, log|leaf, render type), and posed every frame from the same {@link Timeline} the server's displays follow, at
- * the exact angle (no byte steps). The pose of group k is the display rig in one matrix:
- * T(pivot + dy) Ry(-yaw) T(origin k) Rx(pitch) S T(0, -k, 0), applied to v = rest corner + Ry(yaw) m.
+ * (ring, log|leaf, render type), and posed every frame from the same {@link Timeline} the server's displays follow, as
+ * a vanilla client draws those displays ({@link DrawnPose}: the transformation's share trails like theirs, so sharp
+ * keys are rounded off the same way). The pose of group k is the display rig in one matrix:
+ * T(pivot + dy) Ry(-yaw) Rx(byte step) T(origin k) Rx(residual) S T(0, -k, 0), applied to v = rest corner + Ry(yaw) m.
  */
 final class MeshFall {
     static final Direction[] DIRS = Direction.values();
@@ -74,6 +76,8 @@ final class MeshFall {
     volatile double shift;
     private final double[] oy, oz;
     private final Timeline.Sample sample = new Timeline.Sample();
+    /** The pose this client's displays would draw, advanced once per drawn frame in {@link #submit}. */
+    private final DrawnPose drawn;
     private final float[] pop = new float[2];
     // this frame's face normals (model direction -> world) and their cardinal shade, shared by every group
     final float[] normals = new float[18], shade = new float[6];
@@ -109,6 +113,7 @@ final class MeshFall {
         kt = hi;
         oy = new double[kt - kn + 1];
         oz = new double[kt - kn + 1];
+        drawn = new DrawnPose(tl, kn, kt);
         if (msg.probe() >= 0) {
             int[] cells = msg.cells();
             int i = msg.probe() * 4;
@@ -243,14 +248,24 @@ final class MeshFall {
         return LightCoordsUtil.pack(b, s);
     }
 
-    /** The group matrix of ring k at the sample, translated by -cam. */
+    /** The group matrix of ring k at the exact sample (origins from {@link #origins}), translated by -cam. */
     private Matrix4f pose(Matrix4f out, int k, boolean lf, Timeline.Sample s, double camX, double camY, double camZ) {
-        double sx = lf ? s.lx : s.gx, sz = lf ? s.lz : s.gz;
-        return out.translation((float) (x - camX), (float) (y0 + s.dy - camY), (float) (z - camZ))
+        return pose(out, k, 0, s.pitch, s.dy, lf ? s.lx : s.gx, s.gy, lf ? s.lz : s.gz, oy, oz, camX, camY, camZ);
+    }
+
+    /** The group matrix of ring k as drawn this frame, translated by -cam. */
+    private Matrix4f pose(Matrix4f out, int k, boolean lf, DrawnPose d, double camX, double camY, double camZ) {
+        return pose(out, k, d.rot, d.res, d.dy, lf ? d.lx : d.gx, d.gy, lf ? d.lz : d.gz, d.oy, d.oz, camX, camY, camZ);
+    }
+
+    private Matrix4f pose(Matrix4f out, int k, double rot, double res, double dy, double sx, double sy, double sz, double[] oy,
+                          double[] oz, double camX, double camY, double camZ) {
+        return out.translation((float) (x - camX), (float) (y0 + dy - camY), (float) (z - camZ))
             .rotateY((float) Math.toRadians(-yaw))
+            .rotateX((float) Math.toRadians(rot))
             .translate(0, (float) oy[k - kn], (float) oz[k - kn])
-            .rotateX((float) Math.toRadians(s.pitch))
-            .scale((float) sx, (float) s.gy, (float) sz)
+            .rotateX((float) Math.toRadians(res))
+            .scale((float) sx, (float) sy, (float) sz)
             .translate(0, -k, 0);
     }
 
@@ -258,18 +273,18 @@ final class MeshFall {
         Rig.origins(s.pitch, s.bend, s.gy, tl.spec.h(), kn, kt, oy, oz);
     }
 
-    /** World centres of the blocks drawn at client time {@code t} into {@code out} (x, y, z each); returns their count (tests). */
-    int centres(double t, double[] out) {
-        double tau = tau(t);
-        if (tau >= tl.end - 1) return 0;
-        Timeline.Sample s = tl.sample(tau, new Timeline.Sample());
-        Rig.origins(s.pitch, s.bend, s.gy, tl.spec.h(), kn, kt, oy, oz);
+    /** World centres of the blocks in the last drawn frame into {@code out} (x, y, z each); returns their count (tests). */
+    int centres(double[] out) {
+        DrawnPose d = drawn;
+        if (dead || d.tau >= tl.end - 1) return 0;
         Matrix4f m = new Matrix4f();
         Vector3f w = new Vector3f();
+        float[] pp = new float[2];
         int n = 0;
         for (int i = 0; i < blocks && n * 3 + 2 < out.length; i++) {
-            if (leaf[i] ? !s.leaves : isGone(ring[i], tau)) continue;
-            pose(m, ring[i], leaf[i], s, 0, 0, 0).transformPosition(cx[i], cy[i], cz[i], w);
+            float[] p = leaf[i] ? null : d.pop(ring[i], pp);
+            if (leaf[i] ? !d.leaves : p != null && p[0] == 0 && p[1] == 0) continue;
+            pose(m, ring[i], leaf[i], d, 0, 0, 0).transformPosition(cx[i], cy[i], cz[i], w);
             out[n * 3] = w.x;
             out[n * 3 + 1] = w.y;
             out[n * 3 + 2] = w.z;
@@ -298,11 +313,6 @@ final class MeshFall {
             c++;
         }
         return c;
-    }
-
-    private boolean isGone(int k, double tau) {
-        float[] p = tl.pop(k, tau, new float[2]);
-        return p != null && p[0] == 0 && p[1] == 0;
     }
 
     /** Light every second client tick: each block's current centre, eased toward it (HavingABlast debris light). */
@@ -339,11 +349,10 @@ final class MeshFall {
             dead = true;
             return;
         }
-        Timeline.Sample s = tl.sample(tau, sample);
-        origins(s);
-        drawnPitch = s.pitch;
+        DrawnPose s = drawn.draw(tau);
+        drawnPitch = s.rot + s.res;
         drawnTau = tau;
-        Matrix3f r = new Matrix3f().rotationY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(s.pitch))
+        Matrix3f r = new Matrix3f().rotationY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(s.rot + s.res))
             .rotateY((float) Math.toRadians(yaw));
         Vector3f n = new Vector3f();
         for (Direction d : DIRS) {
@@ -362,7 +371,7 @@ final class MeshFall {
             if (g.leaf) {
                 if (!s.leaves) continue;
             } else {
-                float[] p = tl.pop(g.k, tau, pop);
+                float[] p = s.pop(g.k, pop);
                 if (p != null) {
                     if (p[0] == 0 && p[1] == 0) continue;
                     ex = p[0] * (1 + inflate) - 1;

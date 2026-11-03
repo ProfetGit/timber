@@ -92,7 +92,7 @@ public final class ClientFalls {
     public static int centres(double[] out) {
         MeshFall f = lastFall;
         if (f == null || f.dead) return 0;
-        return f.centres(ticks + Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false), out);
+        return f.centres(out);
     }
 
     /** The last fall's blocks at server frame {@code n}; see {@link MeshFall#centresAt}. */
