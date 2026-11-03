@@ -10,12 +10,17 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gamerules.GameRules;
 
@@ -43,23 +48,44 @@ public final class Falls {
         });
     }
 
+    static final TagKey<Item> C_AXES = TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", "tools/axe"));
+
+    /** PRD 5.1 gates 1 to 4, in order: the player's toggle, game mode, sneak mode, the axe. */
     static boolean mayFell(ServerPlayer player) {
-        return !player.isCreative() && !player.isSpectator() && !player.isShiftKeyDown()
-            && player.getMainHandItem().is(ItemTags.AXES);
+        if (!Players.enabled(player.level().getServer(), player.getUUID())) return false;
+        GameType mode = player.gameMode.getGameModeForPlayer();
+        if (mode != GameType.SURVIVAL && mode != GameType.ADVENTURE) return false;
+        int sneak = Config.get(Config.Key.SNEAK);
+        if (sneak == 0 && player.isShiftKeyDown() || sneak == 1 && !player.isShiftKeyDown()) return false;
+        ItemStack tool = player.getMainHandItem();
+        return !Config.on(Config.Key.REQUIRE_AXE) || tool.is(ItemTags.AXES) || tool.is(C_AXES);
     }
 
     static void chop(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
         long t0 = System.nanoTime();
         if (!state.is(TreeScan.LOGS) || !mayFell(player) || busy(level, pos)) return;
         Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
-        if (tree == null) return;
+        if (tree == null) {
+            if (TreeScan.tooBig) refuse(player, "toobig", "Timber: this tree is too big to fell");
+            return;
+        }
         last = tree;
         if (!wear(level, player, tree.logs())) return;
         Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
         lastFall = fall;
+        if (!Config.on(Config.Key.ANIMATION)) {
+            fall.instantly();
+            return;
+        }
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
         if (PERF) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
+    }
+
+    /** PRD 5.10: a refusal says so on the action bar, with {@code feedback} on. */
+    private static void refuse(ServerPlayer player, String key, String fallback) {
+        if (!Config.on(Config.Key.FEEDBACK)) return;
+        Say.bar(player, Component.literal("🪓 ").append(Component.translatableWithFallback("vanilla_timber.msg." + key, fallback)).withStyle(ChatFormatting.RED));
     }
 
     private static boolean busy(ServerLevel level, BlockPos pos) {
@@ -75,12 +101,11 @@ public final class Falls {
      */
     private static boolean wear(ServerLevel level, ServerPlayer player, int logs) {
         ItemStack tool = player.getMainHandItem();
-        if (!tool.isDamageableItem() || logs <= 0) return true;
+        if (!Config.on(Config.Key.DURABILITY) || !tool.isDamageableItem() || logs <= 0) return true;
         int dmg = EnchantmentHelper.processDurabilityChange(level, tool, logs);
         int left = tool.getMaxDamage() - tool.getDamageValue() - 1;
         if (dmg > left) {
-            player.sendOverlayMessage(Component.literal("🪓 ").append(Component.translatableWithFallback("vanilla_timber.msg.worn",
-                "Timber: your axe is too worn to fell this tree")).withStyle(ChatFormatting.RED));
+            refuse(player, "worn", "Timber: your axe is too worn to fell this tree");
             return false;
         }
         if (dmg > 0) tool.setDamageValue(tool.getDamageValue() + dmg);
@@ -88,8 +113,8 @@ public final class Falls {
     }
 
     static void feedback(ServerPlayer player, int logs) {
-        if (player.isRemoved()) return;
-        player.sendOverlayMessage(Component.literal("🪓 ").withStyle(ChatFormatting.GOLD)
+        if (player.isRemoved() || !Config.on(Config.Key.FEEDBACK)) return;
+        Say.bar(player, Component.literal("🪓 ").withStyle(ChatFormatting.GOLD)
             .append(Component.translatableWithFallback("vanilla_timber.msg.timber", "Timber! ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD))
             .append(Component.literal(Integer.toString(logs)).withStyle(ChatFormatting.WHITE))
             .append(Component.translatableWithFallback("vanilla_timber.msg.logs", " logs").withStyle(ChatFormatting.GRAY)));

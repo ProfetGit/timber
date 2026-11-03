@@ -2,8 +2,11 @@ package io.github.profetgit.vanillatimber.selftest;
 
 import com.mojang.math.Transformation;
 import io.github.profetgit.vanillatimber.core.Rig;
+import io.github.profetgit.vanillatimber.server.Config;
 import io.github.profetgit.vanillatimber.server.Fall;
 import io.github.profetgit.vanillatimber.server.Falls;
+import io.github.profetgit.vanillatimber.server.Players;
+import io.github.profetgit.vanillatimber.server.Say;
 import io.github.profetgit.vanillatimber.server.Viewers;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +62,7 @@ final class Parity {
     static final List<Fall> plotFalls = new ArrayList<>();
     static final Map<Fall, Trace> TRACES = new ConcurrentHashMap<>();
     static volatile Runnable sampler;
+    static final List<String> CHAT = new ArrayList<>();
 
     private Parity() {}
 
@@ -135,6 +139,11 @@ final class Parity {
         player = s.getPlayerList().getPlayers().getFirst();
         Viewers.test = Viewers.VANILLA;
         Fall.probe = Parity::onFrame;
+        Say.tap = (p, c) -> {
+            synchronized (CHAT) {
+                CHAT.add(c.getString());
+            }
+        };
         ServerTickEvents.END_SERVER_TICK.register(sv -> {
             Runnable r = sampler;
             if (r != null) r.run();
@@ -147,6 +156,11 @@ final class Parity {
                 io.github.profetgit.vanillatimber.Timber.LOG.error("[parity] harness failed", t);
             } finally {
                 Fall.probe = null;
+                Say.tap = null;
+                on(() -> {
+                    Config.reset();
+                    return null;
+                });
                 sampler = null;
                 Viewers.test = 0;
                 FINISHED.set(true);
@@ -289,6 +303,26 @@ final class Parity {
         });
     }
 
+    /** Holds a stack with components (damage, enchantments): the {@code item replace} command, as 1.3.6 did. */
+    static void holdCmd(String item) {
+        cmd("item replace entity " + who() + " weapon.mainhand with " + item);
+    }
+
+    /** {@code /timber config key value}, as an operator would. */
+    static void cfg(String key, int value) {
+        List<String> r = cmd("timber config " + key + " " + value);
+        if (r.toString().contains("Unknown")) throw new IllegalStateException("timber config " + key + ": " + r);
+    }
+
+    /** Timber's chat and action bar lines since the last call (1.3.6 {@code TimberTest.chat()}). */
+    static List<String> chat() {
+        synchronized (CHAT) {
+            List<String> out = new ArrayList<>(CHAT);
+            CHAT.clear();
+            return out;
+        }
+    }
+
     static void feature(String f, int dx, int dz) {
         info("  " + cmd("place feature minecraft:" + f + " " + at(dx, 0, dz)));
     }
@@ -370,6 +404,20 @@ final class Parity {
         return ok;
     }
 
+    /** Chops with the sneak flag set for the break only (the real client's input would reset it between tasks). */
+    static boolean chopSneaking(int dx, int dy, int dz) {
+        boolean ok = on(() -> {
+            player.setShiftKeyDown(true);
+            try {
+                return destroy(p(dx, dy, dz));
+            } finally {
+                player.setShiftKeyDown(false);
+            }
+        });
+        tick(2);
+        return ok;
+    }
+
     static int displays() {
         return on(() -> {
             int n = 0;
@@ -396,6 +444,10 @@ final class Parity {
 
     /** Waits until the last fall's displays are gone (or n ticks). */
     static Trace finish(int n) {
+        if (cur == null) {
+            tick(2);
+            return null;
+        }
         Trace t = trace(cur);
         for (int i = 0; i < n && !t.done; i++) tick(1);
         return t;
@@ -466,7 +518,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "direction", "stump", "landing", "anim", "pose", "robustness"};
+    static final String[] ALL = {"oak", "swap", "gates", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -477,6 +529,10 @@ final class Parity {
         cmd("gamerule advance_time false");
         cmd("gamerule advance_weather false");
         cmd("time set 6000");
+        on(() -> {
+            Config.reset();
+            return null;
+        });
         tick(80);
         for (String g : ALL) {
             if (!(groups.equals("all") || ("," + groups + ",").contains("," + g + ","))) continue;
@@ -489,6 +545,10 @@ final class Parity {
                         putBack();
                         hideLeaves();
                     }
+                    case "gates" -> gates();
+                    case "modes" -> modes();
+                    case "durability" -> durability();
+                    case "settings" -> settings();
                     case "direction" -> direction();
                     case "stump" -> stump();
                     case "landing" -> landing();
@@ -553,11 +613,38 @@ final class Parity {
         check("oak: axe used 1 per log", damage() == logs, "damage " + damage() + " for " + logs + " logs");
     }
 
-    /** 1.3.6 {@code #hide_leaves 1}: the mod has no such option yet. */
+    /** hide_leaves 1: the old saving, leaves shut in on all sides get no display and no stand-in survives. */
     static void hideLeaves() {
-        missing("hide_leaves 1: no display for leaves shut in on all sides", "no hide-leaves option");
-        missing("hide_leaves 1: only displayed leaves are put back", "no hide-leaves option");
-        missing("hide_leaves 1: no stand-in blocks left behind", "no hide-leaves option");
+        try {
+            plot();
+            cfg("hide_leaves", 1);
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(40);
+            int logs = count(Parity::isLog, 6), leaves = count(Parity::natLeaf, 6), hidden = enclosedLeaves(6);
+            hold("minecraft:iron_axe");
+            stand(-2, 0, -90);
+            List<int[]> samples = new ArrayList<>();
+            int[] waited = {0};
+            CompletableFuture<Void> done = everyTick(gt -> {
+                int n = 0;
+                for (Fall f : plotFalls) n += f.displays();
+                if (n == 0 && samples.isEmpty()) return ++waited[0] < 400;
+                int lf = 0;
+                for (BlockPos q : BlockPos.betweenClosed(cx - 6, Y - 1, cz - 6, cx + 6, Y + 40, cz + 6)) if (isLeaf(level.getBlockState(q))) lf++;
+                samples.add(new int[] {n, lf});
+                return samples.size() < 2;
+            });
+            destroy(p(0, 0, 0));
+            await(done);
+            int[] a = samples.get(0);
+            check("hide_leaves 1: no display for leaves shut in on all sides", hidden > 0 && a[0] == logs - 1 + leaves - hidden,
+                a[0] + " displays for " + (logs - 1) + " logs + " + leaves + " leaves - " + hidden + " enclosed");
+            check("hide_leaves 1: only displayed leaves are put back", a[1] == leaves - hidden, a[1] + " of " + (leaves - hidden));
+            check("hide_leaves 1: no stand-in blocks left behind", blocks("minecraft:structure_void", 8) == 0, blocks("minecraft:structure_void", 8) + " structure voids");
+            finish(120);
+        } finally {
+            cfg("hide_leaves", 0);
+        }
     }
 
     /** The chop tick (frame 0) ends with the displays spawned and the visible blocks still in the world, except the anchor cell. */
@@ -626,6 +713,218 @@ final class Parity {
             check("swap at yaw " + normYaw(ctlYaw()) + ": every display sits exactly on its old block", res[1] == 0 && res[0] > 0, res[0] + " exact, " + res[1] + " off");
             finish(120);
         }
+    }
+
+    static void gates() {
+        String[][] cases = {{"sneaking", "sneak"}, {"bare hand", "hand"}, {"creative", "creative"}, {"toggle off", "off"}, {"require_axe off + shovel", "shovel"}};
+        for (String[] c : cases) {
+            try {
+                plot();
+                customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+                tick(30);
+                int logs = count(Parity::isLog, 6);
+                hold("minecraft:iron_axe");
+                switch (c[1]) {
+                    case "hand" -> cmd("item replace entity " + who() + " weapon.mainhand with minecraft:air");
+                    case "creative" -> cmd("gamemode creative " + who());
+                    case "off" -> on(() -> {
+                        Players.setEnabled(server, player.getUUID(), false);
+                        return null;
+                    });
+                    case "shovel" -> {
+                        cfg("require_axe", 0);
+                        hold("minecraft:iron_shovel");
+                    }
+                    default -> { }
+                }
+                if (c[1].equals("sneak")) chopSneaking(0, 0, 0);
+                else chop(0, 0, 0);
+                int left = count(Parity::isLog, 6);
+                if (c[1].equals("shovel")) check("gate: " + c[0] + " -> fells", left == 0 && displays() > 0, "logs left " + left);
+                else check("gate: " + c[0] + " -> single log", left == logs - 1 && displays() == 0, "logs " + logs + " -> " + left + ", displays " + displays());
+                finish(120);
+            } finally {
+                on(() -> {
+                    Players.setEnabled(server, player.getUUID(), true);
+                    return null;
+                });
+                cfg("require_axe", 1);
+            }
+        }
+        sneakModes();
+    }
+
+    /** PRD 5.1 sneak mode 1 (fell only while sneaking) and 2 (always); mode 0 is the default the cases above run with. */
+    static void sneakModes() {
+        try {
+            plot();
+            cfg("sneak", 1);
+            customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+            tick(30);
+            int logs = count(Parity::isLog, 6);
+            hold("minecraft:iron_axe");
+            chop(0, 0, 0);
+            int left = count(Parity::isLog, 6);
+            check("gate: sneak mode 1, standing -> single log", left == logs - 1 && displays() == 0, "logs " + logs + " -> " + left + ", displays " + displays());
+            plot();
+            customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            chopSneaking(0, 0, 0);
+            check("gate: sneak mode 1, sneaking -> fells", count(Parity::isLog, 6) == 0 && displays() > 0, "logs left " + count(Parity::isLog, 6));
+            finish(120);
+            plot();
+            cfg("sneak", 2);
+            customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            chopSneaking(0, 0, 0);
+            check("gate: sneak mode 2, sneaking -> fells", count(Parity::isLog, 6) == 0 && displays() > 0, "logs left " + count(Parity::isLog, 6));
+            finish(120);
+        } finally {
+            cfg("sneak", 0);
+        }
+    }
+
+    static void modes() {
+        try {
+            plot();
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(30);
+            cfg("drops", 1);
+            hold("minecraft:iron_axe");
+            stand(-6, 0, -90);
+            chop(0, 0, 0);
+            finish(120);
+            tick(2);
+            int atPlayer = itemsNear(p(-6, 0, 0), 1.5).getOrDefault("minecraft:oak_log", 0);
+            check("drops=1: logs appear at the player", atPlayer == 5, atPlayer + " logs at the player");
+        } finally {
+            cfg("drops", 0);
+        }
+        try {
+            plot();
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(30);
+            cfg("animation", 0);
+            hold("minecraft:iron_axe");
+            chop(0, 0, 0);
+            tick(1);
+            int near = itemsNear(p(0, 0, 0), 3).getOrDefault("minecraft:oak_log", 0);
+            check("animation off: instant, drops at the stump", displays() == 0 && count(Parity::isLog, 6) == 0 && near == 6, "displays " + displays() + ", logs dropped nearby " + near);
+        } finally {
+            cfg("animation", 1);
+        }
+    }
+
+    static void durability() {
+        plot();
+        customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+        tick(30);
+        holdCmd("minecraft:iron_axe[minecraft:damage=245]");
+        chat();
+        chop(0, 0, 0);
+        List<String> bar = chat();
+        check("worn axe: tree not felled, warning shown", count(Parity::isLog, 6) == 7 && bar.toString().contains("too worn"), count(Parity::isLog, 6) + " logs, chat " + bar);
+        check("worn axe: survives with the vanilla single-block wear", damage() == 246, "damage " + damage());
+
+        plot();
+        feature("mega_spruce", 0, 0);
+        tick(40);
+        int logs = count(Parity::isLog, 10);
+        holdCmd("minecraft:diamond_axe[minecraft:enchantments={\"minecraft:unbreaking\":3}]");
+        chop(0, 0, 0);
+        check("unbreaking III: wear reduced", damage() > 0 && damage() < logs * 0.6, "damage " + damage() + " for " + logs + " logs");
+        finish(120);
+
+        plot();
+        customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+        tick(30);
+        holdCmd("minecraft:iron_axe[minecraft:unbreakable={}]");
+        chop(0, 0, 0);
+        check("unbreakable: no wear", damage() == 0 && count(Parity::isLog, 6) == 0, "damage " + damage());
+        finish(120);
+        refusals();
+    }
+
+    /** PRD 5.10: refusals have an action bar line with feedback on, none with it off; durability 0 pays nothing. */
+    static void refusals() {
+        try {
+            plot();
+            customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+            tick(30);
+            cfg("durability", 0);
+            holdCmd("minecraft:iron_axe[minecraft:damage=245]");
+            chat();
+            chop(0, 0, 0);
+            check("durability 0: a worn axe still fells and pays nothing", count(Parity::isLog, 6) == 0 && damage() == 246, count(Parity::isLog, 6) + " logs, damage " + damage());
+            finish(120);
+            cfg("durability", 1);
+            cfg("max_logs", 16);
+            plot();
+            customTree(0, 0, 20, 2, "oak_log", "oak_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            chat();
+            chop(0, 0, 0);
+            List<String> big = chat();
+            check("too big: not felled, line shown", count(Parity::isLog, 6) == 19 && big.toString().contains("too big"), count(Parity::isLog, 6) + " logs, chat " + big);
+            cfg("feedback", 0);
+            plot();
+            customTree(0, 0, 20, 2, "oak_log", "oak_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            chat();
+            chop(0, 0, 0);
+            List<String> quiet = chat();
+            check("feedback 0: a refusal shows no line", count(Parity::isLog, 6) == 19 && quiet.isEmpty(), quiet.toString());
+        } finally {
+            cfg("max_logs", 256);
+            cfg("durability", 1);
+            cfg("feedback", 1);
+        }
+    }
+
+    static void settings() {
+        chat();
+        List<String> menu = cmd("execute as " + who() + " run timber menu");
+        List<String> shown = chat();
+        for (String m : shown) info("menu| " + m);
+        check("settings menu renders", shown.size() == 13 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
+        cmd("timber config max_logs 99999");
+        check("max_logs clamped", Config.get(Config.Key.MAX_LOGS) == 1024 && cmd("timber config max_logs").toString().contains("1024"), "");
+        cfg("max_logs", 256);
+        cmd("execute as " + who() + " run timber menu radius 20");
+        cmd("reload");
+        tick(5);
+        check("config survives /reload", Config.get(Config.Key.RADIUS) == 20, "radius " + Config.get(Config.Key.RADIUS));
+        cmd("timber reload");
+        check("config survives /timber reload (the commented file reads back)", Config.get(Config.Key.RADIUS) == 20, "radius " + Config.get(Config.Key.RADIUS));
+        cfg("radius", 12);
+        cmd("execute as " + who() + " run trigger timber");
+        tick(2);
+        List<String> t = chat();
+        boolean off = !on(() -> Players.enabled(server, player.getUUID()));
+        check("/trigger timber toggles off with a message", t.toString().contains("disabled") && off, t.toString());
+        cmd("execute as " + who() + " run trigger timber");
+        tick(2);
+        List<String> t2 = chat();
+        check("/trigger timber toggles back on", t2.toString().contains("enabled") && on(() -> Players.enabled(server, player.getUUID())), t2.toString());
+        on(() -> {
+            Players.welcome(player);
+            return null;
+        });
+        List<String> quiet = chat();
+        check("join hint is off by default", quiet.isEmpty(), quiet.toString());
+        cfg("welcome", 1);
+        on(() -> {
+            Players.welcome(player);
+            return null;
+        });
+        List<String> w = chat();
+        cfg("welcome", 0);
+        check("welcome hint", w.toString().contains("Sneak to take a single log"), w.toString());
+        notApplicable("uninstall removes all objectives", "the mod has no uninstall function; its one trigger objective is removed at server stop");
     }
 
     static void direction() {

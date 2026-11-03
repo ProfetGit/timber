@@ -67,6 +67,12 @@ final class Fx {
         particle(level, block(t.leaf().getBlock().defaultBlockState()), crown, f.cr, 0.8, f.cr, 0.05, 20);
     }
 
+    /** {@code animation} 0 ({@code disp/instant}): a puff and the crack of wood where the tree stood. */
+    static void instant(ServerLevel level, Vec3 at) {
+        particle(level, ParticleTypes.SMALL_GUST, at.add(0, 1, 0), 0.5, 0.6, 0.5, 0, 3);
+        sound(level, at, SoundEvents.WOOD_BREAK, 1, 0.6f);
+    }
+
     /** The trunk lands on the stump after a plunge ({@code fx/land}, {@code land_at}). */
     static void land(ServerLevel level, Fall f, Vec3 at) {
         sound(level, at, SoundEvents.WOOD_FALL, 1, 0.6f);

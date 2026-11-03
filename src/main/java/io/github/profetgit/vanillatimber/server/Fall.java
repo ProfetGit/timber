@@ -128,6 +128,7 @@ public final class Fall {
         n++;
         if (n == 0) {
             if (tree.anchor() != null) remove(tree.anchor(), null);
+            for (Tree.Part p : tree.parts()) if (p.hidden()) remove(p.pos(), p.state());
         } else if (n == 1) {
             for (Tree.Part p : tree.parts()) if (!p.pos().equals(tree.anchor())) remove(p.pos(), p.state());
         }
@@ -147,6 +148,24 @@ public final class Fall {
         var pr = probe;
         if (pr != null) pr.accept(this);
         return done;
+    }
+
+    /**
+     * {@code animation} 0 ({@code disp/instant}): every block goes at once with a puff and a creak of wood, and all the loot
+     * drops at the stump (or at the player, with {@code drops} 1).
+     */
+    void instantly() {
+        for (Tree.Part p : tree.parts()) remove(p.pos(), p.state());
+        Vec3 at = new Vec3(x, y0, z);
+        Fx.instant(level, at);
+        Vec3 p = at.add(0, 0.5, 0);
+        for (List<ItemStack> ring : ringDrops) {
+            for (ItemStack s : ring) drop(s, p, false);
+            ring.clear();
+        }
+        for (ItemStack s : leafDrops) drop(s, p, false);
+        leafDrops.clear();
+        n = tl.end;
     }
 
     /** Ends the fall now (server stop, chunk unload): every display goes and every drop pops at the stump. */
@@ -190,7 +209,7 @@ public final class Fall {
         for (int pass = 0; pass < 2; pass++) {
             for (int i = 0; i < shown.length && budget > 0; i++) {
                 Tree.Part p = tree.parts().get(i);
-                if (p.leaf() == (pass == 0) || p.state().isAir()) continue;
+                if (p.leaf() == (pass == 0) || p.state().isAir() || p.hidden()) continue;
                 if (p.leaf() ? n >= tl.leavesGone && tl.leavesGone >= 0 : tl.popTick[p.k()] >= 0 && n >= tl.popTick[p.k()]) continue;
                 budget--;
                 Transformation rest = Displays.of((p.tx() + ox) / 1000.0, (p.wy() - 3) / 1000.0, (p.tz() + oz) / 1000.0, id, 1.006, 1.006,
@@ -330,6 +349,12 @@ public final class Fall {
     private void drop(ItemStack stack, Vec3 at, boolean hop) {
         if (stack.isEmpty()) return;
         dropped += stack.getCount();
+        if (Config.get(Config.Key.DROPS) == 1 && !cutter.isRemoved() && cutter.level() == level) {
+            ItemEntity item = new ItemEntity(level, cutter.getX(), cutter.getY(), cutter.getZ(), stack, 0, 0, 0);
+            item.setPickUpDelay(0);
+            level.addFreshEntity(item);
+            return;
+        }
         RandomSource r = level.getRandom();
         double dx = hop ? r.nextInt(121) - 60 : r.nextInt(281) - 140, dy = hop ? 200 + r.nextInt(61) : 180 + r.nextInt(141);
         double dz = hop ? r.nextInt(121) - 60 : r.nextInt(281) - 140;

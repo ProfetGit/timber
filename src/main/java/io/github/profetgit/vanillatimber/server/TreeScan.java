@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec2;
@@ -31,7 +32,8 @@ public final class TreeScan {
     public static final TagKey<Block> LOGS = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "logs"));
     public static final TagKey<Block> PASSABLE = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "passable"));
     public static final TagKey<Block> GAP_OPEN = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "gap_open"));
-    static final int RADIUS = 12, MAX_LOGS = 256, MAX_BLOCKS = 900;
+    /** Set by the last {@link #scan}: it gave up because the tree has more logs than {@code max_logs}. */
+    public static volatile boolean tooBig;
     static final int[] TRIES = {3375, -3375, 0, 6750, -6750, 9000, -9000};
 
     private TreeScan() {}
@@ -43,6 +45,9 @@ public final class TreeScan {
     /** The tree the chop at {@code origin} (already broken; it was {@code chopped}) would fell, or null. */
     public static Tree scan(ServerLevel level, BlockPos origin, BlockState chopped, float playerYaw) {
         Block log = chopped.getBlock();
+        tooBig = false;
+        int radius = Config.radius(), maxLogs = Config.maxLogs(), maxBlocks = Config.maxBlocks();
+        boolean hideLeaves = Config.on(Config.Key.HIDE_LEAVES);
         // flood: 26 neighbours of the same log, within the radius across
         List<BlockPos> flood = new ArrayList<>();
         LongOpenHashSet seen = new LongOpenHashSet();
@@ -54,9 +59,12 @@ public final class TreeScan {
             for (int dx = -1; dx <= 1; dx++) for (int dy = -1; dy <= 1; dy++) for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dy == 0 && dz == 0) continue;
                 BlockPos q = p.offset(dx, dy, dz);
-                if (Math.abs(q.getX() - origin.getX()) > RADIUS || Math.abs(q.getZ() - origin.getZ()) > RADIUS) continue;
+                if (Math.abs(q.getX() - origin.getX()) > radius || Math.abs(q.getZ() - origin.getZ()) > radius) continue;
                 if (!seen.add(q.asLong()) || !level.getBlockState(q).is(log)) continue;
-                if (flood.size() >= MAX_LOGS) return null;
+                if (flood.size() >= maxLogs) {
+                    tooBig = true;
+                    return null;
+                }
                 flood.add(q);
                 queue.add(q);
             }
@@ -112,7 +120,7 @@ public final class TreeScan {
         List<BlockPos> leaves = new ArrayList<>();
         LongOpenHashSet taken = new LongOpenHashSet();
         int ymax = by, lymin = Integer.MAX_VALUE;
-        for (BlockPos p : ours) walk(level, p, 1, leaves, taken);
+        for (BlockPos p : ours) walk(level, p, 1, leaves, taken, maxBlocks);
         for (BlockPos p : leaves) {
             ymax = Math.max(ymax, p.getY());
             lymin = Math.min(lymin, p.getY());
@@ -158,7 +166,7 @@ public final class TreeScan {
                 int k = Layout.ring(wy), tx = Layout.tx(wx, wz, bin);
                 if (pass == 1) km = Math.max(km, k);
                 else cw = Math.max(cw, Math.abs(tx) + 500);
-                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, tx, wy, Layout.tz(wx, wz, bin), k));
+                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, tx, wy, Layout.tz(wx, wz, bin), k, pass == 0 && hideLeaves && shut(level, p)));
                 if (p.equals(anchorCell)) anchor = p;
             }
         }
@@ -171,16 +179,25 @@ public final class TreeScan {
             Math.min(cw, 4000), chopped, leaf);
     }
 
-    private static void walk(ServerLevel level, BlockPos from, int d, List<BlockPos> out, LongOpenHashSet taken) {
+    /** 1.3.6 {@code leaves/hide} ({@code #timber:shell}): a leaf with leaves, logs or a creaking heart on all six sides gets no display. */
+    private static boolean shut(ServerLevel level, BlockPos p) {
+        for (Direction d : Direction.values()) {
+            BlockState s = level.getBlockState(p.relative(d));
+            if (!s.is(BlockTags.LEAVES) && !s.is(BlockTags.LOGS) && !s.is(Blocks.CREAKING_HEART)) return false;
+        }
+        return true;
+    }
+
+    private static void walk(ServerLevel level, BlockPos from, int d, List<BlockPos> out, LongOpenHashSet taken, int maxBlocks) {
         if (d > LeavesBlock.DECAY_DISTANCE) return;
         for (Direction dir : Direction.values()) {
             BlockPos q = from.relative(dir);
             BlockState s = level.getBlockState(q);
             if (!natural(s) || !s.hasProperty(LeavesBlock.DISTANCE) || s.getValue(LeavesBlock.DISTANCE) != d) continue;
-            if (taken.contains(q.asLong()) || out.size() >= MAX_BLOCKS) continue;
+            if (taken.contains(q.asLong()) || out.size() >= maxBlocks) continue;
             taken.add(q.asLong());
             out.add(q);
-            walk(level, q, d + 1, out, taken);
+            walk(level, q, d + 1, out, taken, maxBlocks);
         }
     }
 
