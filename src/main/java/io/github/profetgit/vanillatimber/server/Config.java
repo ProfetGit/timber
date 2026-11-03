@@ -57,6 +57,8 @@ public final class Config {
     private static volatile int[] values = defaults();
     private static JsonObject extra = new JsonObject();
     private static long stamp = -1;
+    /** The file failed to parse at the last read: the values in use are the last good ones. */
+    static boolean broken;
     private static int poll;
 
     private Config() {}
@@ -93,11 +95,20 @@ public final class Config {
         try {
             if (Files.exists(FILE)) {
                 JsonElement e = JsonParser.parseString(Files.readString(FILE));
-                if (e.isJsonObject()) raw = e.getAsJsonObject();
+                if (!e.isJsonObject()) throw new IllegalStateException("not a JSON object");
+                raw = e.getAsJsonObject();
             }
         } catch (IOException | RuntimeException e) {
-            Timber.LOG.warn("Timber: config unreadable, using defaults ({})", e.toString());
+            // a typo while editing: keep the values in use and the operator's file, try again on the next save
+            Timber.LOG.warn("Timber: config unreadable, keeping the current values ({})", e.toString());
+            try {
+                stamp = Files.getLastModifiedTime(FILE).toMillis();
+            } catch (IOException ignored) {
+            }
+            broken = true;
+            return;
         }
+        broken = false;
         int[] v = defaults();
         for (Key k : Key.values()) {
             JsonElement e = raw.get(k.json);

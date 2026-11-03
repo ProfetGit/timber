@@ -37,6 +37,8 @@ public final class Falls {
         return PERF || Fall.probe != null;
     }
     private static final Map<ServerLevel, List<Fall>> ACTIVE = new IdentityHashMap<>();
+    /** Server tick of each player's last fell (PRD 5.1); cleared on leave and server stop. */
+    private static final Map<java.util.UUID, Integer> FELLED = new java.util.HashMap<>();
     private static int nextId;
 
     private Falls() {}
@@ -46,9 +48,11 @@ public final class Falls {
             if (level instanceof ServerLevel sl && player instanceof ServerPlayer sp) chop(sl, sp, pos, state);
         });
         ServerTickEvents.START_LEVEL_TICK.register(Falls::tick);
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> FELLED.remove(handler.getPlayer().getUUID()));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (List<Fall> falls : ACTIVE.values()) for (Fall f : falls) f.abort();
             ACTIVE.clear();
+            FELLED.clear();
             Viewers.clear();
         });
     }
@@ -70,12 +74,21 @@ public final class Falls {
         long t0 = System.nanoTime();
         boolean placed = Placed.remove(level, pos);
         if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || !mayFell(player) || busy(level, pos)) return;
+        // PRD 5.1: one fell per player per tick, so a multi-break mod breaking 20 logs fells one tree
+        int now = level.getServer().getTickCount();
+        Integer before = FELLED.put(player.getUUID(), now);
+        if (before != null && before == now) return;
         Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
         if (tree == null) {
             if (TreeScan.tooBig) refuse(player, "toobig", "Timber: this tree is too big to fell");
+            FELLED.put(player.getUUID(), before == null ? -1 : before);
             return;
         }
         last = tree;
+        if (!allowed(level, player, tree)) {
+            refuse(player, "protected", "Timber: part of this tree is protected");
+            return;
+        }
         if (!wear(level, player, tree.logs())) return;
         Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
         lastFall = fall;
@@ -86,6 +99,20 @@ public final class Falls {
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
         if (timed()) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
+    }
+
+    /**
+     * PRD 5.7 claims: every block of the tree passes the break checks the chopper's own break did (spawn protection,
+     * world border, adventure mode, and the loader's break event claim mods listen to), or nothing beyond the chopped log goes.
+     */
+    static boolean allowed(ServerLevel level, ServerPlayer player, Tree tree) {
+        GameType mode = player.gameMode.getGameModeForPlayer();
+        for (Tree.Part p : tree.parts()) {
+            BlockPos q = p.pos();
+            if (!level.mayInteract(player, q) || player.blockActionRestricted(level, q, mode)) return false;
+            if (!PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, player, q, p.state(), level.getBlockEntity(q))) return false;
+        }
+        return true;
     }
 
     /** PRD 5.10: a refusal says so on the action bar, with {@code feedback} on. */
