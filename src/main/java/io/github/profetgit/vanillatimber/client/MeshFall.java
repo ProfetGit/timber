@@ -234,18 +234,8 @@ final class MeshFall {
         };
     }
 
-    /** Light at a cell; inside an opaque block (a log at rest, a trunk swinging through the ground) the brightest open neighbour. */
     static int lightAt(ClientLevel level, BlockPos cell) {
-        if (!level.getBlockState(cell).isSolidRender()) return LightCoordsUtil.getLightCoords(level, cell);
-        BlockPos.MutableBlockPos n = new BlockPos.MutableBlockPos();
-        int b = 0, s = 0;
-        for (Direction d : DIRS) {
-            n.setWithOffset(cell, d);
-            int l = LightCoordsUtil.getLightCoords(level, n);
-            b = Math.max(b, LightCoordsUtil.block(l));
-            s = Math.max(s, LightCoordsUtil.sky(l));
-        }
-        return LightCoordsUtil.pack(b, s);
+        return io.github.profetgit.vanillatimber.server.Displays.lightAt(level, cell);
     }
 
     /** The group matrix of ring k at the exact sample (origins from {@link #origins}), translated by -cam. */

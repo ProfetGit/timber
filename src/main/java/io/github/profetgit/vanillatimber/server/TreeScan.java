@@ -42,6 +42,7 @@ public final class TreeScan {
     public static final TagKey<Block> NOT_GROUND = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "not_ground"));
     public static final TagKey<Block> DECOR = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "decor"));
     public static final TagKey<Block> HANGING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "hanging"));
+    public static final TagKey<Block> RISING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "rising"));
     static final int[] TRIES = {3375, -3375, 0, 6750, -6750, 9000, -9000};
     /** 1.3.6's face order (+x, -x, +y, -y, +z, -z), which decides what the walk takes first at the cap. */
     private static final Direction[] FACES = {Direction.EAST, Direction.WEST, Direction.UP, Direction.DOWN, Direction.SOUTH, Direction.NORTH};
@@ -349,6 +350,16 @@ public final class TreeScan {
             java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
             for (BlockPos p : trunk) visit(p, 1, origin, radius, queue);
             while (!queue.isEmpty() && blocks < max) visit(queue.poll(), reach, origin, radius, queue);
+            // the particles' block: the crown's commonest (a fungus's wart, not the shroomlight it took last)
+            java.util.Map<net.minecraft.world.level.block.Block, Integer> count = new java.util.HashMap<>();
+            int most = 0;
+            for (BlockPos q : crown) {
+                int c = count.merge(level.getBlockState(q).getBlock(), 1, Integer::sum);
+                if (c > most) {
+                    most = c;
+                    lastLeaf = q;
+                }
+            }
         }
 
         private void visit(BlockPos from, int reach, BlockPos origin, int radius, java.util.ArrayDeque<BlockPos> queue) {
@@ -403,15 +414,19 @@ public final class TreeScan {
             }
         }
 
-        /** One decor block, and the vines or moss hanging straight below it. */
+        /** One decor block, the vines or moss hanging straight below it, and twisting vines growing straight up from it. */
         void decor(BlockPos q) {
-            while (blocks < max && taken.add(q.asLong())) {
-                blocks++;
-                decor.set(crown.size());
-                crown.add(q);
-                q = q.below();
-                if (!level.getBlockState(q).is(HANGING)) return;
-            }
+            if (!takeDecor(q)) return;
+            for (BlockPos d = q.below(); level.getBlockState(d).is(HANGING) && takeDecor(d); d = d.below()) { }
+            for (BlockPos u = q.above(); level.getBlockState(u).is(RISING) && takeDecor(u); u = u.above()) { }
+        }
+
+        private boolean takeDecor(BlockPos q) {
+            if (blocks >= max || !taken.add(q.asLong())) return false;
+            blocks++;
+            decor.set(crown.size());
+            crown.add(q);
+            return true;
         }
     }
 

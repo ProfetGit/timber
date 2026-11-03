@@ -23,4 +23,7 @@ public interface DisplayAccess {
 
     @Invoker("setViewRange")
     void timber$setViewRange(float range);
+
+    @Invoker("setBrightnessOverride")
+    void timber$setBrightnessOverride(net.minecraft.util.Brightness brightness);
 }

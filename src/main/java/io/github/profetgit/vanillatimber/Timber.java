@@ -2,6 +2,7 @@ package io.github.profetgit.vanillatimber;
 
 import io.github.profetgit.vanillatimber.net.Hello;
 import io.github.profetgit.vanillatimber.server.Config;
+import io.github.profetgit.vanillatimber.server.Conflicts;
 import io.github.profetgit.vanillatimber.server.Falls;
 import io.github.profetgit.vanillatimber.server.Players;
 import io.github.profetgit.vanillatimber.server.TimberCommand;
@@ -24,6 +25,7 @@ public final class Timber implements ModInitializer {
         TreeTypes.register();
         if (io.github.profetgit.vanillatimber.selftest.TestBlocks.wanted()) io.github.profetgit.vanillatimber.selftest.TestBlocks.register();
         Players.register();
+        Conflicts.register();
         CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> TimberCommand.register(dispatcher));
         LOG.info("Profet's Timber loaded");
     }

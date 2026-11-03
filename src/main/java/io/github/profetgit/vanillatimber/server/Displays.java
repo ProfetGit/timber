@@ -3,10 +3,15 @@ package io.github.profetgit.vanillatimber.server;
 import com.mojang.math.Transformation;
 import io.github.profetgit.vanillatimber.mixin.BlockDisplayAccess;
 import io.github.profetgit.vanillatimber.mixin.DisplayAccess;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Brightness;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.level.BlockAndLightGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -34,6 +39,25 @@ public final class Displays {
         a.timber$setTransformation(pose);
         level.addFreshEntity(d);
         return d;
+    }
+
+    /** Light at a cell; inside an opaque block (a log at rest, a trunk swinging through the ground) the brightest open neighbour. */
+    public static int lightAt(BlockAndLightGetter level, BlockPos cell) {
+        if (!level.getBlockState(cell).isSolidRender()) return LightCoordsUtil.getLightCoords(level, cell);
+        BlockPos.MutableBlockPos n = new BlockPos.MutableBlockPos();
+        int b = 0, s = 0;
+        for (Direction d : Direction.values()) {
+            n.setWithOffset(cell, d);
+            int l = LightCoordsUtil.getLightCoords(level, n);
+            b = Math.max(b, LightCoordsUtil.block(l));
+            s = Math.max(s, LightCoordsUtil.sky(l));
+        }
+        return LightCoordsUtil.pack(b, s);
+    }
+
+    /** Lights a display like the mesh's path light (a display samples its entity's cell, the pivot, by itself). */
+    static void light(Display d, int block, int sky) {
+        ((DisplayAccess) d).timber$setBrightnessOverride(new Brightness(block, sky));
     }
 
     /** A new pose, reached over {@code ticks} from when it arrives. */

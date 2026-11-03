@@ -63,6 +63,15 @@ public final class Config {
 
     private Config() {}
 
+    public static Path file() {
+        return FILE;
+    }
+
+    /** The file failed to parse at the last read: the values in use are the last good ones. */
+    public static boolean broken() {
+        return broken;
+    }
+
     private static int[] defaults() {
         int[] v = new int[Key.values().length];
         for (Key k : Key.values()) v[k.ordinal()] = k.def;

@@ -3,6 +3,7 @@ package io.github.profetgit.vanillatimber.selftest;
 import com.mojang.math.Transformation;
 import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.server.Config;
+import io.github.profetgit.vanillatimber.server.Conflicts;
 import io.github.profetgit.vanillatimber.server.Fall;
 import io.github.profetgit.vanillatimber.server.Falls;
 import io.github.profetgit.vanillatimber.server.Placed;
@@ -141,6 +142,14 @@ final class Parity {
         player = s.getPlayerList().getPlayers().getFirst();
         Viewers.test = Viewers.VANILLA;
         Fall.probe = Parity::onFrame;
+        if (!claimHook) {
+            claimHook = true;
+            // a claim mod: denies every break inside the box (PRD 5.7), the chopper's own included
+            net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.register((w, pl, pos, st, be) -> {
+                var b = denyBox;
+                return b == null || !b.isInside(pos);
+            });
+        }
         Say.tap = (p, c) -> {
             synchronized (CHAT) {
                 CHAT.add(c.getString());
@@ -173,6 +182,19 @@ final class Parity {
     }
 
     // ---- harness ----
+
+    private static boolean claimHook;
+    /** Cells the self-test's claim listener denies, or null. */
+    static volatile net.minecraft.world.level.levelgen.structure.BoundingBox denyBox;
+
+    /** Logs standing in the column at dx, dz. */
+    static int logsAt(int dx, int dz) {
+        return on(() -> {
+            int n = 0;
+            for (int y = 0; y < 30; y++) if (isLog(level.getBlockState(p(dx, y, dz)))) n++;
+            return n;
+        });
+    }
 
     static <T> T on(Supplier<T> task) {
         if (server.isSameThread()) return task.get();
@@ -528,7 +550,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -586,6 +608,10 @@ final class Parity {
                     case "jungles" -> leafWalk("jungle_tree", 16);
                     case "m3sheet" -> m3sheet();
                     case "azshapes" -> azaleaShapes();
+                    case "multibreak" -> multibreak();
+                    case "claims" -> claims();
+                    case "config_reload" -> configReload();
+                    case "conflict" -> conflict();
                     default -> { }
                 }
             } catch (Throwable t) {
@@ -1782,8 +1808,17 @@ final class Parity {
             }
             String stem = "minecraft:" + kind + "_stem", wart = kind.equals("crimson") ? "minecraft:nether_wart_block" : "minecraft:warped_wart_block";
             int stems = blocks(stem, 14);
+            // vanilla grows no vines on a warped fungus: twisting vines on top of the hat, as a player's bone meal leaves them
+            if (kind.equals("warped")) on(() -> {
+                BlockPos q = p(0, 0, 0);
+                while (!level.getBlockState(q.above()).isAir()) q = q.above();
+                level.setBlock(q.above(), net.minecraft.world.level.block.Blocks.TWISTING_VINES_PLANT.defaultBlockState(), 3);
+                level.setBlock(q.above(2), net.minecraft.world.level.block.Blocks.TWISTING_VINES.defaultBlockState(), 3);
+                return null;
+            });
             fellAll("fungi: " + kind + " fungus", base, s -> is(s, stem), s -> is(s, wart) || is(s, "minecraft:shroomlight"),
-                s -> is(s, "minecraft:weeping_vines") || is(s, "minecraft:weeping_vines_plant"));
+                s -> is(s, "minecraft:weeping_vines") || is(s, "minecraft:weeping_vines_plant") || is(s, "minecraft:twisting_vines")
+                    || is(s, "minecraft:twisting_vines_plant"));
             tick(2);
             check("fungi: " + kind + " stems dropped", itemsOf(stem, 30) >= stems, stems + " stems, items " + itemsNear(p(0, 0, 0), 30));
         }
@@ -1953,14 +1988,144 @@ final class Parity {
      * M3 critic stills: a crimson and a warped fungus, a red and a brown mushroom, each felled twice (mesh, then
      * displays), seen from the side at fixed ticks after the chop: frames/m3_&lt;kind&gt;_&lt;mesh|displays&gt;_tNN/f000.png.
      */
+    /** PRD 5.1: one fell per player per tick (FTB Ultimine breaking every log at once fells one tree). */
+    static void multibreak() {
+        plot();
+        for (int i = -1; i <= 1; i++) customTree(12 * i, 6, 6, 2, "oak_log", "oak_leaves");
+        tick(30);
+        hold("minecraft:iron_axe");
+        int before = controllers();
+        on(() -> {
+            for (int i = -1; i <= 1; i++) destroy(p(12 * i, 0, 6));
+            return null;
+        });
+        tick(2);
+        int falls = controllers() - before;
+        check("multibreak: 3 base logs in one tick fell 1 tree", falls == 1 && logsAt(-12, 6) == 0 && logsAt(0, 6) == 5 && logsAt(12, 6) == 5,
+            falls + " falls, logs " + logsAt(-12, 6) + "/" + logsAt(0, 6) + "/" + logsAt(12, 6));
+        destroy(p(0, 1, 6));
+        tick(2);
+        check("multibreak: the next tick fells another", controllers() - before == 2 && logsAt(0, 6) == 0 && logsAt(12, 6) == 5,
+            "logs " + logsAt(0, 6) + "/" + logsAt(12, 6));
+        finish(160);
+    }
+
+    /** PRD 5.7: every block of the tree passes the break event as the chopper; a denied block keeps the tree standing. */
+    static void claims() {
+        try {
+            plot();
+            customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            // a claim over the crown's +z half, not the chopped log
+            denyBox = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx - 3, Y + 4, cz + 1, cx + 3, Y + 10, cz + 3);
+            chat();
+            chop(0, 0, 0);
+            List<String> bar = chat();
+            check("claims: a tree half in a claim stands, the chopped log breaks", logsAt(0, 0) == 7 && controllers() == 0 && bar.toString().contains("protected"),
+                logsAt(0, 0) + " logs, falls " + controllers() + ", chat " + bar);
+            plot();
+            customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            denyBox = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx + 4, Y, cz + 4, cx + 10, Y + 10, cz + 10);
+            chop(0, 0, 0);
+            check("claims: a tree outside the claim fells", logsAt(0, 0) == 0 && displays() > 0, logsAt(0, 0) + " logs, displays " + displays());
+            finish(160);
+        } finally {
+            denyBox = null;
+        }
+    }
+
+    /** PRD 5.8: the file is re-read on save, clamped, and a broken save keeps the values in use and the operator's text. */
+    static void configReload() {
+        java.nio.file.Path file = Config.file();
+        try {
+            writeConfig(file, "{\"max_logs\": 16}");
+            tick(45);
+            check("config reload: a saved max_logs is picked up", on(Config::maxLogs) == 16, "max_logs " + on(Config::maxLogs));
+            plot();
+            customTree(0, 0, 20, 2, "oak_log", "oak_leaves");
+            tick(30);
+            hold("minecraft:iron_axe");
+            chat();
+            chop(0, 0, 0);
+            List<String> big = chat();
+            check("config reload: a 20-log tree is now too big", logsAt(0, 0) == 19 && big.toString().contains("too big"), logsAt(0, 0) + " logs, chat " + big);
+
+            writeConfig(file, "{\"max_logs\": 99999}");
+            tick(45);
+            String text = read(file);
+            check("config reload: an out-of-range value is clamped in use and in the file", on(Config::maxLogs) == 1024 && text.contains("1024") && !text.contains("99999"),
+                "max_logs " + on(Config::maxLogs));
+
+            String broken = "{\"max_logs\": 50,";
+            writeConfig(file, broken);
+            tick(45);
+            check("config reload: broken JSON keeps the values and the file", on(Config::maxLogs) == 1024 && on(Config::broken) && read(file).equals(broken),
+                "max_logs " + on(Config::maxLogs) + ", broken " + on(Config::broken) + ", file " + read(file).length() + " chars");
+
+            writeConfig(file, "{\"max_logs\": 40}");
+            List<String> r = cmd("timber reload");
+            check("config reload: /timber reload reads it at once", on(Config::maxLogs) == 40 && !on(Config::broken), "max_logs " + on(Config::maxLogs) + ", " + r);
+        } finally {
+            on(() -> {
+                Config.reset();
+                return null;
+            });
+        }
+    }
+
+    /** Saves the config the way an editor does: a whole new file in one move, so the poll never reads half of it. */
+    static void writeConfig(java.nio.file.Path file, String text) {
+        try {
+            java.nio.file.Path tmp = file.resolveSibling("timber.json.tmp");
+            java.nio.file.Files.writeString(tmp, text);
+            java.nio.file.Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    static String read(java.nio.file.Path file) {
+        try {
+            return java.nio.file.Files.readString(file);
+        } catch (java.io.IOException e) {
+            return "";
+        }
+    }
+
+    /** PRD 9: FallingTree or HT's TreeChop installed: a warning at start, each op told once per run. */
+    static void conflict() {
+        try {
+            check("conflict: none in the test profile", on(Conflicts::present).isEmpty(), on(Conflicts::present).toString());
+            on(() -> Conflicts.use(List.of("fallingtree")));
+            chat();
+            boolean told = on(() -> Conflicts.tell(player));
+            List<String> first = chat();
+            boolean again = on(() -> Conflicts.tell(player));
+            List<String> second = chat();
+            check("conflict: an op is told once per run", told && first.size() == 1 && first.getFirst().contains("FallingTree") && !again && second.isEmpty(),
+                first + " then " + second);
+            List<String> found = on(() -> Conflicts.use(List.of("treechop", "not_a_mod")));
+            boolean told2 = on(() -> Conflicts.tell(player));
+            List<String> next = chat();
+            check("conflict: a new run tells again, unknown ids ignored", found.equals(List.of("treechop")) && told2 && next.toString().contains("HT's TreeChop"),
+                found + " " + next);
+        } finally {
+            on(() -> Conflicts.use(List.of()));
+        }
+    }
+
     static void m3sheet() {
         int[] at = {1, 4, 8, 12, 16, 22, 30, 42, 60};
         for (String kind : List.of("crimson", "warped", "red", "brown")) {
             boolean fungus = kind.equals("crimson") || kind.equals("warped");
             String stem = fungus ? "minecraft:" + kind + "_stem" : "minecraft:mushroom_stem";
             Map<BlockPos, BlockState> grown = new HashMap<>();
-            for (int mode : new int[] {0, Viewers.VANILLA}) {
-                String name = "m3_" + kind + (mode == 0 ? "_mesh" : "_displays");
+            // mesh stills, displays stills, then a mesh frame run over the dense part (t18-t34) for the flicker check
+            for (int mode : new int[] {0, Viewers.VANILLA, -1}) {
+                String name = "m3_" + kind + (mode == 0 ? "_mesh" : mode < 0 ? "_seq" : "_displays");
                 plot();
                 if (fungus) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
                 if (grown.isEmpty()) {
@@ -1997,8 +2162,10 @@ final class Parity {
                     info("  " + name + ": nothing grew");
                     break;
                 }
-                Viewers.test = mode;
+                Viewers.test = Math.max(mode, 0);
                 hold("minecraft:netherite_axe");
+                // non-tree blocks beside the tree stay: a stemless cap house, nylium under the fungi
+                if (!fungus) cmd("fill " + at(-6, 0, -1) + " " + at(-4, 2, 1) + " minecraft:" + kind + "_mushroom_block");
                 // a sea-lantern box (the M1 sheets' light) inside the plot pit
                 for (String w : new String[] {at(-12, 0, -19) + " " + at(24, 30, -19), at(-12, 0, 12) + " " + at(24, 30, 12), at(-12, 0, -19) + " " + at(-12, 30, 12),
                     at(24, 0, -19) + " " + at(24, 30, 12), at(-12, 30, -19) + " " + at(24, 30, 12)})
@@ -2019,11 +2186,11 @@ final class Parity {
                     return null;
                 });
                 int t = 0;
-                for (int a : at) {
+                for (int a : mode < 0 ? new int[] {18} : at) {
                     tick(a - t);
                     t = a;
                     String shot = name + String.format(java.util.Locale.ROOT, "_t%02d", a);
-                    client(mc -> SelfTest.startCapture(shot, 1));
+                    client(mc -> SelfTest.startCapture(shot, mode < 0 ? 48 : 1));
                 }
                 finish(160);
             }

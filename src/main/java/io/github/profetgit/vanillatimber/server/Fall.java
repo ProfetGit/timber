@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
@@ -26,6 +27,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 /**
  * One fall in progress on the server, stepped once a tick at the start of the level tick: frame 0 is the tick after the
@@ -51,6 +53,11 @@ public final class Fall {
     private final List<ItemStack>[] ringDrops;
     private final List<ItemStack> leafDrops = new ArrayList<>();
     private final Display.BlockDisplay[] shown;
+    /** Each display's light, eased like the mesh's path light, and the packed level last sent (-1: none). */
+    private final float[] lb, ls;
+    private final int[] lit;
+    /** The tree's own cells: their light is stale for a few ticks after frame 1 (the light engine catches up late). */
+    private it.unimi.dsi.fastutil.longs.LongOpenHashSet cells;
     private final boolean[] popping;
     private final double[] popRes;
     private final int kn, kt;
@@ -95,6 +102,9 @@ public final class Fall {
         popping = new boolean[km + 1];
         popRes = new double[km + 1];
         shown = new Display.BlockDisplay[tree.parts().size()];
+        lb = new float[shown.length];
+        ls = new float[shown.length];
+        lit = new int[shown.length];
         int lo = 0, hi = 0;
         ItemStack tool = cutter.getMainHandItem();
         for (Tree.Part part : tree.parts()) {
@@ -204,6 +214,8 @@ public final class Fall {
     /** Displays for every block (logs first, up to the cap), at rest on frame 0, at the current pose after that. */
     private void spawn() {
         spawned = true;
+        cells = new it.unimi.dsi.fastutil.longs.LongOpenHashSet(tree.parts().size());
+        for (Tree.Part p : tree.parts()) cells.add(p.pos().asLong());
         int bin = tree.bin(), ox = Layout.ox(bin), oz = Layout.oz(bin), budget = DISPLAY_CAP;
         float rot = (float) Rig.step(tl.p[n] / 100.0);
         Quaternionf id = new Quaternionf();
@@ -216,6 +228,8 @@ public final class Fall {
                 Transformation rest = Displays.of((p.tx() + ox) / 1000.0, (p.wy() - 3) / 1000.0, (p.tz() + oz) / 1000.0, id, 1.006, 1.006,
                     1.006, right);
                 shown[i] = Displays.spawn(level, p.state(), x, y0 + tl.dy[n], z, yaw, rot, rest);
+                lit[i] = -1;
+                light(i, p.pos(), 1);
             }
         }
         lastY = y0 + tl.dy[n];
@@ -325,13 +339,32 @@ public final class Fall {
         sentRes = res;
         Rig.origins(res, bend / 100.0, gy / 1000.0, tree.spec().h(), kn, kt, oy, oz);
         Quaternionf left = new Quaternionf().rotationX((float) Math.toRadians(res));
+        // the renderer's orientation (DisplayRenderer.calculateOrientation, FIXED): each block's centre in the world for its light
+        Quaternionf orient = new Quaternionf().rotationYXZ((float) Math.toRadians(-yaw), (float) Math.toRadians(lastRot), 0);
+        Vector3f c = new Vector3f();
+        BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
         for (int i = 0; i < shown.length; i++) {
             Tree.Part p = tree.parts().get(i);
             if (shown[i] == null || !p.leaf() && popping[p.k()]) continue;
             double sx = (p.leaf() ? lx : gx) / 1000.0, sz = (p.leaf() ? lz : gz) / 1000.0, sy = gy / 1000.0;
             Rig.corner(p.tx() / 1000.0, p.wy() / 1000.0, p.tz() / 1000.0, p.k(), sx, sy, sz, res, oy[p.k() - kn], oz[p.k() - kn], corner);
-            Displays.pose(shown[i], Displays.of(corner[0], corner[1], corner[2], left, sx, sy, sz, right), 1);
+            Transformation t = Displays.of(corner[0], corner[1], corner[2], left, sx, sy, sz, right);
+            Displays.pose(shown[i], t, 1);
+            orient.transform(t.getMatrix().transformPosition(0.5f, 0.5f, 0.5f, c));
+            cell.set(Math.floor(x + c.x), Math.floor(lastY + c.y), Math.floor(z + c.z));
+            if (!cells.contains(cell.asLong())) light(i, cell, 0.2f);
         }
+    }
+
+    /** Eases display i's light toward the cell's by {@code ease} (1: at once) and resends it when a level changes. */
+    private void light(int i, BlockPos cell, float ease) {
+        int l = Displays.lightAt(level, cell);
+        lb[i] += (LightCoordsUtil.block(l) - lb[i]) * ease;
+        ls[i] += (LightCoordsUtil.sky(l) - ls[i]) * ease;
+        int b = Math.round(lb[i]), sk = Math.round(ls[i]), packed = LightCoordsUtil.pack(b, sk);
+        if (packed == lit[i]) return;
+        lit[i] = packed;
+        Displays.light(shown[i], b, sk);
     }
 
     /** The last tick ({@code anim/finish}): every display goes, what is left drops at the pivot. */

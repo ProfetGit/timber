@@ -41,6 +41,8 @@ final class Fx {
     /** The falling-leaf particle 1.3.6 picked per leaf block ({@code disp/leaf_fx}). */
     static ParticleOptions leafParticle(BlockState leaf) {
         if (leaf == null) return tinted(0.282f, 0.71f, 0.094f);
+        // a wart crown or a mushroom cap sheds dust of its own colour, not green flakes
+        if (!leafy(leaf)) return new BlockParticleOption(ParticleTypes.FALLING_DUST, leaf.getBlock().defaultBlockState());
         if (leaf.is(Blocks.CHERRY_LEAVES)) return ParticleTypes.CHERRY_LEAVES;
         if (leaf.is(Blocks.PALE_OAK_LEAVES)) return ParticleTypes.PALE_OAK_LEAVES;
         if (leaf.is(Blocks.BIRCH_LEAVES)) return tinted(0.502f, 0.655f, 0.333f);
@@ -49,6 +51,11 @@ final class Fx {
         if (leaf.is(Blocks.AZALEA_LEAVES)) return tinted(0.55f, 0.72f, 0.28f);
         if (leaf.is(Blocks.FLOWERING_AZALEA_LEAVES)) return tinted(0.6f, 0.68f, 0.36f);
         return tinted(0.282f, 0.71f, 0.094f);
+    }
+
+    /** A leaf block (tagged or a modded {@code LeavesBlock}), not a connected type's crown block. */
+    static boolean leafy(BlockState leaf) {
+        return leaf.is(net.minecraft.tags.BlockTags.LEAVES) || leaf.getBlock() instanceof net.minecraft.world.level.block.LeavesBlock;
     }
 
     private static ParticleOptions tinted(float r, float g, float b) {
@@ -115,12 +122,13 @@ final class Fx {
         double cw = t.cw() / 1000.0;
         int rs = t.spec().rs(), h = t.spec().h();
         BlockParticleOption leaf = t.leaf() == null ? null : block(t.leaf().getBlock().defaultBlockState());
+        int burst = t.leaf() == null || leafy(t.leaf()) ? 24 : 36;
         BlockParticleOption log = block(t.log());
         Vec3 p = local(at, pitch, t.yaw(), 0.5, f.lz);
         for (int k = 0; k < h; k++) {
             boolean even = k % 2 == 0;
             if (k >= rs && leaf != null) {
-                particle(level, leaf, p.add(0, 0.5, 0), cw, cw, cw, 0.09, 24);
+                particle(level, leaf, p.add(0, 0.5, 0), cw, cw, cw, 0.09, burst);
                 particle(level, ParticleTypes.SMALL_GUST, p.add(0, 0.5, 0), cw, cw, cw, 0, 3);
                 if (even) points.add(p.add(0, 0.5, 0));
             }

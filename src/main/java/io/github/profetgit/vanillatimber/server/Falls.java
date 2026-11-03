@@ -109,7 +109,8 @@ public final class Falls {
         GameType mode = player.gameMode.getGameModeForPlayer();
         for (Tree.Part p : tree.parts()) {
             BlockPos q = p.pos();
-            if (!level.mayInteract(player, q) || player.blockActionRestricted(level, q, mode)) return false;
+            // adventure mode asks only the logs: a map's axe that may break logs fells the leaves with them
+            if (!level.mayInteract(player, q) || !p.leaf() && player.blockActionRestricted(level, q, mode)) return false;
             if (!PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, player, q, p.state(), level.getBlockEntity(q))) return false;
         }
         return true;
