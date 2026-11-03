@@ -63,6 +63,9 @@ public final class Fall {
     private TreeFall payload;
     public final int id;
     public int n = -1, rolled, dropped, payloads;
+    /** Server time of the chop and of each frame, with {@link Falls#PERF} only. */
+    long chopNs;
+    final long[] stepNs;
     /** Called after every frame (self-test probes), or null. */
     public static volatile java.util.function.Consumer<Fall> probe;
 
@@ -73,6 +76,7 @@ public final class Fall {
         this.tree = tree;
         this.cutter = cutter;
         this.tl = new Timeline(tree.spec(), tree.logRings());
+        stepNs = Falls.PERF ? new long[tl.end + 1] : null;
         x = tree.px() / 1000.0;
         y0 = tree.py() / 1000.0;
         z = tree.pz() / 1000.0;
@@ -327,6 +331,11 @@ public final class Fall {
         ItemEntity item = new ItemEntity(level, at.x, at.y, at.z, stack, dx / 1000, dy / 1000, dz / 1000);
         item.setPickUpDelay(10);
         level.addFreshEntity(item);
+    }
+
+    /** Whether vanilla viewers got displays. */
+    public boolean spawned() {
+        return spawned;
     }
 
     /** Tree blocks still standing (tests). */

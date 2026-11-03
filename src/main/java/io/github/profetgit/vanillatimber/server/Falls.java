@@ -24,6 +24,8 @@ public final class Falls {
     /** The last tree scanned and the last fall started (self-test asserts read them). */
     public static volatile Tree last;
     public static volatile Fall lastFall;
+    /** -Dvanilla_timber.perf=true: each fall logs its chop and per-frame server time when it ends. */
+    static final boolean PERF = Boolean.getBoolean("vanilla_timber.perf");
     private static final Map<ServerLevel, List<Fall>> ACTIVE = new IdentityHashMap<>();
     private static int nextId;
 
@@ -47,6 +49,7 @@ public final class Falls {
     }
 
     static void chop(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
+        long t0 = System.nanoTime();
         if (!state.is(TreeScan.LOGS) || !mayFell(player) || busy(level, pos)) return;
         Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
         if (tree == null) return;
@@ -55,6 +58,7 @@ public final class Falls {
         Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
         lastFall = fall;
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
+        if (PERF) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
     }
 
@@ -94,7 +98,33 @@ public final class Falls {
     private static void tick(ServerLevel level) {
         List<Fall> falls = ACTIVE.get(level);
         if (falls == null || falls.isEmpty()) return;
-        falls.removeIf(Fall::step);
+        if (!PERF) {
+            falls.removeIf(Fall::step);
+            return;
+        }
+        falls.removeIf(f -> {
+            long t0 = System.nanoTime();
+            boolean done = f.step();
+            f.stepNs[f.n] = System.nanoTime() - t0;
+            if (done) perf(f);
+            return done;
+        });
+    }
+
+    /** Frames 2 to end - 1 are the moving ticks: frame 0 spawns, frame 1 removes the blocks, the last one drops. */
+    private static void perf(Fall f) {
+        long[] t = f.stepNs;
+        int end = f.tl.end, k = 0;
+        double sum = 0, max = 0;
+        for (int i = 2; i < end; i++) {
+            sum += t[i];
+            max = Math.max(max, t[i]);
+            k++;
+        }
+        Timber.LOG.info(String.format(java.util.Locale.ROOT,
+            "[perf] fall %d: %d logs %d leaves, chop %.3f ms, frame 0 %.3f ms, frame 1 %.3f ms, moving mean %.4f max %.4f ms over %d ticks, finish %.3f ms, displays %s, payloads %d",
+            f.id, f.tree.logs(), f.tree.leaves(), f.chopNs / 1e6, t[0] / 1e6, t[1] / 1e6, k == 0 ? 0 : sum / k / 1e6, max / 1e6, k,
+            t[end] / 1e6, f.spawned() ? "yes" : "no", f.payloads));
     }
 
     /** Falls in progress in a level (tests). */

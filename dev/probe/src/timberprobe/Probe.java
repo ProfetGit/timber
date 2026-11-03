@@ -24,8 +24,8 @@ import org.joml.Matrix4f;
  * Dev-only motion capture for the Timber 2.0 M1 exit (a vanilla client's view: no Timber on it). Inert unless
  * -Dtimberprobe.out=&lt;dir&gt;. A system chat line "[probe] start &lt;name&gt;" starts a recording: every rendered frame, the
  * world-space transform of every block display exactly as the client draws it (entity lerp, rotation lerp and
- * transformation interpolation applied) to &lt;name&gt;.displays.tsv, the frame's wall clock (epoch microseconds, the
- * same clock as the other client on this machine) to &lt;name&gt;.frames.tsv, and the first 240 frames to
+ * transformation interpolation applied) to &lt;name&gt;.displays.tsv, the frame's wall clock at the end of the frame (epoch
+ * microseconds, the same clock and the same point in the frame as Timber's MpHost) to &lt;name&gt;.frames.tsv, and the first 240 frames to
  * frames/&lt;name&gt;/. "[probe] stop" ends it, "[probe] quit" writes results.json and quits.
  */
 public final class Probe {
@@ -156,7 +156,7 @@ public final class Probe {
         if (OUT == null) return;
         if (name != null) {
             try {
-                frames.write(frame + "\t" + (wall < 0 ? nowMicros() : wall) + "\t" + frameRows + "\n");
+                frames.write(frame + "\t" + nowMicros() + "\t" + frameRows + "\n");
             } catch (IOException ignored) {
             }
             displaysMax = Math.max(displaysMax, frameRows);
