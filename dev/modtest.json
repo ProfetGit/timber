@@ -1,0 +1,105 @@
+{
+  "id": "vanilla_timber",
+  "user": "Builder",
+  "out_prop": "vanilla_timber.selftest",
+  "props": {
+    "vanilla_timber.selftest.mode": "{mode}",
+    "vanilla_timber.selftest.scene": "{scene}"
+  },
+  "defaults": {
+    "mode": "full",
+    "scene": "all"
+  },
+  "fabric_api": true,
+  "width": 1280,
+  "height": 720,
+  "timeout": 900,
+  "options": {
+    "fps": 60,
+    "volume": 0.0,
+    "render_distance": 6
+  },
+  "tiers": {
+    "quick": {
+      "unit": [],
+      "jobs": [
+        {
+          "mc": "26.3",
+          "loader": "fabric"
+        }
+      ]
+    },
+    "full": {
+      "unit": [
+        ":26.3-fabric:test"
+      ],
+      "jobs": [
+        {
+          "mc": "26.3",
+          "loader": "fabric"
+        }
+      ],
+      "mp": [
+        "join"
+      ]
+    },
+    "release": {
+      "unit": [
+        ":26.3-fabric:test"
+      ],
+      "jobs": [
+        {
+          "mc": "26.3",
+          "loader": "fabric"
+        }
+      ],
+      "mp": [
+        "join"
+      ]
+    }
+  },
+  "addons": {
+    "fa": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "entity_model_features-*.jar",
+        "entity_texture_features-*.jar"
+      ],
+      "packs": [
+        "FreshAnimations_*.zip",
+        "FA+Player-*.zip"
+      ]
+    }
+  },
+  "mp": {
+    "cases": {
+      "join": {
+        "clients": [
+          {
+            "user": "Host",
+            "role": "host",
+            "seconds": 60
+          },
+          {
+            "user": "Guest",
+            "role": "guest",
+            "seconds": 60,
+            "after": "Host joined the game"
+          }
+        ],
+        "steps": [
+          {
+            "wait": "Host joined the game",
+            "timeout": 240
+          },
+          {
+            "wait": "Guest joined the game",
+            "timeout": 240
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "vanilla_timber",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "${description}",
+  "authors": [
+    "${author}"
+  ],
+  "contact": {
+    "homepage": "${homepage}"
+  },
+  "license": "LicenseRef-All-Rights-Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.github.profetgit.vanillatimber.Timber"
+    ],
+    "client": [
+      "io.github.profetgit.vanillatimber.client.TimberClient"
+    ]
+  },
+  "mixins": [
+    "vanilla_timber.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader}",
+    "fabric-api": "*",
+    "minecraft": "~${mc}",
+    "java": ">=25"
+  }
+}
