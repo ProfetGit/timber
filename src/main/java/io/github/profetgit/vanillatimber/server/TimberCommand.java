@@ -100,6 +100,12 @@ public final class TimberCommand {
     static int menu(CommandSourceStack src) {
         line(src, Component.literal("\n🪓 Timber settings ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD)
             .append(Component.literal("v" + version()).withStyle(ChatFormatting.DARK_GRAY)));
+        List<Component> requires = Api.requires(src.getServer());
+        if (!requires.isEmpty()) {
+            MutableComponent row = Component.literal(" ");
+            for (Component c : requires) row.append(c);
+            line(src, row);
+        }
         numRow(src, Key.MAX_LOGS, "Max logs per tree", "Bigger trees are left alone (only the one log breaks)", 64, 128, 256, 512);
         numRow(src, Key.RADIUS, "Search radius", "How far (in blocks, sideways) from the cut a tree may reach", 8, 12, 16, 24);
         choiceRow(src, Key.SNEAK, "Sneaking", new String[] {"Sneak = one log", "Sneak to fell", "Always"},

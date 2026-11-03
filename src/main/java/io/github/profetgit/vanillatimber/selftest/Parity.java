@@ -550,9 +550,10 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "hooks"};
 
-    static void run(String groups) {
+    /** World rules and defaults every group assumes; run again after the world is reopened. */
+    static void setup() {
         cmd("forceload add 0 224 255 351");
         cmd("gamerule max_block_modifications 10000000");
         cmd("gamerule random_tick_speed 0");
@@ -566,6 +567,10 @@ final class Parity {
             return null;
         });
         tick(80);
+    }
+
+    static void run(String groups) {
+        setup();
         for (String g : ALL) {
             if (!(groups.equals("all") || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
@@ -612,6 +617,7 @@ final class Parity {
                     case "claims" -> claims();
                     case "config_reload" -> configReload();
                     case "conflict" -> conflict();
+                    case "hooks" -> hooks();
                     default -> { }
                 }
             } catch (Throwable t) {
@@ -2212,6 +2218,239 @@ final class Parity {
             return null;
         });
         tick(5);
+    }
+
+    // ---- add-on API (hooks) ----
+
+    /** The Minecraft Datapacks workspace: the fixture packs of the frozen 1.3.6 data pack and Enchanted Timber live there. */
+    static java.nio.file.Path workspace() {
+        return java.nio.file.Path.of(System.getProperty("vanilla_timber.workspace", "/home/emppu/Projects/Minecraft Datapacks"));
+    }
+
+    static java.nio.file.Path worldPacks() {
+        return server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR);
+    }
+
+    /** Copies a pack folder into the world's datapacks folder as {@code name}, replacing what was there. */
+    static void installPack(String name, java.nio.file.Path from) {
+        java.nio.file.Path to = worldPacks().resolve(name);
+        try (var walk = java.nio.file.Files.walk(from)) {
+            if (java.nio.file.Files.exists(to)) {
+                try (var old = java.nio.file.Files.walk(to)) {
+                    for (java.nio.file.Path q : (Iterable<java.nio.file.Path>) old.sorted(java.util.Comparator.reverseOrder())::iterator) java.nio.file.Files.delete(q);
+                }
+            }
+            for (java.nio.file.Path src : (Iterable<java.nio.file.Path>) walk::iterator) {
+                java.nio.file.Path dst = to.resolve(from.relativize(src).toString());
+                if (java.nio.file.Files.isDirectory(src)) java.nio.file.Files.createDirectories(dst);
+                else {
+                    java.nio.file.Files.createDirectories(dst.getParent());
+                    java.nio.file.Files.copy(src, dst);
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Leaves the world and opens the same one again, then points the harness at the new server and runs {@link #setup()}.
+     * Dynamic registries (enchantments, ...) of a data pack load only with the world, never with /reload.
+     */
+    static void reopen() {
+        String id = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR).getParent().getFileName().toString();
+        MinecraftServer old = server;
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        client(m -> m.disconnectFromWorld(Component.literal("self-test reopen")));
+        for (int i = 0; i < 2400 && (old.isRunning() || mc.getSingleplayerServer() != null || mc.level != null); i++) sleep(50);
+        if (old.isRunning() || mc.getSingleplayerServer() != null) throw new IllegalStateException("world did not close");
+        info("world closed, reopening " + id);
+        client(m -> m.createWorldOpenFlows().openWorld(id, () -> { }));
+        MinecraftServer fresh = null;
+        for (int i = 0; i < 4800; i++) {
+            if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.BackupConfirmScreen) {
+                // the test world is experimental: skip the backup question
+                client(m -> {
+                    if (m.gui.screen() instanceof net.minecraft.client.gui.screens.BackupConfirmScreen b) {
+                        try {
+                            var f = net.minecraft.client.gui.screens.BackupConfirmScreen.class.getDeclaredField("onProceed");
+                            f.setAccessible(true);
+                            ((net.minecraft.client.gui.screens.BackupConfirmScreen.Listener) f.get(b)).proceed(false, false);
+                        } catch (ReflectiveOperationException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    }
+                });
+            }
+            fresh = mc.getSingleplayerServer();
+            if (fresh != null && fresh.isRunning() && mc.player != null && mc.level != null && mc.gui.screen() == null
+                && !fresh.getPlayerList().getPlayers().isEmpty()) break;
+            fresh = null;
+            sleep(50);
+        }
+        if (fresh == null) throw new IllegalStateException("world did not reopen: screen " + mc.gui.screen());
+        server = fresh;
+        level = fresh.overworld();
+        player = fresh.getPlayerList().getPlayers().getFirst();
+        cur = null;
+        plotFalls.clear();
+        chat();
+        setup();
+    }
+
+    static int tb(String holder) {
+        String out = cmd("scoreboard players get " + holder + " tbtest").toString();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(" has (-?\\d+) ").matcher(out);
+        return m.find() ? Integer.parseInt(m.group(1)) : Integer.MIN_VALUE;
+    }
+
+    /** How many times {@code needle} shows in {@code timber:meta requires}; -1 when the list is absent. */
+    static int requiresCount(String needle) {
+        String out = cmd("data get storage timber:meta requires").toString();
+        return out.contains("Found no elements") || out.contains("Found no") ? -1 : out.split(java.util.regex.Pattern.quote(needle), -1).length - 1;
+    }
+
+    /** The standard birch test tree on a fresh plot, an iron axe in hand, the hook counters zeroed; returns its log count. */
+    static int hookTree() {
+        plot();
+        customTree(0, 0, 6, 2, "birch_log", "birch_leaves");
+        tick(30);
+        hold("minecraft:iron_axe");
+        cmd("scoreboard players set #calls_a tbtest 0");
+        cmd("scoreboard players set #calls_b tbtest 0");
+        return count(Parity::isLog, 6);
+    }
+
+    static void hooks() {
+        hookPack();
+        enchantedTimber();
+        javaCancel();
+    }
+
+    /** 1.3.6's hook fixture pack (veto_a, veto_b, loaded, where), through the function tags. */
+    static void hookPack() {
+        installPack("hookpack", workspace().resolve("packs/Timber/dev/test/hookpack"));
+        info("  " + cmd("reload"));
+        tick(10);
+        info("  " + cmd("datapack enable \"file/hookpack\""));
+        tick(10);
+        check("hooks: api/loaded runs after version_id is set", tb("#loaded") == 1 && tb("#version_id") == 20000, "loaded=" + tb("#loaded") + " version_id=" + tb("#version_id"));
+        cmd("reload");
+        tick(5);
+        check("hooks: requires text rebuilt on /reload, not duplicated", requiresCount("Test requirement") == 1 && tb("#loaded") == 2, "requires=" + requiresCount("Test requirement") + " loaded=" + tb("#loaded"));
+
+        int logs = hookTree();
+        chop(0, 0, 0);
+        check("hooks: hooks that don't return allow the fell", count(Parity::isLog, 6) == 0 && displays() > 0 && tb("#calls_a") == 1 && tb("#calls_b") == 1,
+            "logs left " + count(Parity::isLog, 6) + " a=" + tb("#calls_a") + " b=" + tb("#calls_b"));
+        check("hooks: run as the player, at the chopped log's centre", tb("#player") == 1 && tb("#hx") == cx * 10 + 5 && tb("#hy") == Y * 10 + 5 && tb("#hz") == cz * 10 + 5,
+            "player=" + tb("#player") + " at " + tb("#hx") + " " + tb("#hy") + " " + tb("#hz") + " (log " + cx + " " + Y + " " + cz + ")");
+        finish(120);
+
+        cmd("tag " + who() + " add tbtest.veto_a");
+        logs = hookTree();
+        chat();
+        chop(0, 0, 0);
+        tick(3);
+        check("hooks: return 1 cancels the fell, the chopped log still breaks", count(Parity::isLog, 6) == logs - 1 && displays() == 0 && damage() == 1,
+            "logs " + logs + " -> " + count(Parity::isLog, 6) + ", displays " + displays() + ", damage " + damage());
+        check("hooks: first returning hook ends the chain", tb("#calls_b") == 0, "b=" + tb("#calls_b"));
+        List<String> bar = chat();
+        check("hooks: cancelled fell shows no action bar", bar.isEmpty(), bar.toString());
+
+        cmd("tag " + who() + " remove tbtest.veto_a");
+        cmd("tag " + who() + " add tbtest.veto_b");
+        logs = hookTree();
+        chop(0, 0, 0);
+        check("hooks: a later hook can cancel after an earlier one falls through", count(Parity::isLog, 6) == logs - 1 && displays() == 0,
+            "logs " + logs + " -> " + count(Parity::isLog, 6));
+        cmd("tag " + who() + " remove tbtest.veto_b");
+
+        logs = hookTree();
+        chopSneaking(0, 0, 0);
+        check("hooks: run only after Timber's own checks pass", tb("#calls_a") == 0 && count(Parity::isLog, 6) == logs - 1, "a=" + tb("#calls_a"));
+
+        try {
+            cfg("welcome", 1);
+            cfg("sneak", 0);
+            chat();
+            on(() -> {
+                Players.welcome(player);
+                return null;
+            });
+            List<String> hello = chat();
+            check("hooks: join hint shows add-on requirement", hello.stream().anyMatch(m -> m.contains("Sneak to take a single log. Test requirement. [Toggle]")), hello.toString());
+        } finally {
+            cfg("welcome", 0);
+        }
+        cmd("execute as " + who() + " run timber menu");
+        List<String> shown = chat();
+        check("hooks: menu shows add-on requirement", shown.size() == 14 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
+
+        cmd("datapack disable \"file/hookpack\"");
+        tick(5);
+        hookTree();
+        chop(0, 0, 0);
+        check("hooks: removing the add-on clears its requirement and hooks", requiresCount("Test requirement") <= 0 && count(Parity::isLog, 6) == 0,
+            "requires=" + requiresCount("Test requirement") + " logs left " + count(Parity::isLog, 6));
+        finish(120);
+    }
+
+    /** Enchanted Timber (data pack, unchanged): its enchantment is a dynamic registry entry, so the world is reopened with the pack in. */
+    static void enchantedTimber() {
+        installPack("enchanted_timber", workspace().resolve("packs/EnchantedTimber/pack"));
+        reopen();
+        tick(50);
+        List<String> packs = cmd("datapack list enabled");
+        check("enchanted timber: pack enabled with the world", packs.toString().contains("enchanted_timber"), packs.toString());
+        List<String> problem = cmd("scoreboard players get #problem enchanted_timber.data");
+        check("enchanted timber: no warning with Timber present", problem.toString().contains(" has 0 "), problem.toString());
+        check("enchanted timber: requirement registered with Timber once", requiresCount("Your axe needs the") == 1, "requires=" + requiresCount("Your axe needs the"));
+
+        int n = hookTree();
+        hold("minecraft:iron_axe");
+        chat();
+        chop(0, 0, 0);
+        tick(3);
+        check("enchanted timber: unenchanted axe chops a single log", count(Parity::isLog, 6) == n - 1 && displays() == 0 && damage() == 1,
+            "logs " + n + " -> " + count(Parity::isLog, 6) + ", displays " + displays() + ", damage " + damage());
+        List<String> bar = chat();
+        check("enchanted timber: no action bar without the enchantment", bar.isEmpty(), bar.toString());
+
+        n = hookTree();
+        hold("minecraft:iron_axe");
+        List<String> en = cmd("enchant " + who() + " enchanted_timber:timber");
+        chat();
+        chop(0, 0, 0);
+        check("enchanted timber: enchanted axe fells the whole tree", en.toString().contains("Applied enchantment") && count(Parity::isLog, 6) == 0 && displays() > 0,
+            "logs left " + count(Parity::isLog, 6) + ", displays " + displays() + " " + en);
+        finish(120);
+
+        cmd("datapack disable \"file/enchanted_timber\"");
+        cmd("reload");
+        tick(10);
+        check("enchanted timber: disabling the add-on drops its requirement", requiresCount("Your axe needs the") <= 0, "requires=" + requiresCount("Your axe needs the"));
+    }
+
+    /** The Java add-on hook {@link io.github.profetgit.vanillatimber.api.TimberEvents#CANCEL}. */
+    static void javaCancel() {
+        io.github.profetgit.vanillatimber.api.TimberEvents.Cancel veto = (lvl, pl, pos, st) -> Component.literal("Not here");
+        io.github.profetgit.vanillatimber.api.TimberEvents.CANCEL.register(veto);
+        try {
+            int n = hookTree();
+            chat();
+            chop(0, 0, 0);
+            tick(3);
+            List<String> bar = chat();
+            check("hooks: a Java listener cancels and its text shows on the action bar", count(Parity::isLog, 6) == n - 1 && displays() == 0 && bar.toString().contains("Not here"),
+                "logs " + n + " -> " + count(Parity::isLog, 6) + ", displays " + displays() + ", chat " + bar);
+        } finally {
+            io.github.profetgit.vanillatimber.api.TimberEvents.CANCEL.unregister(veto);
+        }
+        int n = hookTree();
+        chop(0, 0, 0);
+        check("hooks: an unregistered Java listener no longer cancels", count(Parity::isLog, 6) == 0 && displays() > 0, "logs " + n + " -> " + count(Parity::isLog, 6));
+        finish(120);
     }
 
     static void client(java.util.function.Consumer<net.minecraft.client.Minecraft> task) {

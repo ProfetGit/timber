@@ -44,6 +44,7 @@ public final class Falls {
     private Falls() {}
 
     public static void register() {
+        Api.register();
         PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, be) -> {
             if (level instanceof ServerLevel sl && player instanceof ServerPlayer sp) chop(sl, sp, pos, state);
         });
@@ -78,6 +79,12 @@ public final class Falls {
         int now = level.getServer().getTickCount();
         Integer before = FELLED.put(player.getUUID(), now);
         if (before != null && before == now) return;
+        Component why = Api.cancel(level, player, pos, state);
+        if (why != null) {
+            FELLED.put(player.getUUID(), before == null ? -1 : before);
+            if (!why.getString().isEmpty()) refuse(player, why);
+            return;
+        }
         Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
         if (tree == null) {
             if (TreeScan.tooBig) refuse(player, "toobig", "Timber: this tree is too big to fell");
@@ -119,7 +126,12 @@ public final class Falls {
     /** PRD 5.10: a refusal says so on the action bar, with {@code feedback} on. */
     private static void refuse(ServerPlayer player, String key, String fallback) {
         if (!Config.on(Config.Key.FEEDBACK)) return;
-        Say.bar(player, Component.literal("🪓 ").append(Component.translatableWithFallback("vanilla_timber.msg." + key, fallback)).withStyle(ChatFormatting.RED));
+        refuse(player, Component.translatableWithFallback("vanilla_timber.msg." + key, fallback));
+    }
+
+    private static void refuse(ServerPlayer player, Component text) {
+        if (!Config.on(Config.Key.FEEDBACK)) return;
+        Say.bar(player, Component.literal("🪓 ").append(text).withStyle(ChatFormatting.RED));
     }
 
     private static boolean busy(ServerLevel level, BlockPos pos) {

@@ -124,8 +124,8 @@ public final class Players extends SavedData {
         String text = sneak == 1 ? "sneak while chopping a tree with an axe to fell the whole tree. "
             : sneak == 2 ? "chop a tree with an axe and the whole tree comes down. "
             : "chop a tree with an axe and the whole tree comes down. Sneak to take a single log. ";
-        Say.chat(player, Component.literal("🪓 Timber: ").withStyle(ChatFormatting.GOLD)
-            .append(Component.literal(text).withStyle(ChatFormatting.GRAY))
-            .append(button("[Toggle]", ChatFormatting.AQUA, "/trigger timber", "/trigger timber")));
+        MutableComponent hint = Component.literal("🪓 Timber: ").withStyle(ChatFormatting.GOLD).append(Component.literal(text).withStyle(ChatFormatting.GRAY));
+        for (Component c : Api.requires(player.level().getServer())) hint.append(c);
+        Say.chat(player, hint.append(button("[Toggle]", ChatFormatting.AQUA, "/trigger timber", "/trigger timber")));
     }
 }

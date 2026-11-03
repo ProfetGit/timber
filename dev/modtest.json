@@ -301,6 +301,85 @@
             "max": 4
           }
         ]
+      },
+      "m4": {
+        "jvm_props": {
+          "vanilla_timber.perf": "true"
+        },
+        "clients": [
+          {
+            "user": "Host",
+            "role": "host",
+            "vars": {
+              "mode": "mp-host"
+            },
+            "seconds": 420
+          },
+          {
+            "user": "Guest",
+            "role": "guest",
+            "modded": false,
+            "seconds": 300,
+            "after": "Host joined the game"
+          },
+          {
+            "user": "Guest2",
+            "role": "guest2",
+            "modded": false,
+            "seconds": 300,
+            "after": "Host joined the game",
+            "latency_ms": 200
+          }
+        ],
+        "steps": [
+          {
+            "wait": "Host joined the game",
+            "timeout": 300,
+            "send": [
+              "op Host",
+              "gamemode survival Host",
+              "gamerule spawn_mobs false",
+              "gamerule advance_time false",
+              "gamerule advance_weather false",
+              "time set 6000",
+              "weather clear",
+              "effect give Host haste infinite 127 true",
+              "give Host minecraft:netherite_axe"
+            ]
+          },
+          {
+            "wait": "Guest joined the game",
+            "timeout": 300,
+            "send": [
+              "gamemode survival Guest"
+            ]
+          },
+          {
+            "wait": "Guest2 joined the game",
+            "timeout": 300,
+            "send": [
+              "gamemode survival Guest2",
+              "tp Guest2 20 -55 0"
+            ]
+          },
+          {
+            "name": "four_falls",
+            "wait": "(?s)(\\[perf\\] fall.*){4}",
+            "timeout": 400
+          }
+        ],
+        "checks": [
+          {
+            "name": "perf_lines",
+            "count": "\\[perf\\] fall",
+            "min": 4,
+            "max": 4
+          },
+          {
+            "name": "no_kicks",
+            "absent": "was kicked|Internal Exception"
+          }
+        ]
       }
     }
   }
