@@ -14,6 +14,12 @@ import net.minecraft.world.phys.AABB;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -40,6 +46,7 @@ final class Scenarios {
             .waitTicks(40)
             .check("world loaded", mc -> mc.player.isAlive() ? null : "player not alive");
         String only = System.getProperty("vanilla_timber.selftest.scene", "all");
+        if (only.contains("capture")) capture(s);
         if (only.equals("all") || only.contains("smoke")) smoke(s);
         if (only.equals("all") || only.contains("scan")) scan(s);
         if (only.equals("all") || only.contains("fall")) fall(s);
@@ -92,10 +99,112 @@ final class Scenarios {
         p.gameMode.destroyBlock(new BlockPos(x, -60, 8));
     }
 
+    static final String[] FEATURES = {"oak", "fancy_oak", "birch", "super_birch_bees", "spruce", "pine", "mega_spruce", "mega_pine",
+        "jungle_tree", "mega_jungle_tree", "acacia", "dark_oak", "cherry", "pale_oak", "pale_oak_creaking", "azalea_tree", "mangrove",
+        "tall_mangrove", "swamp_oak", "red_poplar", "orange_poplar", "yellow_poplar"};
+
+    static <T extends Comparable<T>> String propValue(BlockState s, Property<T> p) {
+        return p.getName(s.getValue(p));
+    }
+
+    static String stateString(BlockState s) {
+        StringBuilder sb = new StringBuilder(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString());
+        List<Property<?>> props = new ArrayList<>(s.getProperties());
+        props.sort(java.util.Comparator.comparing(Property::getName));
+        for (int i = 0; i < props.size(); i++) {
+            sb.append(i == 0 ? '[' : ',').append(props.get(i).getName()).append('=').append(propValue(s, props.get(i)));
+        }
+        return props.isEmpty() ? sb.toString() : sb.append(']').toString();
+    }
+
+    /** First log in the origin column, 0..7 blocks over the ground, or null. */
+    static BlockPos baseLog(ServerLevel level) {
+        for (int y = -60; y <= -53; y++) {
+            if (level.getBlockState(new BlockPos(8, y, 8)).is(BlockTags.LOGS)) return new BlockPos(8, y, 8);
+        }
+        return null;
+    }
+
+    /**
+     * Grows each overworld tree feature on a cleared grass spot (the origin where the 1.3.6 sampler plants), re-rolling
+     * up to 4 times until the origin column has a log, and writes it as a fixture to the out dir (f_&lt;feature&gt;.mcfunction,
+     * the format of dev/fixtures/trees). Only runs when named.
+     */
+    private static void capture(Script s) {
+        s.server(server -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
+            "forceload add -16 -16 48 48"));
+        for (String f : FEATURES) {
+            int[] tries = {0};
+            s.server(server -> {
+                ServerLevel level = server.overworld();
+                CommandSourceStack src = server.createCommandSourceStack().withSuppressedOutput().withPosition(new Vec3(8, -60, 8));
+                for (tries[0] = 1; tries[0] <= 4; tries[0]++) {
+                    for (BlockPos q : BlockPos.betweenClosed(-12, -61, -12, 28, -20, 28)) {
+                        level.setBlock(q, q.getY() == -61 ? Blocks.GRASS_BLOCK.defaultBlockState() : Blocks.AIR.defaultBlockState(), 18);
+                    }
+                    server.getCommands().performPrefixedCommand(src, "place feature minecraft:" + f);
+                    if (baseLog(level) != null) break;
+                }
+            })
+                .waitTicks(40)
+                .server(server -> {
+                    ServerLevel level = server.overworld();
+                    BlockPos base = baseLog(level);
+                    if (base == null) {
+                        SelfTest.record("capture " + f, false, "no log in the origin column after " + Math.min(tries[0], 4) + " tries");
+                        return;
+                    }
+                    List<String> lines = new ArrayList<>();
+                    int logs = 0, leaves = 0, other = 0, below = 0;
+                    for (BlockPos q : BlockPos.betweenClosed(-12, base.getY() - 1, -12, 28, -20, 28)) {
+                        BlockState st = level.getBlockState(q);
+                        if (st.isAir() || (q.getY() < base.getY() && st.is(Blocks.GRASS_BLOCK))) continue;
+                        if (q.getY() < base.getY()) below++;
+                        else if (st.is(BlockTags.LOGS)) logs++;
+                        else if (st.is(BlockTags.LEAVES)) leaves++;
+                        else other++;
+                        lines.add("setblock ~" + (q.getX() - base.getX()) + " ~" + (q.getY() - base.getY()) + " ~" + (q.getZ() - base.getZ())
+                            + " " + stateString(st) + " strict");
+                    }
+                    try {
+                        java.nio.file.Files.writeString(java.nio.file.Path.of(System.getProperty("vanilla_timber.selftest"),
+                            "f_" + f + ".mcfunction"), String.join("\n", lines) + "\n");
+                    } catch (java.io.IOException e) {
+                        SelfTest.record("capture " + f, false, e.toString());
+                        return;
+                    }
+                    SelfTest.record("capture " + f, logs > 0, "try " + tries[0] + ", base y " + base.getY() + ", " + logs + " logs, "
+                        + leaves + " leaves, " + other + " other, " + below + " below base");
+                });
+        }
+    }
+
+    /**
+     * The scan scene's fixtures: the three lab trees, then one per tree feature that has a 1.3.6 start beside its
+     * fixture (f_&lt;feature&gt;.start.json, written by dev/m1/sample136.py from fixtures/136/f_&lt;feature&gt;.json).
+     */
+    static List<Fix> scanFixes() {
+        List<Fix> all = new ArrayList<>(List.of(FIXES));
+        for (String f : FEATURES) {
+            try (var in = Scenarios.class.getResourceAsStream("/selftest/trees/f_" + f + ".start.json")) {
+                if (in == null) continue;
+                com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+                com.google.gson.JsonArray pos = o.getAsJsonArray("pos");
+                all.add(new Fix("f_" + f, "f_" + f, 0, o.get("hit").getAsInt() / 100, o.get("dur").getAsInt(), o.get("h").getAsInt(),
+                    o.get("b").getAsDouble() / 100, o.get("km").getAsInt(), o.get("fd").getAsDouble() / 1000, o.get("ft").getAsInt(),
+                    o.get("dr").getAsInt(), o.get("rs").getAsInt(), (int) Math.round(pos.get(0).getAsDouble() * 1000),
+                    (int) Math.round(pos.get(1).getAsDouble() * 1000), (int) Math.round(pos.get(2).getAsDouble() * 1000)));
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("start of " + f, e);
+            }
+        }
+        return all;
+    }
+
     private static void scan(Script s) {
         s.server(server -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(),
             "forceload add -16 -16 160 32"));
-        for (Fix f : FIXES) {
+        for (Fix f : scanFixes()) {
             s.server(server -> {
                 Falls.last = null;
                 plant(server, f.file, 8 + f.dx);
@@ -115,7 +224,7 @@ final class Scenarios {
                     if (t == null) return "no tree";
                     FallSpec p = t.spec();
                     boolean ok = p.h() == f.h && p.hit() == f.hit && p.dur() == f.dur && Math.abs(p.amp() - f.amp) < 0.006
-                        && p.km() == f.km && p.fd() == f.fd && p.ft() == f.ft && p.dr() == f.dr && p.rs() == f.rs;
+                        && p.km() == f.km && Math.abs(p.fd() - f.fd) < 1e-9 && p.ft() == f.ft && p.dr() == f.dr && p.rs() == f.rs;
                     return ok ? null : p + " vs 1.3.6 h=" + f.h + " hit=" + f.hit + " dur=" + f.dur + " amp=" + f.amp + " km=" + f.km
                         + " fd=" + f.fd + " ft=" + f.ft + " dr=" + f.dr + " rs=" + f.rs;
                 })
@@ -125,6 +234,7 @@ final class Scenarios {
                     for (boolean b : t.logRings()) if (!b) return "ring without a log: " + java.util.Arrays.toString(t.logRings());
                     return t.logRings().length == f.km + 1 ? null : "mask length " + t.logRings().length;
                 });
+            if (f.dx == 0) s.waitTicks(100);
         }
     }
 

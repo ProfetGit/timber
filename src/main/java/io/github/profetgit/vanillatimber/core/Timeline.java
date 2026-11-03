@@ -20,8 +20,11 @@ public final class Timeline {
     public record Event(int tick, Kind kind, int ring, float volume, float pitch) {}
 
     // spring and shiver constants of 1.3.6 (load.mcfunction #flex_*, anim/shiver)
-    static final double FLEX_K = 0.35, FLEX_C = 0.35, FLEX_M = 0.90, BEND_MAX = 700;
+    static final int FLEX_K = 35, FLEX_C = 35, FLEX_M = 90;
+    static final double BEND_MAX = 700;
     static final int[] SHIVER = {350, -260, 180, -110, 50};
+    /** lean_back.mcfunction: the lean's pitch per step, centi-degrees. */
+    static final int[] LEAN = {-55, -198, -394, -606, -802, -945, -1000};
     /** Ticks a popping ring lives after it is tagged (pop keys at u = 1, 4, 5; killed at u = 7). */
     public static final int POP_LIFE = 6;
 
@@ -231,8 +234,7 @@ public final class Timeline {
         void leanBack(int l) {
             if (l <= 0) return;
             if (l == 1) event(Kind.CREAK, -1, 1, 0.5f);
-            double x = Math.min(l, 7) / 7.0;
-            p = -Curve.LEAN * 100 * x * x * (3 - 2 * x);
+            p = LEAN[Math.min(l, 7) - 1];
             if (l >= 7) {
                 event(Kind.CRACK, -1, 0.9f, 0.55f);
                 phase(1);
@@ -241,9 +243,9 @@ public final class Timeline {
 
         void fall() {
             int u = Math.min(t, dur);
-            double f = Curve.at(dur, u);
-            double fr = Math.max(s.hit() * 100, 9000) + 1000;
-            p = f * fr / 10000 - 1000;
+            long f = Curve.at(dur, u);
+            long fr = Math.max(Math.round(s.hit() * 100), 9000) + 1000;
+            p = Math.floorDiv(f * fr, 10000L) - 1000;
             if (u * 100 / dur >= 55 && !whoosh) {
                 whoosh = true;
                 event(Kind.WHOOSH, -1, 0.8f, 0.6f);
@@ -306,8 +308,8 @@ public final class Timeline {
         }
 
         void arc(int t0, int len, double num, double den) {
-            double x = t - t0;
-            p = s.hit() * 100 - x * (len - x) * s.amp() * 100 * num / den;
+            long x = t - t0;
+            p = Math.round(s.hit() * 100) - Math.floorDiv(x * (len - x) * Math.round(s.amp() * 100) * (long) num, (long) den);
         }
 
         int gap(int k) {
@@ -349,15 +351,15 @@ public final class Timeline {
             wv = w;
             if (shiver) {
                 int a = t >= 1 && t <= 5 ? SHIVER[t - 1] : 0;
-                bn = a * 17.2 / s.h();
+                bn = Math.floorDiv(Math.floorDiv(a * 172L, 10L), (long) s.h());
                 bv = 0;
                 if (t >= 6) shiver = false;
             }
             // the tick the shiver ends, the spring already runs (1.3.6 tests the tag after anim/shiver removed it)
             if (flex && !shiver) {
-                bv -= bn * FLEX_K;
-                bv -= bv * FLEX_C;
-                bv -= acc * FLEX_M;
+                bv -= Math.floorDiv((long) bn * FLEX_K, 100L);
+                bv -= Math.floorDiv((long) bv * FLEX_C, 100L);
+                bv -= Math.floorDiv((long) acc * FLEX_M, 100L);
                 bn = Math.max(-BEND_MAX, Math.min(BEND_MAX, bn + bv));
             }
         }

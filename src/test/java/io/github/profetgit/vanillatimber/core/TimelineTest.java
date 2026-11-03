@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The timeline against the 1.3.6 data pack, tick by tick: fixtures/136/*.json are the pack's controller scores at the
@@ -32,6 +32,15 @@ class TimelineTest {
         }
     }
 
+    /** Every sampled tree: the three lab trees and one fixture per tree feature (fixtures/136/f_*.json). */
+    static List<String> trees() throws Exception {
+        java.nio.file.Path dir = java.nio.file.Path.of(TimelineTest.class.getResource("/fixtures/136").toURI());
+        try (var files = java.nio.file.Files.list(dir)) {
+            return files.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json") && !n.equals("curve.json"))
+                .map(n -> n.substring(0, n.length() - 5)).sorted().toList();
+        }
+    }
+
     static Timeline timeline(Fixture f) {
         FallSpec spec = new FallSpec((int) f.s("h"), f.s("hit") / 100, (int) f.s("dur"), f.s("b") / 100, (int) f.s("km"),
             f.s("fd") / 1000, (int) f.s("ft"), (int) f.s("dr"), (int) f.s("rs"));
@@ -41,7 +50,7 @@ class TimelineTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"oak", "birch", "spruce"})
+    @MethodSource("trees")
     void matches136EveryTick(String tree) throws Exception {
         Fixture f = load(tree);
         Timeline tl = timeline(f);
@@ -49,9 +58,12 @@ class TimelineTest {
         int n = Math.min(f.ticks().size(), tl.end);
         assertTrue(n > 40, tree + ": only " + n + " ticks to compare");
         StringBuilder bad = new StringBuilder();
+        double worstP = 0, worstBn = 0;
         for (int i = 0; i < n; i++) {
             JsonObject r = f.ticks().get(i);
             int tick = i + 1;
+            worstP = Math.max(worstP, Math.abs(r.get("p").getAsDouble() - tl.p[tick]));
+            worstBn = Math.max(worstBn, Math.abs(r.get("bn").getAsDouble() - tl.bn[tick]));
             check(bad, tick, "ph", r.get("ph").getAsDouble(), tl.ph[tick], 0);
             check(bad, tick, "p", r.get("p").getAsDouble(), tl.p[tick], 50);
             check(bad, tick, "bn", r.get("bn").getAsDouble(), tl.bn[tick], 8);
@@ -67,13 +79,14 @@ class TimelineTest {
             }
             check(bad, tick, "y", r.get("y").getAsDouble() / 1000 - y0, tl.dy[tick], 0.02);
         }
+        System.out.printf("%s: worst pitch delta %.3f deg, worst bend delta %.3f deg over %d ticks%n", tree, worstP / 100, worstBn / 100, n);
         assertEquals("", bad.toString(), tree + " differs from 1.3.6");
         // the controller is gone after its finish tick: the last sample is the tick before
         assertEquals(f.ticks().size() + 1, tl.end, tree + " finish tick");
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"oak", "birch", "spruce"})
+    @MethodSource("trees")
     void rippleOrderMatches136(String tree) throws Exception {
         Fixture f = load(tree);
         Timeline tl = timeline(f);
@@ -93,7 +106,7 @@ class TimelineTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"oak", "birch", "spruce"})
+    @MethodSource("trees")
     void deriveMatches136(String tree) throws Exception {
         Fixture f = load(tree);
         FallSpec d = FallSpec.derive((int) f.s("h"), f.s("hit") / 100, 0, false, (int) f.s("dr"), (int) f.s("km"), (int) f.s("rs"));

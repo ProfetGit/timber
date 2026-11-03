@@ -5,7 +5,10 @@ Runs packs/Timber's headless harness (read-only: SKIP_BUILD, work dir outside th
 writes src/test/resources/fixtures/136/<tree>.json: the fall parameters the pack chose, then per tick the controller's
 phase, pitch, bend, squash and height, as the pack's scores hold them at the end of that tick.
 
-  python3 dev/m1/sample136.py [work-dir]
+  python3 dev/m1/sample136.py [work-dir] [tree ...]
+
+The f_<feature> trees are the per-feature fixtures of dev/fixtures/trees (scene `capture`); they are copied into the
+work copy of the scene pack as tscene:tree/f_<feature>. Without tree names every tree is sampled.
 """
 import json
 import os
@@ -20,6 +23,9 @@ PACK = MOD.parents[1] / "packs/Timber"
 SCENE = PACK / "dev/capture/scene"
 OUT = MOD / "src/test/resources/fixtures/136"
 TREES = {"oak": "oak_c", "birch": "birch_a", "spruce": "spruce_b"}
+FIXTURES = MOD / "dev/fixtures/trees"
+for _f in sorted(FIXTURES.glob("f_*.mcfunction")):
+    TREES[_f.stem] = _f.stem
 START = ["hit", "dur", "h", "b", "km", "kn", "kt", "fd", "ft", "dr"]
 TICK = ["t", "ph", "p", "bn", "gx", "gy", "gz", "lx", "lz", "qs", "xl", "kr", "kf"]
 TICKS = 140
@@ -81,18 +87,30 @@ def parse(log: str) -> dict:
     return out
 
 
+def write_starts():
+    """The self-test's scan scene compares 2.0's scan with these starts: they ship in the jar next to the fixtures."""
+    for j in sorted(OUT.glob("f_*.json")):
+        start = json.loads(j.read_text())["start"]
+        (FIXTURES / f"{j.stem}.start.json").write_text(json.dumps(start, indent=1) + "\n")
+
+
 def main():
     work = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("TMPDIR", "/tmp")) / "timber136"
+    only = sys.argv[2:]
     if " " in str(work):
         raise SystemExit("work dir must not contain spaces (run.sh)")
     OUT.mkdir(parents=True, exist_ok=True)
+    scene = work / "scene"  # run.sh splits EXTRA_PACKS on spaces: a copy at a path without them
+    if not scene.exists():
+        shutil.copytree(SCENE, scene)
+    for fx in FIXTURES.glob("f_*.mcfunction"):
+        shutil.copy(fx, scene / "data/tscene/function/tree" / fx.name)
     for tree, fn in TREES.items():
+        if only and tree not in only:
+            continue
         f = work / f"{tree}.txt"
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(script(fn))
-        scene = work / "scene"  # run.sh splits EXTRA_PACKS on spaces: a copy at a path without them
-        if not scene.exists():
-            shutil.copytree(SCENE, scene)
         env = {**os.environ, "SKIP_BUILD": "1", "EXTRA_PACKS": str(scene)}
         r = subprocess.run(["bash", str(PACK / "dev/test/run.sh"), "26.3", str(work / f"w-{tree}"), "explore", str(f)],
                            env=env, capture_output=True, text=True)
@@ -102,6 +120,7 @@ def main():
             raise SystemExit(f"{tree}: no samples")
         (OUT / f"{tree}.json").write_text(json.dumps(data, indent=1))
         print(f"{tree}: {len(data['ticks'])} ticks, start {data['start']}")
+    write_starts()
 
 
 if __name__ == "__main__":
