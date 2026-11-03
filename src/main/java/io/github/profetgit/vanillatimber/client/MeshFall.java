@@ -1,6 +1,5 @@
 package io.github.profetgit.vanillatimber.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.profetgit.vanillatimber.core.DrawnPose;
 import io.github.profetgit.vanillatimber.core.Layout;
@@ -11,24 +10,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.color.block.BlockTintSource;
-import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.block.ModelBlockRenderer;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
-import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
-import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.util.ARGB;
-import net.minecraft.util.LightCoordsUtil;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.CardinalLighting;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
@@ -154,17 +139,14 @@ final class MeshFall {
     }
 
     private void bake(ClientLevel level) {
-        Minecraft mc = Minecraft.getInstance();
         int bin = msg.bin();
         Quaternionf right = new Quaternionf(0, (float) Layout.qs(bin), 0, (float) Layout.qc(bin));
         Vector3f q = new Vector3f(), c = right.transform(new Vector3f(0.5f, 0.5f, 0.5f));
-        boolean cutoutLeaves = mc.options.cutoutLeaves().get();
         Map<Long, Group> byKey = new HashMap<>();
-        List<BlockStateModelPart> parts = new ArrayList<>();
         BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
-        RestLight rest = new RestLight(level, msg);
+        BlockBake baker = new BlockBake(level, msg);
         for (int i = 0; i < blocks; i++) {
             cell.set(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
             BlockState state = msg.palette().get(cells[i * 4 + 3] >> 1);
@@ -178,39 +160,17 @@ final class MeshFall {
             ring[i] = k;
             leaf[i] = lf;
             int lit = lightAt(level, cell);
-            bl[i] = LightCoordsUtil.block(lit);
-            sk[i] = LightCoordsUtil.sky(lit);
+            bl[i] = Packed.block(lit);
+            sk[i] = Packed.sky(lit);
             light[i] = lit;
-            List<BlockTintSource> sources = mc.getBlockColors().getTintSources(state);
-            int[] tints = new int[sources.size()];
-            for (int t = 0; t < tints.length; t++) {
-                BlockTintSource src = sources.get(t);
-                tints[t] = src == null ? -1 : src.colorInWorld(state, level, cell) | 0xFF000000;
-            }
-            parts.clear();
-            mc.getModelManager().getBlockStateModelSet().get(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
-            rest.run(cell, state);
-            boolean opaque = ModelBlockRenderer.forceOpaque(cutoutLeaves, state);
-            for (BlockStateModelPart part : parts) {
-                for (int d = 0; d <= 6; d++) {
-                    for (BakedQuad quad : part.getQuads(d < 6 ? DIRS[d] : null)) {
-                        ChunkSectionLayer layer = opaque ? ChunkSectionLayer.SOLID : quad.materialInfo().layer();
-                        long key = (long) k << 8 | (lf ? 4 : 0) | layer.ordinal();
-                        Group g = byKey.computeIfAbsent(key, kk -> {
-                            Group ng = new Group(this, k, lf, type(layer));
-                            groups.add(ng);
-                            return ng;
-                        });
-                        int ti = quad.materialInfo().tintIndex();
-                        //? if >=26.3 {
-                        Direction sd = quad.materialInfo().shadeDirectionOverride();
-                        //?} else {
-                        /*Direction sd = quad.materialInfo().shade() ? null : Direction.UP;
-                        *///?}
-                        g.add(quad, right, tx, ty, tz, c, q, ti >= 0 && ti < tints.length ? tints[ti] : -1,
-                            (sd != null ? sd : quad.direction()).ordinal(), i, quad.materialInfo().lightEmission(), rest.get(quad), lit);
-                    }
-                }
+            for (BlockBake.Quad quad : baker.block(cell, state)) {
+                long key = (long) k << 8 | (lf ? 4 : 0) | quad.layer.ordinal();
+                Group g = byKey.computeIfAbsent(key, kk -> {
+                    Group ng = new Group(this, k, lf, quad.layer);
+                    groups.add(ng);
+                    return ng;
+                });
+                g.add(quad, right, tx, ty, tz, c, q, i, lit);
             }
         }
         Timeline.Sample s0 = tl.sample(0, new Timeline.Sample());
@@ -228,14 +188,6 @@ final class MeshFall {
         m.transformPosition(0, g.k + 0.5f, 0, tmp);
         double dx = tmp.x + cam.x - g.rest.x, dy = tmp.y + cam.y - g.rest.y, dz = tmp.z + cam.z - g.rest.z;
         return (float) Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy + dz * dz) / 4);
-    }
-
-    private static RenderType type(ChunkSectionLayer layer) {
-        return switch (layer) {
-            case SOLID -> RenderTypes.solidMovingBlock();
-            case CUTOUT -> RenderTypes.cutoutMovingBlock();
-            case TRANSLUCENT -> RenderTypes.translucentMovingBlock();
-        };
     }
 
     static int lightAt(ClientLevel level, BlockPos cell) {
@@ -330,14 +282,15 @@ final class MeshFall {
             m[gi].transformPosition(cx[i], cy[i], cz[i], w);
             cell.set(Math.floor(w.x), Math.floor(w.y), Math.floor(w.z));
             int l = lightAt(level, cell);
-            bl[i] += (LightCoordsUtil.block(l) - bl[i]) * 0.35f;
-            sk[i] += (LightCoordsUtil.sky(l) - sk[i]) * 0.35f;
-            light[i] = LightCoordsUtil.pack(Math.round(bl[i]), Math.round(sk[i]));
+            bl[i] += (Packed.block(l) - bl[i]) * 0.35f;
+            sk[i] += (Packed.sky(l) - sk[i]) * 0.35f;
+            light[i] = Packed.light(Math.round(bl[i]), Math.round(sk[i]));
         }
     }
 
-    /** This frame: one custom-geometry node per live group, posed at {@code t} (client ticks + partial). */
-    void submit(PoseStack ps, Vec3 cam, SubmitNodeCollector out, double t, CardinalLighting cl) {
+    /** This frame: one geometry per live group, posed at {@code t} (client ticks + partial); {@code shades}: see {@link RenderPass#shades}. */
+    void submit(RenderPass pass, double t, float[] shades) {
+        Vec3 cam = pass.cam;
         double tau = tau(t);
         if (tau >= tl.end - 1) {
             dead = true;
@@ -355,7 +308,7 @@ final class MeshFall {
             normals[o] = n.x;
             normals[o + 1] = n.y;
             normals[o + 2] = n.z;
-            shade[d.ordinal()] = Shading.factor(n.x, n.y, n.z, cl);
+            shade[d.ordinal()] = Shading.factor(n.x, n.y, n.z, shades);
         }
         float inflate = (float) s.inflate;
         // a ring that turns in place (the stump end) keeps none of its rest AO and light once it has turned 30 degrees
@@ -378,19 +331,16 @@ final class MeshFall {
             g.ey = ey;
             pose(m, g.k, g.leaf, s, cam.x, cam.y, cam.z);
             g.w = Math.min(turned, restWeight(m, g, cam, tmp));
-            ps.pushPose();
-            ps.mulPose(m);
-            out.submitCustomGeometry(ps, g.type, g);
-            ps.popPose();
+            pass.submit(m, g.layer, g);
         }
     }
 
     /** The baked quads of one (ring, log|leaf, render type): tree-frame positions, offsets from each block's centre, UVs. */
-    static final class Group implements SubmitNodeCollector.CustomGeometryRenderer {
+    static final class Group implements RenderPass.Geometry {
         final MeshFall fall;
         final int k;
         final boolean leaf;
-        final RenderType type;
+        final RenderPass.Layer layer;
         float[] pos = new float[48], off = new float[48], uv = new float[32];
         int[] tint = new int[4], block = new int[4];
         /** Per vertex: the terrain's colour (AO x tint) and light where the block stood (RestLight). */
@@ -405,16 +355,16 @@ final class MeshFall {
         /** World position of the ring's axis point at rest. */
         final Vector3f rest = new Vector3f();
 
-        Group(MeshFall fall, int k, boolean leaf, RenderType type) {
+        Group(MeshFall fall, int k, boolean leaf, RenderPass.Layer layer) {
             this.fall = fall;
             this.k = k;
             this.leaf = leaf;
-            this.type = type;
+            this.layer = layer;
         }
 
-        /** {@code lv}: the quad's 4 rest colours then 4 rest lights, or null when vanilla didn't emit it ({@code col}, {@code flat}). */
-        void add(BakedQuad quad, Quaternionf right, float tx, float ty, float tz, Vector3f c, Vector3f q, int col, int sdir, int bi, int em,
-                 int[] lv, int flat) {
+        void add(BlockBake.Quad quad, Quaternionf right, float tx, float ty, float tz, Vector3f c, Vector3f q, int bi, int flat) {
+            int[] lv = quad.rest;
+            int col = quad.color;
             if (quads == tint.length) {
                 int n = quads * 2;
                 pos = java.util.Arrays.copyOf(pos, n * 12);
@@ -429,8 +379,7 @@ final class MeshFall {
                 culled = java.util.Arrays.copyOf(culled, n);
             }
             for (int v = 0; v < 4; v++) {
-                var p = quad.position(v);
-                right.transform(p.x(), p.y(), p.z(), q);
+                right.transform(quad.pos[v * 3], quad.pos[v * 3 + 1], quad.pos[v * 3 + 2], q);
                 int i = (quads * 4 + v) * 3;
                 pos[i] = tx + q.x;
                 pos[i + 1] = ty + q.y;
@@ -438,25 +387,23 @@ final class MeshFall {
                 off[i] = q.x - c.x;
                 off[i + 1] = q.y - c.y;
                 off[i + 2] = q.z - c.z;
-                long packed = quad.packedUV(v);
-                uv[(quads * 4 + v) * 2] = UVPair.unpackU(packed);
-                uv[(quads * 4 + v) * 2 + 1] = UVPair.unpackV(packed);
+                uv[(quads * 4 + v) * 2] = quad.uv[v * 2];
+                uv[(quads * 4 + v) * 2 + 1] = quad.uv[v * 2 + 1];
                 rcol[quads * 4 + v] = lv != null ? lv[v] : col;
                 rlight[quads * 4 + v] = lv != null ? lv[4 + v] : flat;
             }
             tint[quads] = col;
             block[quads] = bi;
             // the shade and normal follow the face's model direction, turned by Ry(yaw) like the block
-            dir[quads] = (byte) sdir;
-            emission[quads] = (byte) em;
+            dir[quads] = (byte) quad.shade;
+            emission[quads] = (byte) quad.emission;
             culled[quads] = lv == null;
             quads++;
         }
 
         @Override
-        public void render(PoseStack.Pose pose, VertexConsumer vc) {
+        public void render(Matrix4f m, VertexConsumer vc) {
             long t0 = System.nanoTime();
-            Matrix4f m = pose.pose();
             float[] nr = fall.normals, sh = fall.shade;
             int[] lights = fall.light;
             float gx = ex, gy = ey, rw = w;
@@ -473,13 +420,13 @@ final class MeshFall {
                         col = rcol[rv];
                         li = rlight[rv];
                     } else {
-                        col = qw <= 0 ? tint[qi] : ARGB.srgbLerp(qw, tint[qi], rcol[rv]);
+                        col = qw <= 0 ? tint[qi] : Packed.srgbLerp(qw, tint[qi], rcol[rv]);
                         int rl = rlight[rv];
                         li = Math.round(pu + ((rl & 0xFFFF) - pu) * qw) | Math.round(pv + ((rl >>> 16) - pv) * qw) << 16;
                     }
-                    if (emission[qi] > 0) li = LightCoordsUtil.pack(Math.max(LightCoordsUtil.block(li), emission[qi]), LightCoordsUtil.sky(li));
+                    if (emission[qi] > 0) li = Packed.light(Math.max(Packed.block(li), emission[qi]), Packed.sky(li));
                     vc.addVertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
-                        .setColor(ARGB.scaleRGB(col, sh[d])).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
+                        .setColor(Packed.scaleRGB(col, sh[d])).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
                         .setNormal(nx, ny, nz);
                 }
             }
