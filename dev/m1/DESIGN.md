@@ -322,3 +322,16 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
   keep what the entity's interpolation handler carries exact (the pitch byte step `Rig.step`, position/dy). Then
   scene `sync`'s "as drawn" gap should fall to ~0 and the vanilla pops of its own (birch frame 42: step vs residual
   split) are not copied. Re-run `exit.py` (m1, m1_200) and `m1_ab` as the baseline.
+
+## Trail built, third exit run (session 9, 0.0.8)
+- `core/Trail` is Display's transformation interpolation in tau terms: an update for frame m over d ticks runs from
+  tau m - 1; it starts from lerp(from, to, lastProgress), lastProgress = the last drawn frame's progress (stale across
+  several updates between two frames, as vanilla's). `core/DrawnPose` drives it like `Fall` sends: the pose only on
+  frames whose (p, bn, gx, gy, gz, lx, lz) changed (so the 1.006 spawn inflate stays until the first change), ring
+  origins trailed (computed at the residual, the byte step turns them), pops at u = 1/4/5 over 3/1/2 ticks from
+  {1, 1}. The entity's share (pitch byte step, height) is linear between ticks. `MeshFall.pose` = T(pivot + dy)
+  Ry(-yaw) Rx(step) T(origin) Rx(residual) S T(0, -k, 0); exact paths (bake, light, `centresAt`) pass step 0.
+- Scene `sync` "as drawn" is no longer a trail measure: it is this client's tick phase against the mesh's average
+  clock (LAG), i.e. speed x clock offset: 0.01-0.04 blocks at birch's tick-5 key, up to ~1 block on the spruce tip.
+- Exit run 3: birch chop pops 10 -> 0 (m1), 12 -> 1 (m1_200, exit.py window; 0 in ab.py's); oak m1 2 (frames 13, 21)
+  vs 1.3.6's 1. All other gates pass (STATUS Next 1).
