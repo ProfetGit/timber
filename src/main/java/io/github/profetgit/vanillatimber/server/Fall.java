@@ -63,6 +63,8 @@ public final class Fall {
     private TreeFall payload;
     public final int id;
     public int n = -1, rolled, dropped, payloads;
+    /** Item id -> count rolled at the chop (tests). */
+    public final java.util.Map<String, Integer> loot = new java.util.TreeMap<>();
     /** Server time of the chop and of each frame, with {@link Falls#PERF} only. */
     long chopNs;
     final long[] stepNs;
@@ -100,7 +102,10 @@ public final class Fall {
             hi = Math.max(hi, part.k());
             if (!drops) continue;
             List<ItemStack> loot = Block.getDrops(part.state(), level, part.pos(), level.getBlockEntity(part.pos()), cutter, tool);
-            for (ItemStack st : loot) rolled += st.getCount();
+            for (ItemStack st : loot) {
+                rolled += st.getCount();
+                this.loot.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
+            }
             if (part.leaf()) leafDrops.addAll(loot);
             else ringDrops[part.k()].addAll(loot);
         }
@@ -331,6 +336,32 @@ public final class Fall {
         ItemEntity item = new ItemEntity(level, at.x, at.y, at.z, stack, dx / 1000, dy / 1000, dz / 1000);
         item.setPickUpDelay(10);
         level.addFreshEntity(item);
+    }
+
+    public float yaw() {
+        return yaw;
+    }
+
+    /** The timeline's true pitch at the current frame (tests). */
+    public double pitch() {
+        return tl.p[Math.max(n, 0)] / 100.0;
+    }
+
+    public double pivotY() {
+        return y0 + tl.dy[Math.max(n, 0)];
+    }
+
+    public Vec3 pivot() {
+        return new Vec3(x, pivotY(), z);
+    }
+
+    /** A live display and the block it stands for (tests). */
+    public record Live(Display.BlockDisplay display, Tree.Part part) {}
+
+    public List<Live> live() {
+        List<Live> out = new ArrayList<>();
+        for (int i = 0; i < shown.length; i++) if (shown[i] != null && !shown[i].isRemoved()) out.add(new Live(shown[i], tree.parts().get(i)));
+        return out;
     }
 
     /** Whether vanilla viewers got displays. */

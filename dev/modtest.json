@@ -4,11 +4,13 @@
   "out_prop": "vanilla_timber.selftest",
   "props": {
     "vanilla_timber.selftest.mode": "{mode}",
-    "vanilla_timber.selftest.scene": "{scene}"
+    "vanilla_timber.selftest.scene": "{scene}",
+    "vanilla_timber.selftest.groups": "{groups}"
   },
   "defaults": {
     "mode": "full",
-    "scene": "all"
+    "scene": "all",
+    "groups": "all"
   },
   "fabric_api": true,
   "width": 1280,

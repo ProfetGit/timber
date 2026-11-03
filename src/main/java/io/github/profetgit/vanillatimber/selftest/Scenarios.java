@@ -45,6 +45,10 @@ final class Scenarios {
         if (only.equals("all") || only.contains("fall")) fall(s);
         if (only.equals("all") || only.contains("mesh")) mesh(s);
         if (only.equals("all") || only.contains("sync")) sync(s);
+        if (only.contains("parity")) {
+            String groups = System.getProperty("vanilla_timber.selftest.groups", "all");
+            s.server(server -> Parity.begin(server, groups)).until("parity groups", 20 * 60 * 60, mc -> Parity.finished());
+        }
         return s;
     }
 
