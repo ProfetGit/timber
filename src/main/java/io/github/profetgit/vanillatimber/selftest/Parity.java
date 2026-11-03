@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -147,20 +146,22 @@ final class Parity {
         if (!claimHook) {
             claimHook = true;
             // a claim mod: denies every break inside the box (PRD 5.7), the chopper's own included
+            //? if fabric {
             net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE.register((w, pl, pos, st, be) -> {
                 var b = denyBox;
                 return b == null || !b.isInside(pos);
             });
+            //?}
         }
         Say.tap = (p, c) -> {
             synchronized (CHAT) {
                 CHAT.add(c.getString());
             }
         };
-        ServerTickEvents.END_SERVER_TICK.register(sv -> {
+        io.github.profetgit.vanillatimber.server.Hooks.testTick = sv -> {
             Runnable r = sampler;
             if (r != null) r.run();
-        });
+        };
         Thread th = new Thread(() -> {
             try {
                 run(groups);

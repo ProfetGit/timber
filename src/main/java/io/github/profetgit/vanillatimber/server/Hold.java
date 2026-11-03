@@ -15,7 +15,7 @@ import net.minecraft.world.level.ChunkPos;
  * PRD 8: a chunk ticket around a fall's stump for the fall's lifetime, so the chunks its drops land in can't unload
  * mid-fall. Two falls on the same chunk and radius share one ticket (the storage dedupes them), so releases are counted.
  */
-final class Hold {
+public final class Hold {
     private record Key(long chunk, int radius) {}
 
     private static TicketType type;
@@ -24,7 +24,7 @@ final class Hold {
     private Hold() {}
 
     /** Registers the ticket type; runs at mod init, while the registry is still open. */
-    static void register() {
+    public static void register() {
         type = Registry.register(BuiltInRegistries.TICKET_TYPE, Identifier.fromNamespaceAndPath(Timber.ID, "fall"),
             new TicketType(TicketType.NO_TIMEOUT, TicketType.FLAG_LOADING | TicketType.FLAG_SIMULATION));
     }

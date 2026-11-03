@@ -8,7 +8,6 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
-import net.minecraft.commands.arguments.coordinates.LocalCoordinates;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
@@ -445,19 +444,18 @@ public final class TreeScan {
         Vec3 lane0(int yaw, int pitch) {
             float y = (float) (yaw * 0.01), x = (float) (pitch * 0.01);
             Vec3 p = new Vec3(fcx * 0.001, py0 * 0.001, fcz * 0.001);
-            p = new LocalCoordinates(0, 0, hw * 0.001).apply(p, new Vec2(0, y));
-            p = new LocalCoordinates(0, 0, lz * 0.001).apply(p, new Vec2(x, y));
-            return new LocalCoordinates(0, 0.5, 0).apply(p, new Vec2(x, y));
+            p = Fx.local(p, new Vec2(0, y), 0, 0, hw * 0.001);
+            p = Fx.local(p, new Vec2(x, y), 0, 0, lz * 0.001);
+            return Fx.local(p, new Vec2(x, y), 0, 0.5, 0);
         }
 
         boolean hits(int yaw, int pitch) {
             Vec3 p = lane0(yaw, pitch);
             Vec2 rot = new Vec2((float) (pitch * 0.01), (float) (yaw * 0.01));
-            LocalCoordinates up = new LocalCoordinates(0, 1, 0);
             for (int r = h; ; ) {
                 if (!open(BlockPos.containing(p))) return true;
                 if (--r < 1) return false;
-                p = up.apply(p, rot);
+                p = Fx.local(p, rot, 0, 1, 0);
             }
         }
 
@@ -465,7 +463,6 @@ public final class TreeScan {
         int drop(int yaw) {
             Vec3 p = lane0(yaw, 10500);
             Vec2 rot = new Vec2(105f, (float) (yaw * 0.01));
-            LocalCoordinates up = new LocalCoordinates(0, 1, 0);
             int drop = 16;
             for (int r = h; ; ) {
                 int c = 0;
@@ -477,7 +474,7 @@ public final class TreeScan {
                 }
                 drop = Math.min(drop, c);
                 if (--r < 1) return drop;
-                p = up.apply(p, rot);
+                p = Fx.local(p, rot, 0, 1, 0);
             }
         }
 

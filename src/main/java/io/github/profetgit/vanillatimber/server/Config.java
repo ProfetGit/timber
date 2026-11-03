@@ -1,5 +1,6 @@
 package io.github.profetgit.vanillatimber.server;
 
+import io.github.profetgit.vanillatimber.platform.Platform;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -7,7 +8,6 @@ import io.github.profetgit.vanillatimber.Timber;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import net.fabricmc.loader.api.FabricLoader;
 
 /**
  * The server config {@code config/timber.json} (PRD 5.8): the 1.3.x keys with 1.3.6's defaults and clamps, plus
@@ -53,7 +53,7 @@ public final class Config {
         }
     }
 
-    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("timber.json");
+    private static final Path FILE = Platform.get().configDir().resolve("timber.json");
     private static volatile int[] values = defaults();
     private static JsonObject extra = new JsonObject();
     private static long stamp = -1;

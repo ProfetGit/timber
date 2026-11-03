@@ -1,32 +1,25 @@
 package io.github.profetgit.vanillatimber;
 
-import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.server.Config;
-import io.github.profetgit.vanillatimber.server.Conflicts;
-import io.github.profetgit.vanillatimber.server.Falls;
-import io.github.profetgit.vanillatimber.server.Players;
-import io.github.profetgit.vanillatimber.server.TimberCommand;
-import io.github.profetgit.vanillatimber.server.TreeTypes;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Common entry. */
-public final class Timber implements ModInitializer {
+/** Common entry: each loader's entry ({@code platform/<loader>/}) calls {@link #init} first, then wires its events. */
+public final class Timber {
     public static final String ID = "vanilla_timber";
     public static final Logger LOG = LoggerFactory.getLogger("Profet's Timber");
+    private static Platform platform;
 
-    @Override
-    public void onInitialize() {
+    private Timber() {}
+
+    public static Platform platform() {
+        return platform;
+    }
+
+    public static void init(Platform p) {
+        platform = p;
         Config.load();
-        Hello.register();
-        Falls.register();
-        TreeTypes.register();
-        if (io.github.profetgit.vanillatimber.selftest.TestBlocks.wanted()) io.github.profetgit.vanillatimber.selftest.TestBlocks.register();
-        Players.register();
-        Conflicts.register();
-        CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> TimberCommand.register(dispatcher));
-        LOG.info("Profet's Timber loaded");
+        LOG.info("Profet's Timber loaded ({})", p.loader());
     }
 }

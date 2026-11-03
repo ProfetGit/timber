@@ -46,6 +46,7 @@ tasks.test {
 }
 
 tasks.processResources {
+    exclude("META-INF/neoforge.mods.toml", "META-INF/mods.toml")
     val props = mapOf(
         "version" to project.version.toString(),
         "mc" to mc,

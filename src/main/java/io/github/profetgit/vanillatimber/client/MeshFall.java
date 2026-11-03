@@ -202,7 +202,11 @@ final class MeshFall {
                             return ng;
                         });
                         int ti = quad.materialInfo().tintIndex();
+                        //? if >=26.3 {
                         Direction sd = quad.materialInfo().shadeDirectionOverride();
+                        //?} else {
+                        /*Direction sd = quad.materialInfo().shade() ? null : Direction.UP;
+                        *///?}
                         g.add(quad, right, tx, ty, tz, c, q, ti >= 0 && ti < tints.length ? tints[ti] : -1,
                             (sd != null ? sd : quad.direction()).ordinal(), i, quad.materialInfo().lightEmission(), rest.get(quad), lit);
                     }

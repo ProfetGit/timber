@@ -1,5 +1,6 @@
 package io.github.profetgit.vanillatimber.server;
 
+import io.github.profetgit.vanillatimber.platform.Platform;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -9,7 +10,6 @@ import io.github.profetgit.vanillatimber.Timber;
 import io.github.profetgit.vanillatimber.server.Config.Key;
 import java.util.ArrayList;
 import java.util.List;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -94,7 +94,8 @@ public final class TimberCommand {
     }
 
     private static String version() {
-        return FabricLoader.getInstance().getModContainer(Timber.ID).map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("2.0");
+        String v = Platform.get().modVersion(Timber.ID);
+        return v != null ? v : "2.0";
     }
 
     static int menu(CommandSourceStack src) {

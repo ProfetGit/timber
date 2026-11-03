@@ -14,10 +14,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "io.github.profetgit.vanillatimber.Timber"
+      "io.github.profetgit.vanillatimber.platform.fabric.FabricEntry"
     ],
     "client": [
-      "io.github.profetgit.vanillatimber.client.TimberClient"
+      "io.github.profetgit.vanillatimber.platform.fabric.FabricClientEntry"
     ]
   },
   "mixins": [

@@ -1,5 +1,6 @@
 package io.github.profetgit.vanillatimber.server;
 
+//? if >=26.3
 import net.minecraft.commands.arguments.coordinates.LocalCoordinates;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ColorParticleOption;
@@ -35,7 +36,16 @@ final class Fx {
 
     /** {@code execute rotated <yaw> <pitch> positioned ^ ^up ^forward}. */
     static Vec3 local(Vec3 from, double pitch, double yaw, double up, double forward) {
-        return new LocalCoordinates(0, up, forward).apply(from, new Vec2((float) pitch, (float) yaw));
+        return local(from, new Vec2((float) pitch, (float) yaw), 0, up, forward);
+    }
+
+    /** {@code ^left ^up ^forward} from {@code from} turned by {@code rot} (x pitch, y yaw), the maths /execute uses. */
+    static Vec3 local(Vec3 from, Vec2 rot, double left, double up, double forward) {
+        //? if >=26.3 {
+        return new LocalCoordinates(left, up, forward).apply(from, rot);
+        //?} else {
+        /*return Vec3.applyLocalCoordinatesToRotation(rot, new Vec3(left, up, forward)).add(from);
+        *///?}
     }
 
     /** The falling-leaf particle 1.3.6 picked per leaf block ({@code disp/leaf_fx}). */

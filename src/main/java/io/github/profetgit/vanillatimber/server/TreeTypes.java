@@ -4,11 +4,10 @@ import io.github.profetgit.vanillatimber.Timber;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.FileToIdConverter;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.PreparableReloadListener;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.tags.TagKey;
@@ -23,8 +22,11 @@ public final class TreeTypes {
 
     private TreeTypes() {}
 
-    public static void register() {
-        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(Identifier.fromNamespaceAndPath(Timber.ID, "tree_types"), new Listener());
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(Timber.ID, "tree_types");
+
+    /** The server data reload listener for {@code data/<ns>/timber/tree_type/*.json}; each loader's entry registers it as {@link #ID}. */
+    public static PreparableReloadListener listener() {
+        return new Listener();
     }
 
     /** The type whose trunk this block is, or null: not a tree's trunk (PRD 5.2 logs minus {@code #timber:never}). */

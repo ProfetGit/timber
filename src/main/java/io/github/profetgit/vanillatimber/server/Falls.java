@@ -1,13 +1,11 @@
 package io.github.profetgit.vanillatimber.server;
 
+import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.Timber;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -43,23 +41,16 @@ public final class Falls {
 
     private Falls() {}
 
-    public static void register() {
-        Migrate.register();
-        Api.register();
-        Hold.register();
-        ServerLifecycleEvents.SERVER_STARTED.register(Pending::returnAll);
-        PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, be) -> {
-            if (level instanceof ServerLevel sl && player instanceof ServerPlayer sp) chop(sl, sp, pos, state);
-        });
-        ServerTickEvents.START_LEVEL_TICK.register(Falls::tick);
-        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> FELLED.remove(handler.getPlayer().getUUID()));
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            for (List<Fall> falls : ACTIVE.values()) for (Fall f : falls) f.abort();
-            ACTIVE.clear();
-            Hold.clear();
-            FELLED.clear();
-            Viewers.clear();
-        });
+    static void stopping() {
+        for (List<Fall> falls : ACTIVE.values()) for (Fall f : falls) f.abort();
+        ACTIVE.clear();
+        Hold.clear();
+        FELLED.clear();
+        Viewers.clear();
+    }
+
+    static void leave(ServerPlayer player) {
+        FELLED.remove(player.getUUID());
     }
 
     static final TagKey<Item> C_AXES = TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", "tools/axe"));
@@ -124,7 +115,7 @@ public final class Falls {
             BlockPos q = p.pos();
             // adventure mode asks only the logs: a map's axe that may break logs fells the leaves with them
             if (!level.mayInteract(player, q) || !p.leaf() && player.blockActionRestricted(level, q, mode)) return false;
-            if (!PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, player, q, p.state(), level.getBlockEntity(q))) return false;
+            if (!Platform.get().mayBreak(level, player, q, p.state())) return false;
         }
         return true;
     }
@@ -172,7 +163,7 @@ public final class Falls {
             .append(Component.translatableWithFallback("vanilla_timber.msg.logs", " logs").withStyle(ChatFormatting.GRAY)));
     }
 
-    private static void tick(ServerLevel level) {
+    static void tick(ServerLevel level) {
         List<Fall> falls = ACTIVE.get(level);
         if (falls == null || falls.isEmpty()) return;
         if (!timed()) {

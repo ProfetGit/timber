@@ -7,8 +7,7 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import io.github.profetgit.vanillatimber.platform.Platform;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -43,10 +42,6 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         return cells.length / 4;
     }
 
-    static void register() {
-        PayloadTypeRegistry.clientboundPlay().register(TYPE, CODEC);
-    }
-
     /** The payload of one fall, sent at server frame {@code e}. Air parts (a block that changed under the scan) and hidden leaves are left out. */
     public static TreeFall of(int id, Tree tree, int e) {
         Map<BlockState, Integer> index = new IdentityHashMap<>();
@@ -74,11 +69,11 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
     }
 
     public static boolean canSend(ServerPlayer player) {
-        return ServerPlayNetworking.canSend(player, TYPE);
+        return Platform.get().canSend(player, TYPE);
     }
 
     public void send(ServerPlayer player) {
-        ServerPlayNetworking.send(player, this);
+        Platform.get().send(player, this);
     }
 
     private static void write(RegistryFriendlyByteBuf buf, TreeFall f) {

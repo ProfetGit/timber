@@ -1,0 +1,92 @@
+package io.github.profetgit.vanillatimber.platform.fabric;
+
+//? fabric {
+import io.github.profetgit.vanillatimber.Timber;
+import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.TreeFall;
+import io.github.profetgit.vanillatimber.platform.Platform;
+import io.github.profetgit.vanillatimber.selftest.TestBlocks;
+import io.github.profetgit.vanillatimber.server.Hold;
+import io.github.profetgit.vanillatimber.server.Hooks;
+import io.github.profetgit.vanillatimber.server.TreeTypes;
+import java.nio.file.Path;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.world.level.block.state.BlockState;
+
+/** Fabric and Quilt (Quilt loads the Fabric jar): Fabric API events into {@link Hooks}. */
+public final class FabricEntry implements ModInitializer, Platform {
+    @Override
+    public void onInitialize() {
+        Timber.init(this);
+        PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(TreeFall.TYPE, TreeFall.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE, (msg, ctx) -> ctx.server().execute(() -> Hooks.hello(ctx.player(), msg.version())));
+        Hold.register();
+        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(TreeTypes.ID, TreeTypes.listener());
+        if (TestBlocks.wanted()) TestBlocks.register();
+        ServerLifecycleEvents.SERVER_STARTED.register(Hooks::serverStarted);
+        ServerLifecycleEvents.SERVER_STOPPING.register(Hooks::serverStopping);
+        ServerLifecycleEvents.SERVER_STOPPED.register(Hooks::serverStopped);
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> Hooks.dataReloaded(server, success));
+        ServerTickEvents.START_LEVEL_TICK.register(Hooks::levelTickStart);
+        ServerTickEvents.END_SERVER_TICK.register(Hooks::serverTickEnd);
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> Hooks.join(server, handler.getPlayer()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> Hooks.leave(handler.getPlayer()));
+        ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> Hooks.entityLoad(entity));
+        PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, be) -> {
+            if (level instanceof ServerLevel sl && player instanceof ServerPlayer sp) Hooks.blockBroken(sl, sp, pos, state);
+        });
+        CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> Hooks.commands(dispatcher));
+    }
+
+    @Override
+    public String loader() {
+        return FabricLoader.getInstance().isModLoaded("quilt_loader") ? "quilt" : "fabric";
+    }
+
+    @Override
+    public Path configDir() {
+        return FabricLoader.getInstance().getConfigDir();
+    }
+
+    @Override
+    public boolean isModLoaded(String modId) {
+        return FabricLoader.getInstance().isModLoaded(modId);
+    }
+
+    @Override
+    public String modVersion(String modId) {
+        return FabricLoader.getInstance().getModContainer(modId).map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse(null);
+    }
+
+    @Override
+    public boolean mayBreak(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
+        return PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, player, pos, state, level.getBlockEntity(pos));
+    }
+
+    @Override
+    public boolean canSend(ServerPlayer player, CustomPacketPayload.Type<?> type) {
+        return ServerPlayNetworking.canSend(player, type);
+    }
+
+    @Override
+    public void send(ServerPlayer player, CustomPacketPayload payload) {
+        ServerPlayNetworking.send(player, payload);
+    }
+}
+//?}

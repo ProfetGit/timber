@@ -4,7 +4,6 @@ import io.github.profetgit.vanillatimber.Timber;
 import io.github.profetgit.vanillatimber.api.TimberEvents;
 import java.util.ArrayList;
 import java.util.List;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -36,13 +35,6 @@ public final class Api {
     public static final int VERSION_ID = 20000;
 
     private Api() {}
-
-    public static void register() {
-        ServerLifecycleEvents.SERVER_STARTED.register(Api::load);
-        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> {
-            if (success) load(server);
-        });
-    }
 
     static void load(MinecraftServer server) {
         if (Migrate.inert) return;

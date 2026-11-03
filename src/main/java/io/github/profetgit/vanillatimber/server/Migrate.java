@@ -8,10 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -83,25 +79,26 @@ public final class Migrate extends SavedData {
         return server.overworld().getDataStorage().computeIfAbsent(TYPE);
     }
 
-    public static void register() {
-        ServerLifecycleEvents.SERVER_STARTED.register(Migrate::start);
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> QUEUE.clear());
-        ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
-            if (!inert && old(entity)) QUEUE.add(entity);
-        });
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (!inert && !QUEUE.isEmpty()) {
-                int[] c = drain(server);
-                if (c[1] > 0 || c[2] > 0) Timber.LOG.info("Timber: removed {} old entities, {} controllers returned {} items", c[2], c[0], c[1]);
-            }
-        });
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            if (inert) return;
-            ServerPlayer p = handler.getPlayer();
-            if (p.entityTags().contains(OLD_WELCOMED)) p.addTag(Players.WELCOMED);
-            for (String t : new ArrayList<>(p.entityTags())) if (t.startsWith(PREFIX)) p.removeTag(t);
-            tell(server, p);
-        });
+    static void stopping() {
+        QUEUE.clear();
+    }
+
+    static void entityLoad(Entity entity) {
+        if (!inert && old(entity)) QUEUE.add(entity);
+    }
+
+    static void tick(MinecraftServer server) {
+        if (!inert && !QUEUE.isEmpty()) {
+            int[] c = drain(server);
+            if (c[1] > 0 || c[2] > 0) Timber.LOG.info("Timber: removed {} old entities, {} controllers returned {} items", c[2], c[0], c[1]);
+        }
+    }
+
+    static void join(MinecraftServer server, ServerPlayer p) {
+        if (inert) return;
+        if (p.entityTags().contains(OLD_WELCOMED)) p.addTag(Players.WELCOMED);
+        for (String t : new ArrayList<>(p.entityTags())) if (t.startsWith(PREFIX)) p.removeTag(t);
+        tell(server, p);
     }
 
     private static boolean old(Entity e) {
@@ -110,7 +107,7 @@ public final class Migrate extends SavedData {
         return false;
     }
 
-    private static void start(MinecraftServer server) {
+    static void start(MinecraftServer server) {
         if (inert) return;
         Scoreboard sb = server.getScoreboard();
         int versionId = server.getCommandStorage().get(Api.META).getIntOr("version_id", -1);
@@ -215,7 +212,11 @@ public final class Migrate extends SavedData {
     private static String oldPack(MinecraftServer server) {
         for (Pack p : server.getPackRepository().getSelectedPacks()) {
             if (!p.getId().startsWith("file/")) continue;
+            //? if >=26.3 {
             List<PackResources> opened = p.open().toList();
+            //?} else {
+            /*List<PackResources> opened = List.of(p.open());
+            *///?}
             try {
                 for (PackResources r : opened) if (r.getResource(PackType.SERVER_DATA, PACK_TICK) != null) return p.getId();
             } finally {

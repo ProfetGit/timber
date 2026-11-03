@@ -11,7 +11,7 @@ import java.util.List;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.AABB;
-import net.fabricmc.loader.api.FabricLoader;
+import io.github.profetgit.vanillatimber.platform.Platform;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -627,7 +627,7 @@ final class Scenarios {
     }
 
     private static void smoke(Script s) {
-        s.check("mod loaded", mc -> FabricLoader.getInstance().isModLoaded("vanilla_timber") ? null : "vanilla_timber not loaded")
+        s.check("mod loaded", mc -> Platform.get().isModLoaded("vanilla_timber") ? null : "vanilla_timber not loaded")
             .check("player alive", mc -> mc.player.isAlive() ? null : "player not alive")
             .capture("smoke", 1)
             .until("smoke frame written", 200, mc -> !SelfTest.capturing())

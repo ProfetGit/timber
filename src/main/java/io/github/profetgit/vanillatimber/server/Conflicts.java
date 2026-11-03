@@ -1,14 +1,12 @@
 package io.github.profetgit.vanillatimber.server;
 
+import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.Timber;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,13 +20,13 @@ public final class Conflicts {
 
     private Conflicts() {}
 
-    public static void register() {
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> use(KNOWN.keySet().stream().filter(FabricLoader.getInstance()::isModLoaded).sorted().toList()));
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> tell(handler.getPlayer()));
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-            present = List.of();
-            TOLD.clear();
-        });
+    static void started() {
+        use(KNOWN.keySet().stream().filter(Platform.get()::isModLoaded).sorted().toList());
+    }
+
+    static void stopped() {
+        present = List.of();
+        TOLD.clear();
     }
 
     public static List<String> present() {

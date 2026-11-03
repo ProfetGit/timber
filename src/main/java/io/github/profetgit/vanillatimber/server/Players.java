@@ -7,9 +7,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.chat.ClickEvent;
@@ -61,22 +58,21 @@ public final class Players extends SavedData {
         if (enabled ? data.off.remove(player) : data.off.add(player)) data.setDirty();
     }
 
-    public static void register() {
-        ServerLifecycleEvents.SERVER_STARTED.register(Players::ensureObjective);
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            Objective o = server.getScoreboard().getObjective(OBJECTIVE);
-            if (o != null) server.getScoreboard().removeObjective(o);
-        });
-        ServerTickEvents.END_SERVER_TICK.register(server -> {
-            Config.pollReload();
-            poll(server);
-        });
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            if (!handler.getPlayer().entityTags().contains(WELCOMED)) welcome(handler.getPlayer());
-        });
+    static void stopping(MinecraftServer server) {
+        Objective o = server.getScoreboard().getObjective(OBJECTIVE);
+        if (o != null) server.getScoreboard().removeObjective(o);
     }
 
-    private static Objective ensureObjective(MinecraftServer server) {
+    static void tick(MinecraftServer server) {
+        Config.pollReload();
+        poll(server);
+    }
+
+    static void join(ServerPlayer player) {
+        if (!player.entityTags().contains(WELCOMED)) welcome(player);
+    }
+
+    static Objective ensureObjective(MinecraftServer server) {
         Scoreboard sb = server.getScoreboard();
         Objective o = sb.getObjective(OBJECTIVE);
         if (o == null) {

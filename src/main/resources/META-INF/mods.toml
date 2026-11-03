@@ -1,0 +1,20 @@
+modLoader = "javafml"
+loaderVersion = "[0,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "vanilla_timber"
+version = "${version}"
+displayName = "${name}"
+authors = "${author}"
+displayURL = "${homepage}"
+description = '''${description}'''
+# vanilla clients join a server with Timber, and a client with Timber joins any server
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.vanilla_timber]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[${mc},${mc_next})"
+ordering = "NONE"
+side = "BOTH"
