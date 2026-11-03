@@ -9,4 +9,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface BlockDisplayAccess {
     @Invoker("setBlockState")
     void timber$setBlockState(BlockState state);
+
+    @Invoker("getBlockState")
+    BlockState timber$getBlockState();
 }

@@ -31,6 +31,11 @@ public final class Falls {
     public static volatile Fall lastFall;
     /** -Dvanilla_timber.perf=true: each fall logs its chop and per-frame server time when it ends. */
     static final boolean PERF = Boolean.getBoolean("vanilla_timber.perf");
+
+    /** Times chops and frames: the perf log, or a self-test probe reading {@link Fall#chopMs()}. */
+    static boolean timed() {
+        return PERF || Fall.probe != null;
+    }
     private static final Map<ServerLevel, List<Fall>> ACTIVE = new IdentityHashMap<>();
     private static int nextId;
 
@@ -79,7 +84,7 @@ public final class Falls {
             return;
         }
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
-        if (PERF) fall.chopNs = System.nanoTime() - t0;
+        if (timed()) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
     }
 
@@ -124,15 +129,15 @@ public final class Falls {
     private static void tick(ServerLevel level) {
         List<Fall> falls = ACTIVE.get(level);
         if (falls == null || falls.isEmpty()) return;
-        if (!PERF) {
+        if (!timed()) {
             falls.removeIf(Fall::step);
             return;
         }
         falls.removeIf(f -> {
             long t0 = System.nanoTime();
             boolean done = f.step();
-            f.stepNs[f.n] = System.nanoTime() - t0;
-            if (done) perf(f);
+            if (f.stepNs != null && f.n >= 0 && f.n < f.stepNs.length) f.stepNs[f.n] = System.nanoTime() - t0;
+            if (done && PERF) perf(f);
             return done;
         });
     }

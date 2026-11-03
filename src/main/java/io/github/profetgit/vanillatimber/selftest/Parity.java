@@ -528,7 +528,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -567,6 +567,16 @@ final class Parity {
                     case "anim" -> animation();
                     case "pose" -> pose();
                     case "robustness" -> robustness();
+                    case "trees" -> everyTree();
+                    case "decor" -> decor();
+                    case "mangroves" -> mangroves();
+                    case "paleoaks" -> {
+                        for (int k = 0; k < 16; k++) everyTreeList(List.of("pale_oak_creaking"));
+                    }
+                    case "giants" -> {
+                        for (int k = 0; k < 4; k++) everyTreeList(List.of("mega_pine", "mega_spruce", "mega_jungle_tree"));
+                    }
+                    case "perf_spruce" -> perfSpruce();
                     default -> { }
                 }
             } catch (Throwable t) {
@@ -1546,5 +1556,182 @@ final class Parity {
         check("both finish after a /reload mid-animation", controllers() == 0 && displays() == 0, controllers() + " controllers, " + displays() + " displays");
         check("both trees dropped their logs", itemsOf("minecraft:oak_log", 30) == 6 && itemsOf("minecraft:spruce_log", 30) == 6,
             itemsNear(p(5, 0, 0), 30).toString());
+    }
+
+    // ---- wave 4: every tree, decor, mangroves, giants, perf ----
+
+    static BlockState shownState(Fall.Live l) {
+        return ((io.github.profetgit.vanillatimber.mixin.BlockDisplayAccess) l.display()).timber$getBlockState();
+    }
+
+    static BlockPos trunkAt(int up) {
+        return on(() -> {
+            for (int y = 0; y < up; y++) {
+                BlockPos q = p(0, y, 0);
+                if (level.getBlockState(q).is(BlockTags.LOGS)) return q;
+            }
+            return null;
+        });
+    }
+
+    static void everyTree() {
+        everyTreeList(List.of("oak", "fancy_oak", "birch", "super_birch_bees", "spruce", "pine", "mega_spruce", "mega_pine", "jungle_tree",
+            "mega_jungle_tree", "acacia", "dark_oak", "cherry", "pale_oak", "pale_oak_creaking", "azalea_tree", "mangrove", "tall_mangrove", "swamp_oak",
+            "red_poplar", "orange_poplar", "yellow_poplar"));
+    }
+
+    static void everyTreeList(List<String> trees) {
+        List<String> times = new ArrayList<>();
+        for (String f : trees) {
+            BlockPos base = null;
+            // features are random: a mangrove on roots sometimes grows no log in its origin column, so re-roll it
+            for (int roll = 0; roll < 4 && base == null; roll++) {
+                plot();
+                feature(f, 0, 0);
+                tick(40);
+                base = trunkAt(8);
+            }
+            if (base == null) {
+                check("tree " + f + ": has a trunk at the feature origin", false, "no log in the column");
+                continue;
+            }
+            int logs = count(Parity::isLog, 14), leaves = count(Parity::natLeaf, 14);
+            int orphans = count(q -> natLeaf(q) && q.getValue(LeavesBlock.DISTANCE) == 7, 14);
+            hold("minecraft:netherite_axe");
+            destroy(base);
+            tick(2);
+            int d = displays();
+            long air = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> shownState(l).isAir()).count());
+            int logsLeft = count(Parity::isLog, 14), leavesLeft = count(Parity::natLeaf, 14);
+            Fall fall = cur;
+            Trace tr = finish(140);
+            double max = tr == null ? 0 : tr.maxPitch();
+            int ticks = tr == null ? 0 : tr.end();
+            String cost = fall == null ? "-" : String.format(java.util.Locale.ROOT, "%.1f+%.1fms", fall.chopMs(), fall.frameMs(0));
+            times.add(f + " " + d + "d " + cost);
+            if (logsLeft > 0) {
+                StringBuilder where = new StringBuilder();
+                on(() -> {
+                    for (BlockPos q : BlockPos.betweenClosed(cx - 14, Y - 1, cz - 14, cx + 14, Y + 40, cz + 14))
+                        if (isLog(level.getBlockState(q))) where.append(q.getX() - cx).append(',').append(q.getY() - Y).append(',').append(q.getZ() - cz).append(' ');
+                    return null;
+                });
+                info("  " + f + " left logs at " + where + "| base y " + (base.getY() - Y));
+            }
+            check("tree " + f + ": felled and animated", logsLeft == 0 && leavesLeft <= orphans + Math.max(2, leaves * 3 / 100) && d > 0 && air == 0 && ticks > 30 && max >= 85,
+                logs + " logs/" + leaves + " leaves (" + orphans + " detached), " + air + " invisible displays -> left " + logsLeft + "/" + leavesLeft + ", " + d
+                    + " displays, landed " + Math.round(max * 10) / 10.0 + ", " + ticks + " ticks, chop " + cost);
+        }
+        info("felling tick cost (chop + frame 0): " + times);
+    }
+
+    static void mangroves() {
+        int ok = 0, total = 0;
+        StringBuilder bad = new StringBuilder();
+        for (int k = 0; k < 12; k++) {
+            plot();
+            feature(k % 2 == 0 ? "mangrove" : "tall_mangrove", 0, 0);
+            tick(40);
+            BlockPos base = trunkAt(12);
+            if (base == null) continue;
+            total++;
+            int logs = count(Parity::isLog, 14);
+            hold("minecraft:netherite_axe");
+            destroy(base);
+            tick(2);
+            int left = count(Parity::isLog, 14);
+            if (left == 0) ok++;
+            else {
+                bad.append(k).append(": ").append(logs).append(" logs -> ").append(left).append(" left; ");
+                StringBuilder col = new StringBuilder();
+                for (int y = 0; y < 14; y++) col.append(y).append('=').append(blockId(p(0, y, 0)).replace("minecraft:", "")).append(' ');
+                info("mangrove " + k + " base y=" + (base.getY() - Y) + " column " + col);
+            }
+            finish(140);
+        }
+        check("mangroves: every random mangrove fully felled", ok == total && total >= 8, ok + "/" + total + " " + bad);
+    }
+
+    static void decor() {
+        plot();
+        customTree(0, 0, 7, 2, "jungle_log", "jungle_leaves");
+        cmd("setblock " + at(1, 1, 0) + " minecraft:cocoa[facing=west,age=2]");
+        cmd("fill " + at(-1, 1, 0) + " " + at(-1, 3, 0) + " minecraft:vine[east=true]");
+        cmd("setblock " + at(-2, 3, 0) + " minecraft:vine[up=true]");
+        cmd("setblock " + at(0, 8, 0) + " minecraft:snow[layers=2]");
+        tick(30);
+        hold("minecraft:iron_axe");
+        stand(0, -3, 0);
+        chop(0, 0, 0);
+        int vines = blocks("minecraft:vine", 6), cocoa = blocks("minecraft:cocoa", 6), snow = blocks("minecraft:snow", 6);
+        check("decor: vines, cocoa and snow go with the tree", vines == 0 && cocoa == 0 && snow == 0, "vines " + vines + ", cocoa " + cocoa + ", snow " + snow);
+        long vineDisplays = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> shownState(l).is(net.minecraft.world.level.block.Blocks.VINE)).count());
+        check("decor: vines ride along as displays with their faces", vineDisplays == 4, vineDisplays + " vine displays");
+        finish(120);
+        tick(2);
+        check("decor: ripe cocoa drops beans", itemsOf("minecraft:cocoa_beans", 20) >= 2, itemsNear(p(0, 0, 0), 20).toString());
+    }
+
+    /** Plants a 1.3.6 sampler fixture ({@code selftest/trees/<file>}) with its base log at p(0, 0, 0). */
+    static void fixture(String file) {
+        String text;
+        try (var in = Parity.class.getResourceAsStream("/selftest/trees/" + file + ".mcfunction")) {
+            text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException | NullPointerException e) {
+            throw new IllegalStateException("fixture " + file, e);
+        }
+        on(() -> {
+            var src = server.createCommandSourceStack().withSuppressedOutput().withPosition(Vec3.atLowerCornerOf(p(0, 0, 0)));
+            for (String line : text.split("\n")) if (!line.isBlank()) server.getCommands().performPrefixedCommand(src, line.trim());
+            return null;
+        });
+    }
+
+    /** PRD 10: chop tick (scan + loot + spawn) of the 427-block giant spruce, warm, median of 5 <= 10 ms. */
+    static void perfSpruce() {
+        List<Double> chop = new ArrayList<>(), tickMs = new ArrayList<>(), moving = new ArrayList<>();
+        String size = "";
+        for (int k = 0; k < 6; k++) {
+            plot();
+            fixture("spruce_b");
+            tick(5);
+            hold("minecraft:netherite_axe");
+            stand(-2, 0, -90);
+            destroy(p(0, 0, 0));
+            tick(2);
+            Fall fall = cur;
+            finish(200);
+            if (fall == null) {
+                check("perf_spruce: the giant spruce fell", false, "no fall on chop " + k);
+                return;
+            }
+            double c = fall.chopMs(), f0 = fall.frameMs(0);
+            double sum = 0;
+            int n = 0;
+            for (int i = 2; i < fall.tl.end; i++) {
+                double m = fall.frameMs(i);
+                if (!Double.isNaN(m)) {
+                    sum += m;
+                    n++;
+                }
+            }
+            size = fall.tree.logs() + " logs + " + fall.tree.leaves() + " leaves";
+            info(String.format(java.util.Locale.ROOT, "  perf_spruce chop %d%s: chop %.3f ms, frame 0 %.3f ms, frame 1 %.3f ms, moving mean %.4f ms", k, k == 0 ? " (warm-up)" : "",
+                c, f0, fall.frameMs(1), n == 0 ? 0 : sum / n));
+            if (k == 0) continue;
+            chop.add(c);
+            tickMs.add(c + f0);
+            moving.add(n == 0 ? 0 : sum / n);
+        }
+        double med = median(tickMs);
+        check("perf_spruce: warm chop tick (scan + loot + spawn) median of 5 <= 10 ms", med <= 10,
+            String.format(java.util.Locale.ROOT, "%s, chop + frame 0 median %.3f ms (chop alone %.3f), all %s; moving mean median %.4f ms with a vanilla viewer",
+                size, med, median(chop), tickMs, median(moving)));
+    }
+
+    static double median(List<Double> v) {
+        List<Double> s = new ArrayList<>(v);
+        java.util.Collections.sort(s);
+        return s.isEmpty() ? Double.NaN : s.get(s.size() / 2);
     }
 }

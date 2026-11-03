@@ -78,7 +78,7 @@ public final class Fall {
         this.tree = tree;
         this.cutter = cutter;
         this.tl = new Timeline(tree.spec(), tree.logRings());
-        stepNs = Falls.PERF ? new long[tl.end + 1] : null;
+        stepNs = Falls.timed() ? new long[tl.end + 1] : null;
         x = tree.px() / 1000.0;
         y0 = tree.py() / 1000.0;
         z = tree.pz() / 1000.0;
@@ -378,6 +378,16 @@ public final class Fall {
 
     public Vec3 pivot() {
         return new Vec3(x, pivotY(), z);
+    }
+
+    /** Server time of the chop (scan, loot, set-up), when timed (tests, perf log). */
+    public double chopMs() {
+        return chopNs / 1e6;
+    }
+
+    /** Server time of frame i, when timed; frame 0 spawns the displays for vanilla viewers. */
+    public double frameMs(int i) {
+        return stepNs == null || i < 0 || i >= stepNs.length ? Double.NaN : stepNs[i] / 1e6;
     }
 
     /** A live display and the block it stands for (tests). */
