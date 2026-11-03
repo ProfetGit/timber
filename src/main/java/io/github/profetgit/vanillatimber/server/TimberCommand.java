@@ -45,7 +45,11 @@ public final class TimberCommand {
                 if (r > 0) menu(c.getSource());
                 return r;
             }));
+//? if >=1.21.2 {
         d.register(Commands.literal("timber").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+//?} else {
+/*        d.register(Commands.literal("timber").requires(s -> s.hasPermission(2))
+*///?}
             .then(Commands.literal("config").executes(c -> list(c.getSource())).then(configKey))
             .then(Commands.literal("reload").executes(c -> {
                 Config.load();

@@ -7,7 +7,9 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
+//? if >=1.21.2
 import net.minecraft.world.level.block.TintedParticleLeavesBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
@@ -23,9 +25,14 @@ public final class TestBlocks {
     }
 
     public static void register() {
+//? if >=1.21.2 {
         block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new TintedParticleLeavesBlock(0.01f, BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()
             .setId(k)));
+//?} else {
+/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
+        block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()));
+*///?}
     }
 
     private static void block(String name, java.util.function.Function<ResourceKey<Block>, Block> make) {

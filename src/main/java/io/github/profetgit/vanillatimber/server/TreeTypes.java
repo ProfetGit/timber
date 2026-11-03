@@ -1,7 +1,11 @@
 package io.github.profetgit.vanillatimber.server;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.mojang.serialization.JsonOps;
 import io.github.profetgit.vanillatimber.Timber;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.core.registries.Registries;
@@ -36,6 +40,7 @@ public final class TreeTypes {
         return s.is(TreeType.OVERWORLD.trunk()) || s.is(TreeScan.LOGS) ? TreeType.OVERWORLD : null;
     }
 
+//? if >=1.21.2 {
     private static final class Listener extends SimpleJsonResourceReloadListener<TreeType> {
         Listener() {
             super(TreeType.CODEC, FileToIdConverter.json("timber/tree_type"));
@@ -51,4 +56,24 @@ public final class TreeTypes {
             Timber.LOG.info("tree types: {}", ids);
         }
     }
+//?} else {
+/*    private static final class Listener extends SimpleJsonResourceReloadListener {
+        Listener() {
+            super(new Gson(), "timber/tree_type");
+        }
+
+        @Override
+        protected void apply(Map<Identifier, JsonElement> json, ResourceManager manager, ProfilerFiller profiler) {
+            Map<Identifier, TreeType> types = new HashMap<>();
+            json.forEach((id, element) -> TreeType.CODEC.parse(JsonOps.INSTANCE, element)
+                .resultOrPartial(error -> Timber.LOG.error("Timber: tree type {} ignored: {}", id, error)).ifPresent(t -> types.put(id, t)));
+            List<Identifier> ids = new ArrayList<>(types.keySet());
+            ids.sort(null);
+            List<TreeType> out = new ArrayList<>();
+            for (Identifier id : ids) out.add(types.get(id));
+            data = List.copyOf(out);
+            Timber.LOG.info("tree types: {}", ids);
+        }
+    }
+*///?}
 }

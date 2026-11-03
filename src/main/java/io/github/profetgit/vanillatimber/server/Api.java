@@ -16,7 +16,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+//? if >=1.21.2 {
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
+//?}
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
@@ -58,7 +60,11 @@ public final class Api {
         if (server.getFunctions().getTag(CANCEL).isEmpty()) return null;
         boolean[] cancelled = {false};
         CommandSourceStack source = player.createCommandSourceStack().withLevel(level).withPosition(Vec3.atCenterOf(pos))
-            .withRotation(new Vec2(player.getXRot(), player.getYRot())).withPermission(LevelBasedPermissionSet.GAMEMASTER)
+            .withRotation(new Vec2(player.getXRot(), player.getYRot()))//? if >=1.21.2 {
+            .withPermission(LevelBasedPermissionSet.GAMEMASTER)
+//?} else {
+/*            .withPermission(2)
+*///?}
             .withSuppressedOutput().withCallback((ok, result) -> {
                 if (ok) cancelled[0] = true;
             });

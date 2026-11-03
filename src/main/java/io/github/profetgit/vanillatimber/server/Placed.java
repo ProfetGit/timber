@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.LongStream;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
@@ -16,6 +18,7 @@ import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.saveddata.SavedData;
+//? if >=1.21.2
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
@@ -29,8 +32,18 @@ public final class Placed extends SavedData {
         Codec.INT.optionalFieldOf("format", FORMAT).forGetter(d -> FORMAT),
         Codec.unboundedMap(Codec.STRING, Codec.LONG_STREAM).optionalFieldOf("chunks", Map.of()).forGetter(Placed::save)
     ).apply(i, (format, chunks) -> new Placed(chunks)));
+//? if >=1.21.2 {
     private static final SavedDataType<Placed> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "placed"),
         () -> new Placed(Map.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+//?} else {
+/*    private static final SavedData.Factory<Placed> TYPE = new SavedData.Factory<>(() -> new Placed(Map.of()),
+        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new Placed(Map.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+
+    @Override
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookup) {
+        return SavedCodec.save(CODEC, this, tag, lookup);
+    }
+*///?}
 
     private final Long2ObjectOpenHashMap<LongOpenHashSet> chunks = new Long2ObjectOpenHashMap<>();
 
@@ -58,7 +71,11 @@ public final class Placed extends SavedData {
     }
 
     static Placed get(ServerLevel level) {
+//? if >=1.21.2 {
         return level.getDataStorage().computeIfAbsent(TYPE);
+//?} else {
+/*        return level.getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_placed");
+*///?}
     }
 
     private static long chunk(BlockPos pos) {

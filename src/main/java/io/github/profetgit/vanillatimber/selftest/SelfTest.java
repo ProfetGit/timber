@@ -84,6 +84,7 @@ public final class SelfTest {
         if (captureLeft <= 0) return;
         Path out = Path.of(OUT, "frames", captureName, String.format("f%03d.png", captureFrame++));
         captureLeft--;
+//? if >=1.21.2 {
         Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget(), (NativeImage img) -> WRITER.execute(() -> {
             try (img) {
                 Files.createDirectories(out.getParent());
@@ -92,6 +93,17 @@ public final class SelfTest {
                 TimberClient.LOG.warn("[selftest] frame write failed: {}", e.toString());
             }
         }));
+//?} else {
+/*        NativeImage img = Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget());
+        WRITER.execute(() -> {
+            try (img) {
+                Files.createDirectories(out.getParent());
+                img.writeToFile(out);
+            } catch (IOException e) {
+                TimberClient.LOG.warn("[selftest] frame write failed: {}", e.toString());
+            }
+        });
+*///?}
     }
 
     /** Index of the frame the next capture writes, or -1 when not capturing (scenes stamp their frames with it). */

@@ -4,12 +4,14 @@ package io.github.profetgit.vanillatimber.server;
 import net.minecraft.commands.arguments.coordinates.LocalCoordinates;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ColorParticleOption;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec2;
@@ -43,8 +45,15 @@ final class Fx {
     static Vec3 local(Vec3 from, Vec2 rot, double left, double up, double forward) {
         //? if >=26.3 {
         return new LocalCoordinates(left, up, forward).apply(from, rot);
-        //?} else {
+        //?} else if >=1.21.2 {
         /*return Vec3.applyLocalCoordinatesToRotation(rot, new Vec3(left, up, forward)).add(from);
+        *///?} else {
+        /*float yaw = (rot.y + 90f) * (float) (Math.PI / 180.0), pitch = -rot.x * (float) (Math.PI / 180.0), pitchUp = (-rot.x + 90f) * (float) (Math.PI / 180.0);
+        Vec3 fwd = new Vec3(Mth.cos(yaw) * Mth.cos(pitch), Mth.sin(pitch), Mth.sin(yaw) * Mth.cos(pitch));
+        Vec3 upv = new Vec3(Mth.cos(yaw) * Mth.cos(pitchUp), Mth.sin(pitchUp), Mth.sin(yaw) * Mth.cos(pitchUp));
+        Vec3 lft = fwd.cross(upv).scale(-1.0);
+        return new Vec3(from.x + fwd.x * forward + upv.x * up + lft.x * left, from.y + fwd.y * forward + upv.y * up + lft.y * left,
+            from.z + fwd.z * forward + upv.z * up + lft.z * left);
         *///?}
     }
 
@@ -54,6 +63,7 @@ final class Fx {
         // a wart crown or a mushroom cap sheds dust of its own colour, not green flakes
         if (!leafy(leaf)) return new BlockParticleOption(ParticleTypes.FALLING_DUST, leaf.getBlock().defaultBlockState());
         if (leaf.is(Blocks.CHERRY_LEAVES)) return ParticleTypes.CHERRY_LEAVES;
+//? if >=1.21.2
         if (leaf.is(Blocks.PALE_OAK_LEAVES)) return ParticleTypes.PALE_OAK_LEAVES;
         if (leaf.is(Blocks.BIRCH_LEAVES)) return tinted(0.502f, 0.655f, 0.333f);
         if (leaf.is(Blocks.SPRUCE_LEAVES)) return tinted(0.38f, 0.6f, 0.38f);
@@ -69,7 +79,11 @@ final class Fx {
     }
 
     private static ParticleOptions tinted(float r, float g, float b) {
+//? if >=1.21.2 {
         return ColorParticleOption.create(ParticleTypes.TINTED_LEAVES, r, g, b);
+//?} else {
+/*        return new DustParticleOptions(new org.joml.Vector3f(r, g, b), 1f);
+*///?}
     }
 
     /** The chop: the crack, a puff at the cut, the crown shakes ({@code disp/start}, {@code fx/shake}). */

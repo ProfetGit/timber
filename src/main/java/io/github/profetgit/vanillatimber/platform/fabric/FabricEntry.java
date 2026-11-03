@@ -19,7 +19,18 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+//? if >=1.21.2 {
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+//?} else {
+/*import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.PreparableReloadListener;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.profiling.ProfilerFiller;
+*///?}
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -33,17 +44,42 @@ public final class FabricEntry implements ModInitializer, Platform {
     @Override
     public void onInitialize() {
         Timber.init(this);
+//? if >=1.21.2 {
         PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(TreeFall.TYPE, TreeFall.CODEC);
+//?} else {
+/*        PayloadTypeRegistry.playC2S().register(Hello.TYPE, Hello.CODEC);
+        PayloadTypeRegistry.playS2C().register(TreeFall.TYPE, TreeFall.CODEC);
+*///?}
         ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE, (msg, ctx) -> ctx.server().execute(() -> Hooks.hello(ctx.player(), msg.version())));
         Hold.register();
+//? if >=1.21.2 {
         ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(TreeTypes.ID, TreeTypes.listener());
+//?} else {
+/*        PreparableReloadListener types = TreeTypes.listener();
+        ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new IdentifiableResourceReloadListener() {
+            @Override
+            public ResourceLocation getFabricId() {
+                return TreeTypes.ID;
+            }
+
+            @Override
+            public CompletableFuture<Void> reload(PreparationBarrier barrier, ResourceManager manager, ProfilerFiller prepare,
+                                                  ProfilerFiller apply, Executor backgroundExecutor, Executor gameExecutor) {
+                return types.reload(barrier, manager, prepare, apply, backgroundExecutor, gameExecutor);
+            }
+        });
+*///?}
         if (TestBlocks.wanted()) TestBlocks.register();
         ServerLifecycleEvents.SERVER_STARTED.register(Hooks::serverStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(Hooks::serverStopping);
         ServerLifecycleEvents.SERVER_STOPPED.register(Hooks::serverStopped);
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> Hooks.dataReloaded(server, success));
+//? if >=1.21.2 {
         ServerTickEvents.START_LEVEL_TICK.register(Hooks::levelTickStart);
+//?} else {
+/*        ServerTickEvents.START_WORLD_TICK.register(Hooks::levelTickStart);
+*///?}
         ServerTickEvents.END_SERVER_TICK.register(Hooks::serverTickEnd);
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> Hooks.join(server, handler.getPlayer()));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> Hooks.leave(handler.getPlayer()));

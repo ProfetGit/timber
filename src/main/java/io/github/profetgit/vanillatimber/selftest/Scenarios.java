@@ -38,10 +38,19 @@ final class Scenarios {
 
     static Script build() {
         Script s = new Script();
+//? if >=1.21.2 {
         s.run(mc -> mc.createWorldOpenFlows().createFreshLevel("vanilla_timbertest-" + System.currentTimeMillis(),
                 new LevelSettings("vanilla_timbertest", GameType.SURVIVAL,
                     new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false), true, WorldDataConfiguration.DEFAULT),
                 new WorldOptions(42L, false, false), WorldPresets::createTestWorldDimensions, mc.gui.screen()))
+//?} else {
+/*        s.run(mc -> mc.createWorldOpenFlows().createFreshLevel("vanilla_timbertest-" + System.currentTimeMillis(),
+                new LevelSettings("vanilla_timbertest", GameType.SURVIVAL, false, Difficulty.PEACEFUL, true, new net.minecraft.world.level.GameRules(),
+                    WorldDataConfiguration.DEFAULT),
+                new WorldOptions(42L, false, false),
+                access -> access.registryOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions(),
+                mc.gui.screen()))
+*///?}
             .until("world to load", 2400, mc -> mc.player != null && mc.level != null && mc.gui.screen() == null)
             .waitTicks(40)
             .check("world loaded", mc -> mc.player.isAlive() ? null : "player not alive");
@@ -363,7 +372,11 @@ final class Scenarios {
         if (rs == null) return null;
         com.mojang.math.Transformation tr = rs.transformation().get(pt >= 1 ? 1 : d.calculateInterpolationProgress(pt));
         Vec3 pos = d.getPosition(pt);
+//? if >=1.21.2 {
         float yr = d.getYRot(pt), xr = d.getXRot(pt);
+//?} else {
+/*        float yr = net.minecraft.util.Mth.rotLerp(pt, d.yRotO, d.getYRot()), xr = net.minecraft.util.Mth.lerp(pt, d.xRotO, d.getXRot());
+*///?}
         org.joml.Quaternionfc l = tr.leftRotation();
         pitch[0] = xr + Math.toDegrees(2 * Math.atan2(l.x(), l.w()));
         return new org.joml.Matrix4f().translation((float) pos.x, (float) pos.y, (float) pos.z)

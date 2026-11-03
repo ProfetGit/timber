@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -19,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+//? if >=1.21.2
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.ScoreAccess;
@@ -36,8 +39,18 @@ public final class Players extends SavedData {
     private static final Codec<Players> CODEC = RecordCodecBuilder.create(i -> i.group(
         UUIDUtil.CODEC.listOf().optionalFieldOf("off", List.of()).forGetter(d -> List.copyOf(d.off))
     ).apply(i, Players::new));
+//? if >=1.21.2 {
     private static final SavedDataType<Players> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "players"),
         () -> new Players(List.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+//?} else {
+/*    private static final SavedData.Factory<Players> TYPE = new SavedData.Factory<>(() -> new Players(List.of()),
+        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new Players(List.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+
+    @Override
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookup) {
+        return SavedCodec.save(CODEC, this, tag, lookup);
+    }
+*///?}
 
     private final Set<UUID> off = new HashSet<>();
 
@@ -46,7 +59,11 @@ public final class Players extends SavedData {
     }
 
     private static Players get(MinecraftServer server) {
+//? if >=1.21.2 {
         return server.overworld().getDataStorage().computeIfAbsent(TYPE);
+//?} else {
+/*        return server.overworld().getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_players");
+*///?}
     }
 
     public static boolean enabled(MinecraftServer server, UUID player) {

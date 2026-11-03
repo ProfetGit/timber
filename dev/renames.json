@@ -1,1 +1,161 @@
-[]
+[
+  {
+    "regex": "org\\.jspecify\\.annotations\\.Nullable",
+    "to": "org.jetbrains.annotations.Nullable",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "new HoverEvent\\.ShowText\\(",
+    "to": "new HoverEvent(HoverEvent.Action.SHOW_TEXT, ",
+    "when": "<1.21.5"
+  },
+  {
+    "regex": "new ClickEvent\\.RunCommand\\(",
+    "to": "new ClickEvent(ClickEvent.Action.RUN_COMMAND, ",
+    "when": "<1.21.5"
+  },
+  {
+    "regex": "net\\.minecraft\\.util\\.LightCoordsUtil",
+    "to": "io.github.profetgit.vanillatimber.core.LegacyLight",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "LightCoordsUtil",
+    "to": "LegacyLight",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "BlockAndLightGetter",
+    "to": "BlockAndTintGetter",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "EntityTypes",
+    "to": "EntityType",
+    "when": "<26.2"
+  },
+  {
+    "regex": "\\.entityTags\\(\\)",
+    "to": ".getTags()",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.snapTo\\(",
+    "to": ".moveTo(",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "ChunkPos\\.pack\\(",
+    "to": "ChunkPos.asLong(",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "ChunkPos\\.containing\\(",
+    "to": "new ChunkPos(",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\bchunk\\.pack\\(\\)",
+    "to": "chunk.toLong()",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "BuiltInRegistries\\.(\\w+)\\.getValue\\(",
+    "to": "BuiltInRegistries.$1.get(",
+    "when": "<1.21.2",
+    "groups": "1"
+  },
+  {
+    "from": "getDeltaTracker",
+    "to": "getTimer",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.getCurrentVersion\\(\\)\\.name\\(\\)",
+    "to": ".getCurrentVersion().getName()",
+    "when": "<1.21.6"
+  },
+  {
+    "from": "HASTE",
+    "to": "DIG_SPEED",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "net\\.minecraft\\.server\\.level\\.ParticleStatus",
+    "to": "net.minecraft.client.ParticleStatus",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.leftRotation\\(\\)",
+    "to": ".getLeftRotation()",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.rightRotation\\(\\)",
+    "to": ".getRightRotation()",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\bt\\.scale\\(\\)",
+    "to": "t.getScale()",
+    "when": "<1.21.2",
+    "files": "^Parity\\.java$"
+  },
+  {
+    "regex": "\\bt\\.translation\\(\\)",
+    "to": "t.getTranslation()",
+    "when": "<1.21.2",
+    "files": "^Parity\\.java$"
+  },
+  {
+    "regex": "\\b(chunks|keys|stored)\\.keySet\\(\\)",
+    "to": "$1.getAllKeys()",
+    "when": "<1.21.2",
+    "files": "^(Migrate|Parity)\\.java$",
+    "groups": "1"
+  },
+  {
+    "regex": "net\\.neoforged\\.neoforge\\.event\\.level\\.block\\.BreakBlockEvent",
+    "to": "net.neoforged.neoforge.event.level.BlockEvent.BreakEvent",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "BreakBlockEvent",
+    "to": "BreakEvent",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "AddServerReloadListenersEvent",
+    "to": "AddReloadListenerEvent",
+    "when": "<1.21.2",
+    "files": "^NeoForgeEntry\\.java$"
+  },
+  {
+    "regex": "e\\.addListener\\(TreeTypes\\.ID, TreeTypes\\.listener\\(\\)\\)",
+    "to": "e.addListener(TreeTypes.listener())",
+    "when": "<1.21.2",
+    "files": "^NeoForgeEntry\\.java$"
+  },
+  {
+    "regex": "if \\(e\\.getRegistryKey\\(\\)\\.equals\\(Registries\\.TICKET_TYPE\\)\\) Hold\\.register\\(\\);",
+    "to": "",
+    "when": "<1.21.2",
+    "files": "^NeoForgeEntry\\.java$"
+  },
+  {
+    "regex": "Timber\\.init\\(this\\);",
+    "to": "Timber.init(this);\n        Hold.register();",
+    "when": "<1.21.2",
+    "files": "^NeoForgeEntry\\.java$"
+  },
+  {
+    "regex": "net\\.neoforged\\.neoforge\\.client\\.network\\.ClientPacketDistributor",
+    "to": "net.neoforged.neoforge.network.PacketDistributor",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "ClientPacketDistributor",
+    "to": "PacketDistributor",
+    "when": "<1.21.2"
+  }
+]

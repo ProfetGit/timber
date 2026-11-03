@@ -94,7 +94,7 @@ public final class TreeScan {
                 if (seen.contains(q.asLong())) continue;
                 BlockState s = level.getBlockState(q);
                 boolean face = Math.abs(dx) + Math.abs(dy) + Math.abs(dz) == 1;
-                if (s.is(Blocks.CREAKING_HEART)) {
+                if (heartBlock(s)) {
                     if (!face) continue;
                     seen.add(q.asLong());
                     heart.set(nodes.size());
@@ -300,10 +300,18 @@ public final class TreeScan {
         return null;
     }
 
+    private static boolean heartBlock(BlockState s) {
+//? if >=1.21.2 {
+        return s.is(Blocks.CREAKING_HEART);
+//?} else {
+/*        return false;
+*///?}
+    }
+
     private static boolean shut(ServerLevel level, BlockPos p) {
         for (Direction d : Direction.values()) {
             BlockState s = level.getBlockState(p.relative(d));
-            if (!s.is(BlockTags.LEAVES) && !s.is(BlockTags.LOGS) && !s.is(Blocks.CREAKING_HEART)) return false;
+            if (!s.is(BlockTags.LEAVES) && !s.is(BlockTags.LOGS) && !heartBlock(s)) return false;
         }
         return true;
     }

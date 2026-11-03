@@ -18,15 +18,23 @@ import net.minecraft.world.level.ChunkPos;
 public final class Hold {
     private record Key(long chunk, int radius) {}
 
+//? if >=1.21.2 {
     private static TicketType type;
+//?} else {
+/*    private static TicketType<ChunkPos> type;
+*///?}
     private static final Map<ServerLevel, Map<Key, Integer>> HELD = new IdentityHashMap<>();
 
     private Hold() {}
 
     /** Registers the ticket type; runs at mod init, while the registry is still open. */
     public static void register() {
+//? if >=1.21.2 {
         type = Registry.register(BuiltInRegistries.TICKET_TYPE, Identifier.fromNamespaceAndPath(Timber.ID, "fall"),
             new TicketType(TicketType.NO_TIMEOUT, TicketType.FLAG_LOADING | TicketType.FLAG_SIMULATION));
+//?} else {
+/*        type = TicketType.create(Timber.ID + ":fall", java.util.Comparator.comparingLong(ChunkPos::toLong));
+*///?}
     }
 
     static int radius(int treeHeight) {
@@ -35,7 +43,13 @@ public final class Hold {
 
     static void add(ServerLevel level, ChunkPos chunk, int radius) {
         Map<Key, Integer> held = HELD.computeIfAbsent(level, l -> new HashMap<>());
-        if (held.merge(new Key(chunk.pack(), radius), 1, Integer::sum) == 1) level.getChunkSource().addTicketWithRadius(type, chunk, radius);
+        if (held.merge(new Key(chunk.pack(), radius), 1, Integer::sum) == 1) {
+//? if >=1.21.2 {
+            level.getChunkSource().addTicketWithRadius(type, chunk, radius);
+//?} else {
+/*            level.getChunkSource().addRegionTicket(type, chunk, radius, chunk);
+*///?}
+        }
     }
 
     static void release(ServerLevel level, ChunkPos chunk, int radius) {
@@ -49,7 +63,11 @@ public final class Hold {
             return;
         }
         held.remove(k);
+//? if >=1.21.2 {
         level.getChunkSource().removeTicketWithRadius(type, chunk, radius);
+//?} else {
+/*        level.getChunkSource().removeRegionTicket(type, chunk, radius, chunk);
+*///?}
     }
 
     /** Tickets held in the level (tests). */

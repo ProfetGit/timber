@@ -21,7 +21,11 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
             if (ctx.client().isSameThread()) TimberClient.received(payload);
             else ctx.client().execute(() -> TimberClient.received(payload));
         });
+//? if >=1.21.2 {
         ClientTickEvents.END_LEVEL_TICK.register(TimberClient::levelTick);
+//?} else {
+/*        ClientTickEvents.END_WORLD_TICK.register(TimberClient::levelTick);
+*///?}
     }
 
     @Override

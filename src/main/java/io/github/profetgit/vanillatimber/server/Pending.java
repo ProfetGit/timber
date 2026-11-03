@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -17,6 +19,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
+//? if >=1.21.2
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
@@ -68,8 +71,18 @@ public final class Pending extends SavedData {
         Codec.INT.optionalFieldOf("format", FORMAT).forGetter(d -> FORMAT),
         ENTRY.listOf().optionalFieldOf("falls", List.of()).forGetter(d -> d.entries)
     ).apply(i, (format, falls) -> new Pending(falls)));
+//? if >=1.21.2 {
     private static final SavedDataType<Pending> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "pending"),
         () -> new Pending(List.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+//?} else {
+/*    private static final SavedData.Factory<Pending> TYPE = new SavedData.Factory<>(() -> new Pending(List.of()),
+        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new Pending(List.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+
+    @Override
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookup) {
+        return SavedCodec.save(CODEC, this, tag, lookup);
+    }
+*///?}
 
     private final List<Entry> entries = new ArrayList<>();
 
@@ -81,7 +94,11 @@ public final class Pending extends SavedData {
     }
 
     static Pending get(ServerLevel level) {
+//? if >=1.21.2 {
         return level.getDataStorage().computeIfAbsent(TYPE);
+//?} else {
+/*        return level.getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_pending");
+*///?}
     }
 
     /** A fall's entry at its stump, or null when nothing is left to drop. */

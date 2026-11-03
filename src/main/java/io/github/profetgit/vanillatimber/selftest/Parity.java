@@ -2288,7 +2288,11 @@ final class Parity {
         String id = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR).getParent().getFileName().toString();
         MinecraftServer old = server;
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+//? if >=1.21.2 {
         client(m -> m.disconnectFromWorld(Component.literal("self-test reopen")));
+//?} else {
+/*        client(m -> m.disconnect(new net.minecraft.client.gui.screens.GenericMessageScreen(Component.literal("self-test reopen"))));
+*///?}
         for (int i = 0; i < 2400 && (old.isRunning() || mc.getSingleplayerServer() != null || mc.level != null); i++) sleep(50);
         if (old.isRunning() || mc.getSingleplayerServer() != null) throw new IllegalStateException("world did not close");
         info("world closed, reopening " + id);
@@ -2617,8 +2621,12 @@ final class Parity {
             on(() -> {
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                     if (!(e instanceof net.minecraft.world.entity.Marker) || !e.entityTags().contains("timber.ctl")) continue;
+//? if >=1.21.2 {
                     var data = e.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
                     held[0] = data == null ? List.of() : Migrate.loot(server, data.copyTag());
+//?} else {
+/*                    held[0] = Migrate.loot(server, e.saveWithoutId(new net.minecraft.nbt.CompoundTag()).getCompound("data"));
+*///?}
                     at[0] = e.position();
                     cmd("tick freeze");
                     base.putAll(itemsNear(stump, 24));

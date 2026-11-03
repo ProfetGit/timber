@@ -43,7 +43,11 @@ public final class Displays {
 
     /** Light at a cell; inside an opaque block (a log at rest, a trunk swinging through the ground) the brightest open neighbour. */
     public static int lightAt(BlockAndLightGetter level, BlockPos cell) {
+//? if >=1.21.2 {
         if (!level.getBlockState(cell).isSolidRender()) return LightCoordsUtil.getLightCoords(level, cell);
+//?} else {
+/*        if (!level.getBlockState(cell).isSolidRender(level, cell)) return LightCoordsUtil.getLightCoords(level, cell);
+*///?}
         BlockPos.MutableBlockPos n = new BlockPos.MutableBlockPos();
         int b = 0, s = 0;
         for (Direction d : Direction.values()) {
