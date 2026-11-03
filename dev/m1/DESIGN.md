@@ -255,3 +255,16 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
   of a ring-0 log), compare wall ms; GO if <= 1 tick, STOP if > 2 ticks at 200 ms.
 - flicker: `wb img flicker` on both clients' frames around the chop. Client frame <= 1 ms on a giant spruce
   (nanoTime around submit + geometry). Server <= 0.2 ms per moving tick, vanilla client far away (no displays).
+
+## Exit harness built (session 6, 0.0.6)
+- Real chop on a dedicated server: the case's steps op the Host and give haste 127 + a netherite axe; `MpHost` plants
+  fixtures with `execute positioned X -60 8 run <line>` chat commands (ops skip `detectRateSpam`; longest line 98
+  chars + prefix, under the 256 limit), `tp Host (x-2.5) -60 8.5 -90 -25`, Guest at the side view, then
+  `mc.gameMode.startDestroyBlock(pos, WEST)` (instant at that haste; the server's `handleBlockBreakAction` path fires
+  `PlayerBlockBreakEvents`). 4th tree: spruce at x 152 with the Guest at x -300 (modded-only moving tick).
+- Clocks: Host and probe both stamp each frame with `Instant.now()` epoch us at `Minecraft.runTick` TAIL. exit.py:
+  probe pitch = median over displays of acos(m11 / |col1|) (col1 = tsv m01, m11, m21), slam = linear crossing of
+  hit - 0.5 on wall time, drift = (probe - mesh) / 50 ms.
+- First run: see STATUS.md Next 1 (FIX: oak drift 1.31, host flicker pops near the chop). The server log echoes every
+  Host command ("System chat: [Host: ...]"): `gamerule send_command_feedback false` / `log_admin_commands false` in
+  the case steps would cut it.
