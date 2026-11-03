@@ -93,6 +93,62 @@ sources. Durable decisions go to `CLAUDE.md` Decisions when M1 closes; this file
   Ry(yaw) for all groups); leaf tint = `getBlockColors().getTintSources(state)` `colorInWorld` at the rest cell.
   Check the Ry sign against the displays with a frame where both are visible (`draw: server` on one client).
 
+## Done (step 4, session 4, commit 23fff6b, 0.0.4)
+- `net/Hello` (C2S on JOIN, version 1 -> `Viewers.hello`; DISCONNECT -> `leave`), `net/TreeFall` (S2C: id, origin,
+  pivot x1000, bin, FallSpec as doubles/varints, ring mask bits, e, palette of `Block.getId` states, 4 ints per block:
+  zigzag dx/dy/dz from origin + palette<<1|leaf; air parts left out). `Fall.send()` each frame: every player with the
+  chunk loaded (`chunkMap.getPlayers(chunk, false)`) who is `Viewers.local` and `canSend`, once, with e = n (frame 0 at
+  the chop, later for walk-ins). Displays still only spawn when a non-hidden viewer tracks.
+- `Viewers.test` (self-test only): `VANILLA` = treat everyone as vanilla (scene `fall`), `BOTH` = payload + displays to
+  modded viewers (scene `sync`). `Viewers.hidden(p)` feeds the `broadcastToPlayer` mixin.
+- Client: `client/TimberClient` (JOIN -> Hello, receiver -> `ClientFalls.onPayload`, `END_LEVEL_TICK` -> clock),
+  `ClientFalls` (level-tick counter `ticks`, paused with the game like entity ticks), `MeshFall` (bake + pose),
+  `Shading` (ambient-cube face shade via `CardinalLighting.byFace`), `mixin/LevelRendererMixin` (client list,
+  `submitEntities` TAIL).
+- **Clock (verified):** c0 = `ClientFalls.ticks` when the payload is handled; tau = ticks + partial - c0 - 2 + e
+  (`Display.tick` starts an update's interpolation on the first entity tick after it is handled, reached one tick
+  later). The mesh vanishes at tau >= end - 1 (= when the finish tick's removals show). Scene `sync` (both drawings in
+  one client): slam drift 0.03 (oak), 0.28 (birch), -0.01 (spruce) ticks.
+- Bake: per block `getBlockStateModelSet().get(state).collectParts(RandomSource.create(state.getSeed(cell)))`, quads of
+  6 dirs + null, grouped by (ring, leaf, layer: SOLID/CUTOUT/TRANSLUCENT -> `RenderTypes.*MovingBlock()`,
+  `ModelBlockRenderer.forceOpaque` for leaves). Per vertex: tree-frame pos = rest corner + Ry(yaw) m and offset from
+  the block centre (pops scale (a, b, a) and the 1.006 inflate as pos + e * off). Tint = `getTintSources` `colorInWorld`
+  at the rest cell. No face culling. Light per block: brightest open neighbour if the cell is solid, eased 0.35 every 2
+  level ticks at the block's current centre.
+- Scene `mesh` 25/25 (Hello reached the server, payload blocks/e/id, same timeline as the server frame by frame, quads
+  baked, 0 displays on server and client, drawn up to hit - 0.5, gone at end - 1). Frame ms (submit + geometry,
+  headless under load): oak p50 0.17 p95 1.77 max 8.4; birch p50 0.09 p95 1.12; spruce p50 0.09 p95 0.32 max 0.46
+  (2562 quads); bake 1-4 ms. The oak/birch maxima look like one-off hitches at the first frames (bake frame?): check.
+- Scene `sync` FAILS its own strict checks (not PRD gates): (1) the "pitch" check reads the first display's
+  xRot + left angle, which is wrong for popping displays (left rotation frozen at the tag tick: oak 90.17 vs mesh 93
+  during the ripple while positions agree within 0.05): measure pitch from non-popping displays only, or drop it for
+  the position gap. (2) block gap 0.2-0.7 blocks about 1 tick after the slam (impact squash/bounce frames: displays lerp
+  translation linearly between frames, the mesh recomputes origins at the lerped angle; or the squash axes differ):
+  find which blocks and fix or bound it. (3) the retry run had one-frame spikes mid-fall (oak 18.7 deg / 1.55 blocks at
+  t+21.5, spruce 8.1 deg / 3.5 at t+27.2): likely a server hitch (displays wait for packets, the mesh runs on its own
+  clock), confirm from `.work/Timber/26.3-fabric-sync/out/sync_*.tsv` (cols: T, mesh pitch, display pitch, gap,
+  displays, mesh blocks).
+
+## Exit harness plan (step 6, worked out in session 4, not built)
+- Chop on a dedicated server through the real path: the Timber client (Host, op) gets `effect give @s haste infinite 127
+  true` + a netherite axe, stands ~3 blocks from the log at yaw -90 and calls `mc.gameMode.startDestroyBlock(pos, dir)`
+  (instant at that haste: server `getDestroyProgress >= 1` -> `destroyBlock` -> `PlayerBlockBreakEvents`). No dev command.
+- Host driver mode `mp` (selftest): wait for Guest in the tab list + op, plant fixtures with `execute positioned X -60 8
+  run <line>` (ops are exempt from command spam kicks; flat world top is grass at -61), tp Guest to the side view,
+  `tellraw Guest "[probe] start <tree>"`, chop, log per frame wall ms (`System.currentTimeMillis`), T, mesh pitch, tau,
+  frame ns to `mesh_<tree>.tsv`, capture frames, "[probe] stop", next tree; a 4th spruce with Guest >100 blocks away
+  for the server's modded-only moving tick; then results.json + quit ("[probe] quit" to Guest).
+- `dev/probe`: copy of `packs/Timber/dev/lab/probe` (javac build.sh) + wall ms column, chat-cue mixin
+  (ChatComponent addMessage) for start/stop/quit, frame capture (runTick TAIL), results.json. Pitch from a non-popping
+  ring-0 display matrix's column 1 (angle from vertical).
+- `tools/ModTest/multiplayer.py` additive keys: client `"mod_jar": false` + `"jars": [paths]` (Fabric client without the
+  mod jar), `"latency_ms"` (a delaying TCP proxy per client, half each way), case `"server_props"` (-D flags after
+  `java`, for `-Dvanilla_timber.perf=1`: Fall logs chop ms and moving-tick mean/max at finish). Update its docstring and
+  `tools/ModTest/CLAUDE.md`.
+- Cases `m1` (no latency) and `m1_200` (both clients 200 ms); `dev/m1/exit.py` reads both work dirs: slam drift per
+  tree (mesh tsv vs probe tsv, first frame >= hit - 0.5, wall ms / 50), `wb img flicker` on both clients' frames,
+  frame ms p95 for the spruce, server moving tick for the modded-only fall; prints the GO/STOP table (PRD 13).
+
 ## Timing model (why tau = n means "tick n's pose fully drawn")
 - Displays get every pose with interpolation 1 (transformation) and teleport_duration 1 (pos/rot). Tick n's packets
   arrive at client time c(n); the pose is reached at c(n) + 1. So drawing time tau = clientTicks - c(0) - 1.
