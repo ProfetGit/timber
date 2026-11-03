@@ -1,0 +1,7 @@
+{
+  "trunk": "#timber:fungus_stems",
+  "crown": "#timber:fungus_crowns",
+  "rule": "connected",
+  "decor": "#timber:fungus_decor",
+  "max_crown_gap": 1
+}

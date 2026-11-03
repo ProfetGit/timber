@@ -66,7 +66,7 @@ public final class Placed extends SavedData {
     }
 
     public static boolean isLog(BlockState s) {
-        return s.is(BlockTags.LOGS) || s.is(TreeScan.LOGS);
+        return TreeTypes.forTrunk(s) != null;
     }
 
     /** A player put a log at {@code pos}. */

@@ -388,9 +388,9 @@ final class Parity {
     static void customTree(int dx, int dz, int h, int r, String log, String leaves) {
         for (int ly = h - 3; ly <= h; ly++) {
             int rr = ly >= h - 1 ? r - 1 : r;
-            cmd("fill " + at(dx - rr, ly, dz - rr) + " " + at(dx + rr, ly, dz + rr) + " minecraft:" + leaves + " keep");
+            cmd("fill " + at(dx - rr, ly, dz - rr) + " " + at(dx + rr, ly, dz + rr) + " " + (leaves.contains(":") ? "" : "minecraft:") + leaves + " keep");
         }
-        cmd("fill " + at(dx, 0, dz) + " " + at(dx, h - 1, dz) + " minecraft:" + log);
+        cmd("fill " + at(dx, 0, dz) + " " + at(dx, h - 1, dz) + " " + (log.contains(":") ? "" : "minecraft:") + log);
     }
 
     static boolean destroy(BlockPos pos) {
@@ -528,7 +528,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -577,6 +577,11 @@ final class Parity {
                         for (int k = 0; k < 4; k++) everyTreeList(List.of("mega_pine", "mega_spruce", "mega_jungle_tree"));
                     }
                     case "perf_spruce" -> perfSpruce();
+                    case "fungi" -> fungi();
+                    case "mushrooms" -> mushrooms();
+                    case "custom_type" -> customType();
+                    case "modded_fallback" -> moddedFallback();
+                    case "azaleas" -> azaleas();
                     default -> { }
                 }
             } catch (Throwable t) {
@@ -1733,5 +1738,156 @@ final class Parity {
         List<Double> s = new ArrayList<>(v);
         java.util.Collections.sort(s);
         return s.isEmpty() ? Double.NaN : s.get(s.size() / 2);
+    }
+
+    // ---- M3: any tree ----
+
+    static boolean is(BlockState s, String id) {
+        return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString().equals(id);
+    }
+
+    /** Fells the tree with its base log at {@code base} and checks the whole thing went: trunk, crown and decor. */
+    static void fellAll(String name, BlockPos base, Predicate<BlockState> trunk, Predicate<BlockState> crown, Predicate<BlockState> decor) {
+        int t = count(trunk, 14), c = count(crown, 14), dc = count(decor, 14);
+        hold("minecraft:netherite_axe");
+        destroy(base);
+        tick(2);
+        int d = displays();
+        if (controllers() == 0) info("  " + name + ": no fall, scan says " + io.github.profetgit.vanillatimber.server.TreeScan.why + ", chat " + chat());
+        int tl = count(trunk, 14), cl = count(crown, 14), dl = count(decor, 14);
+        Trace tr = finish(160);
+        double max = tr == null ? 0 : tr.maxPitch();
+        int ticks = tr == null ? 0 : tr.end();
+        check(name + ": felled whole (trunk, crown, decor) and animated", t > 1 && c > 0 && tl == 0 && cl <= Math.max(1, c * 3 / 100) && dl == 0 && d > 0 && ticks > 20 && max >= 60,
+            t + " trunk/" + c + " crown/" + dc + " decor -> left " + tl + "/" + cl + "/" + dl + ", " + d + " displays, landed " + Math.round(max) + ", " + ticks + " ticks");
+    }
+
+    static void fungi() {
+        for (String kind : List.of("crimson", "warped")) {
+            BlockPos base = null;
+            for (int roll = 0; roll < 4 && base == null; roll++) {
+                plot();
+                cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:" + kind + "_nylium");
+                feature(kind + "_fungus", 0, 0);
+                tick(20);
+                base = on(() -> level.getBlockState(p(0, 0, 0)).is(BuiltInRegistries.BLOCK.getValue(Identifier.parse("minecraft:" + kind + "_stem"))) ? p(0, 0, 0) : null);
+            }
+            if (base == null) {
+                check("fungi: " + kind + " fungus grew", false, "no stem at the origin");
+                continue;
+            }
+            String stem = "minecraft:" + kind + "_stem", wart = kind.equals("crimson") ? "minecraft:nether_wart_block" : "minecraft:warped_wart_block";
+            int stems = blocks(stem, 14);
+            fellAll("fungi: " + kind + " fungus", base, s -> is(s, stem), s -> is(s, wart) || is(s, "minecraft:shroomlight"),
+                s -> is(s, "minecraft:weeping_vines") || is(s, "minecraft:weeping_vines_plant"));
+            tick(2);
+            check("fungi: " + kind + " stems dropped", itemsOf(stem, 30) >= stems, stems + " stems, items " + itemsNear(p(0, 0, 0), 30));
+        }
+    }
+
+    static void mushrooms() {
+        for (String kind : List.of("red", "brown")) {
+            BlockPos base = null;
+            for (int roll = 0; roll < 4 && base == null; roll++) {
+                plot();
+                feature("huge_" + kind + "_mushroom", 0, 0);
+                tick(20);
+                base = on(() -> level.getBlockState(p(0, 0, 0)).is(net.minecraft.world.level.block.Blocks.MUSHROOM_STEM) ? p(0, 0, 0) : null);
+            }
+            if (base == null) {
+                check("mushrooms: huge " + kind + " mushroom grew", false, "no stem at the origin");
+                continue;
+            }
+            String cap = "minecraft:" + kind + "_mushroom_block";
+            fellAll("mushrooms: huge " + kind + " mushroom", base, s -> is(s, "minecraft:mushroom_stem"), s -> is(s, cap), s -> false);
+            tick(2);
+            check("mushrooms: the " + kind + " cap drops mushrooms", itemsOf("minecraft:" + kind + "_mushroom", 30) >= 1, itemsNear(p(0, 0, 0), 30).toString());
+        }
+        // a mushroom house: caps on a pillar of mushroom blocks without a stem stay
+        plot();
+        cmd("fill " + at(0, 0, 0) + " " + at(0, 3, 0) + " minecraft:brown_mushroom_block");
+        cmd("fill " + at(-2, 4, -2) + " " + at(2, 4, 2) + " minecraft:red_mushroom_block");
+        tick(5);
+        hold("minecraft:netherite_axe");
+        chop(0, 0, 0);
+        check("mushrooms: a cap on a pillar of cap blocks is not a tree", controllers() == 0 && blocks("minecraft:red_mushroom_block", 6) == 25, controllers() + " falls, " + blocks("minecraft:red_mushroom_block", 6) + " caps");
+    }
+
+    /** A data pack in the world folder: a tree type ({@code timber_test:bone_tree}) and the test log in #minecraft:logs. */
+    static void testPack() {
+        java.nio.file.Path dir = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR).resolve("timber_test");
+        try {
+            write(dir.resolve("pack.mcmeta"), "{\"pack\":{\"description\":\"Timber test types\",\"min_format\":[107,1],\"max_format\":121}}");
+            write(dir.resolve("data/timber_test/timber/tree_type/bone_tree.json"),
+                "{\"trunk\":\"#timber_test:bone_trunks\",\"crown\":\"#timber_test:bone_crowns\",\"rule\":\"connected\",\"max_crown_gap\":1}");
+            write(dir.resolve("data/timber_test/tags/block/bone_trunks.json"), "{\"values\":[\"minecraft:bone_block\"]}");
+            write(dir.resolve("data/timber_test/tags/block/bone_crowns.json"), "{\"values\":[\"minecraft:white_wool\"]}");
+            write(dir.resolve("data/minecraft/tags/block/logs.json"), "{\"values\":[{\"id\":\"vanilla_timber:test_log\",\"required\":false}]}");
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        info("  " + cmd("reload"));
+        tick(10);
+        info("  " + cmd("datapack enable \"file/timber_test\""));
+        tick(10);
+    }
+
+    static void write(java.nio.file.Path f, String text) throws java.io.IOException {
+        java.nio.file.Files.createDirectories(f.getParent());
+        java.nio.file.Files.writeString(f, text);
+    }
+
+    static void customType() {
+        testPack();
+        plot();
+        cmd("fill " + at(0, 0, 0) + " " + at(0, 5, 0) + " minecraft:bone_block");
+        cmd("fill " + at(-2, 6, -2) + " " + at(2, 7, 2) + " minecraft:white_wool");
+        cmd("setblock " + at(3, 8, 0) + " minecraft:white_wool");
+        tick(5);
+        fellAll("custom_type: a data pack's tree type (bone trunk, wool crown, gap 1)", p(0, 0, 0), s -> is(s, "minecraft:bone_block"), s -> is(s, "minecraft:white_wool"), s -> false);
+        // without the type a bone pillar is nothing
+        plot();
+        cmd("fill " + at(0, 0, 0) + " " + at(0, 5, 0) + " minecraft:stone");
+        tick(2);
+        chop(0, 0, 0);
+        check("custom_type: other blocks stay blocks", controllers() == 0 && blocks("minecraft:stone", 3) == 5, controllers() + " falls");
+    }
+
+    static void moddedFallback() {
+        if (BuiltInRegistries.BLOCK.getOptional(Identifier.fromNamespaceAndPath("vanilla_timber", "test_leaves")).isEmpty()) {
+            check("modded_fallback: test blocks registered", false, "not registered (scene parity only)");
+            return;
+        }
+        testPack();
+        plot();
+        customTree(0, 0, 6, 2, "vanilla_timber:test_log", "vanilla_timber:test_leaves");
+        tick(40);
+        boolean untagged = on(() -> !level.getBlockState(p(0, 6, 0)).is(BlockTags.LEAVES) && level.getBlockState(p(0, 6, 0)).getBlock() instanceof LeavesBlock);
+        int settled = count(s -> is(s, "vanilla_timber:test_leaves") && s.getValue(LeavesBlock.DISTANCE) < 7, 6);
+        info("  modded leaves: untagged LeavesBlock " + untagged + ", " + settled + " with distance < 7");
+        fellAll("modded_fallback: a mod's log with untagged LeavesBlock leaves", p(0, 0, 0), s -> is(s, "vanilla_timber:test_log"), s -> is(s, "vanilla_timber:test_leaves"), s -> false);
+        check("modded_fallback: the fixture leaves are a LeavesBlock outside #minecraft:leaves", untagged && settled > 0, "untagged " + untagged + ", settled " + settled);
+    }
+
+    /** Random azalea trees: how many the crown rule (a natural leaf 1-2 above a top log, 1.3.6) accepts. */
+    static void azaleas() {
+        int ok = 0, total = 0;
+        StringBuilder bad = new StringBuilder();
+        for (int k = 0; k < 16; k++) {
+            plot();
+            feature("azalea_tree", 0, 0);
+            tick(40);
+            BlockPos base = trunkAt(4);
+            if (base == null) continue;
+            total++;
+            hold("minecraft:netherite_axe");
+            destroy(base);
+            tick(2);
+            int left = count(Parity::isLog, 14);
+            if (left == 0) ok++;
+            else bad.append(k).append(' ');
+            finish(140);
+        }
+        check("azaleas: every random azalea tree felled", ok == total && total >= 12, ok + "/" + total + (bad.length() > 0 ? ", missed " + bad : ""));
     }
 }

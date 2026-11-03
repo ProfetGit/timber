@@ -1,0 +1,5 @@
+{
+  "trunk": "#timber:mushroom_stems",
+  "crown": "#timber:mushroom_caps",
+  "rule": "connected"
+}

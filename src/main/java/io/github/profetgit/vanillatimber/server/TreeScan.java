@@ -37,6 +37,8 @@ public final class TreeScan {
     public static final TagKey<Block> GAP_OPEN = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "gap_open"));
     /** Set by the last {@link #scan}: it gave up because the tree has more logs than {@code max_logs}. */
     public static volatile boolean tooBig;
+    /** Why the last {@link #scan} found no tree (tests and debug logging), or null when it found one. */
+    public static volatile String why;
     public static final TagKey<Block> NOT_GROUND = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "not_ground"));
     public static final TagKey<Block> DECOR = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "decor"));
     public static final TagKey<Block> HANGING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "hanging"));
@@ -58,13 +60,17 @@ public final class TreeScan {
     private TreeScan() {}
 
     static boolean natural(BlockState s) {
-        return s.is(BlockTags.LEAVES) && s.hasProperty(LeavesBlock.PERSISTENT) && !s.getValue(LeavesBlock.PERSISTENT);
+        return TreeType.naturalLeaf(s);
     }
 
     /** The tree the chop at {@code origin} (already broken; it was {@code chopped}) would fell, or null. */
     public static Tree scan(ServerLevel level, BlockPos origin, BlockState chopped, float playerYaw) {
         Block log = chopped.getBlock();
         tooBig = false;
+        TreeType type = TreeTypes.forTrunk(chopped);
+        why = null;
+        if (type == null) return no("not a trunk");
+        boolean connected = type.rule() == TreeType.Rule.CONNECTED;
         int radius = Config.radius(), maxLogs = Config.maxLogs(), maxBlocks = Config.maxBlocks();
         boolean hideLeaves = Config.on(Config.Key.HIDE_LEAVES);
         Placed placed = Config.on(Config.Key.PROTECT) ? Placed.get(level) : null;
@@ -78,7 +84,7 @@ public final class TreeScan {
         nodes.add(origin);
         index.put(origin.asLong(), 0);
         seen.add(origin.asLong());
-        if (!level.getBlockState(origin.below()).is(NOT_GROUND)) ground.set(0);
+        if (ground(level.getBlockState(origin.below()), log, type)) ground.set(0);
         int floodLogs = 0;
         for (int i = 0; i < nodes.size(); i++) {
             BlockPos p = nodes.get(i);
@@ -97,17 +103,17 @@ public final class TreeScan {
                     if (!s.is(log) || Math.abs(q.getX() - origin.getX()) > radius || Math.abs(q.getZ() - origin.getZ()) > radius) continue;
                     if (floodLogs >= maxLogs) {
                         tooBig = true;
-                        return null;
+                        return no("too big");
                     }
                     floodLogs++;
-                    if (!level.getBlockState(q.below()).is(NOT_GROUND)) ground.set(nodes.size());
+                    if (ground(level.getBlockState(q.below()), log, type)) ground.set(nodes.size());
                     if (placed != null && placed.holds(level, q)) mine.set(nodes.size());
                 }
                 index.put(q.asLong(), nodes.size());
                 nodes.add(q);
             }
         }
-        if (floodLogs == 0) return null;
+        if (floodLogs == 0) return no("no logs above");
 
         // ownership (own/*): ground logs within 1.5 of each other seed one label, then every label spreads one 26-step
         // layer at a time and the first to reach a log owns it; the tree is the chopped cell's label
@@ -147,22 +153,23 @@ public final class TreeScan {
             else if (i > 0) owned++;
             ours.add(nodes.get(i));
         }
-        if (owned == 0) return null;
+        if (owned == 0) return no("owned by another tree");
         // build rules (job/p2): leaves touching the owned logs, at least one per 8 logs, and natural leaves 1-2 above the top
         int leafCount = 0, top = Integer.MIN_VALUE;
         for (BlockPos p : ours) {
-            for (Direction d : Direction.values()) if (natural(level.getBlockState(p.relative(d)))) leafCount++;
+            for (Direction d : Direction.values()) if (type.isCrown(level.getBlockState(p.relative(d)))) leafCount++;
             top = Math.max(top, p.getY());
         }
-        if (leafCount <= 0 || leafCount * 8 < owned) return null;
+        // a connected crown (fungus hat, mushroom cap) touches its stem only at the top: no per-log ratio
+        if (leafCount <= 0 || !connected && leafCount * 8 < owned) return no("build: " + leafCount + " crown faces on " + owned + " logs");
         boolean crown = false;
         for (BlockPos p : ours) {
-            if (p.getY() >= top - 1 && (natural(level.getBlockState(p.above())) || natural(level.getBlockState(p.above(2))))) {
+            if (p.getY() >= top - 1 && (type.isCrown(level.getBlockState(p.above())) || type.isCrown(level.getBlockState(p.above(2))))) {
                 crown = true;
                 break;
             }
         }
-        if (!crown) return null;
+        if (!crown) return no("build: no crown 1-2 above the top");
         int oy = origin.getY();
         List<BlockPos> logs = new ArrayList<>();
         List<BlockPos> kept = new ArrayList<>();
@@ -173,7 +180,7 @@ public final class TreeScan {
             if (!oursHeart.get(j) && !p.equals(origin)) logs.add(p);
         }
         ours = kept;
-        if (logs.isEmpty()) return null;
+        if (logs.isEmpty()) return no("nothing above the cut");
 
         // footprint: our cells at the cut level next to the chop; gap: open cells under it
         int fx0 = Integer.MAX_VALUE, fx1 = Integer.MIN_VALUE, fz0 = Integer.MAX_VALUE, fz1 = Integer.MIN_VALUE, by = oy;
@@ -197,8 +204,9 @@ public final class TreeScan {
         if (gap >= 17) gap = 0;
 
         // leaves by the distance rule (leaves/*), then the logs, each taking its decor (decor/*) as it goes
-        Take take = new Take(level, maxBlocks);
-        for (BlockPos p : ours) take.leaves(p, 1);
+        Take take = new Take(level, maxBlocks, type);
+        if (connected) take.connected(ours, origin, radius);
+        else for (BlockPos p : ours) take.leaves(p, 1);
         for (BlockPos p : logs) {
             take.blocks++;
             take.around(p);
@@ -206,7 +214,9 @@ public final class TreeScan {
         List<BlockPos> leaves = take.crown;
         LongOpenHashSet treeLogs = new LongOpenHashSet();
         for (BlockPos p : logs) treeLogs.add(p.asLong());
-        for (int i = take.decor.nextSetBit(0); i >= 0; i = take.decor.nextSetBit(i + 1)) treeLogs.add(leaves.get(i).asLong());
+        // decor and the crown are the tree's own cells for the sweep (vanilla leaves are open anyway; a fungus hat,
+        // a mushroom cap or a data type's crown is not)
+        for (BlockPos p : leaves) treeLogs.add(p.asLong());
         int ymax = by, lymin = Integer.MAX_VALUE;
         for (int i = 0; i < leaves.size(); i++) {
             if (take.decor.get(i)) continue;
@@ -271,6 +281,16 @@ public final class TreeScan {
     }
 
     /** 1.3.6 {@code leaves/hide} ({@code #timber:shell}): a leaf with leaves, logs or a creaking heart on all six sides gets no display. */
+    /** A trunk cell stands on ground unless the block below is {@code #timber:not_ground}, its own trunk or crown (a mushroom stem on a stem). */
+    private static boolean ground(BlockState below, Block log, TreeType type) {
+        return !below.is(NOT_GROUND) && !below.is(log) && !type.isCrown(below);
+    }
+
+    private static Tree no(String reason) {
+        why = reason;
+        return null;
+    }
+
     private static boolean shut(ServerLevel level, BlockPos p) {
         for (Direction d : Direction.values()) {
             BlockState s = level.getBlockState(p.relative(d));
@@ -301,15 +321,44 @@ public final class TreeScan {
     private static final class Take {
         final ServerLevel level;
         final int max;
+        final TreeType type;
         final List<BlockPos> crown = new ArrayList<>();
         final BitSet decor = new BitSet();
         final LongOpenHashSet taken = new LongOpenHashSet();
         int blocks, leafCount;
         BlockPos lastLeaf;
 
-        Take(ServerLevel level, int max) {
+        Take(ServerLevel level, int max, TreeType type) {
             this.level = level;
             this.max = max;
+            this.type = type;
+        }
+
+        /** PRD 5.3 connected rule: crown blocks touching the trunk, then each other through up to max_crown_gap cells, within the radius. */
+        void connected(List<BlockPos> trunk, BlockPos origin, int radius) {
+            int reach = 1 + type.maxCrownGap();
+            java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+            for (BlockPos p : trunk) visit(p, 1, origin, radius, queue);
+            while (!queue.isEmpty() && blocks < max) visit(queue.poll(), reach, origin, radius, queue);
+        }
+
+        private void visit(BlockPos from, int reach, BlockPos origin, int radius, java.util.ArrayDeque<BlockPos> queue) {
+            for (int dy = -reach; dy <= reach; dy++) for (int dx = -reach; dx <= reach; dx++) for (int dz = -reach; dz <= reach; dz++) {
+                if (dx == 0 && dy == 0 && dz == 0) continue;
+                BlockPos q = from.offset(dx, dy, dz);
+                if (Math.abs(q.getX() - origin.getX()) > radius || Math.abs(q.getZ() - origin.getZ()) > radius) continue;
+                if (taken.contains(q.asLong()) || !type.isCrown(level.getBlockState(q))) continue;
+                if (blocks >= max) return;
+                taken.add(q.asLong());
+                blocks++;
+                leafCount++;
+                lastLeaf = q;
+                crown.add(q);
+                around(q);
+                BlockPos up = q.above();
+                if (level.getBlockState(up).is(Blocks.SNOW)) decor(up);
+                queue.add(q);
+            }
         }
 
         /** Natural leaves of distance exactly {@code d} next to {@code from}, then theirs of d + 1, up to 7. */
@@ -335,7 +384,7 @@ public final class TreeScan {
         void around(BlockPos p) {
             for (Direction dir : FACES) {
                 BlockPos q = p.relative(dir);
-                if (level.getBlockState(q).is(DECOR)) decor(q);
+                if (type.isDecor(level.getBlockState(q))) decor(q);
             }
         }
 
@@ -404,7 +453,7 @@ public final class TreeScan {
 
         boolean open(BlockPos p) {
             BlockState s = level.getBlockState(p);
-            return s.is(PASSABLE) || s.is(BlockTags.LEAVES) || tree.contains(p.asLong());
+            return s.is(PASSABLE) || s.is(BlockTags.LEAVES) || s.getBlock() instanceof LeavesBlock || tree.contains(p.asLong());
         }
     }
 }
