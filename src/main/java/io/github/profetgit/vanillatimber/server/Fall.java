@@ -66,6 +66,8 @@ public final class Fall {
     private double sentRes, lastY = Double.NaN;
     private float lastRot = Float.NaN;
     private boolean spawned;
+    private Pending.Entry owed;
+    private int held = -1;
     private final Set<UUID> sentTo = new HashSet<>();
     private TreeFall payload;
     public final int id;
@@ -126,6 +128,32 @@ public final class Fall {
         sent[0] = Double.NaN;
     }
 
+    /** Frame 1, the blocks are gone: the loot not yet dropped is written down, so a crash can give it back (PRD 8). */
+    private void owe() {
+        List<ItemStack> left = new ArrayList<>();
+        for (List<ItemStack> ring : ringDrops) left.addAll(ring);
+        left.addAll(leafDrops);
+        owed = Pending.open(level, x, y0, z, left);
+    }
+
+    /** Chunk ticket around the stump for the fall's lifetime, released by {@link #finish}. */
+    void hold() {
+        held = Hold.radius(tree.spec().h());
+        Hold.add(level, chunk, held);
+    }
+
+    private void unhold() {
+        if (held < 0) return;
+        Hold.release(level, chunk, held);
+        held = -1;
+    }
+
+    /** A crash as the next autosave left it (tests): displays and ticket go, the pending entry stays as saved. */
+    void forget() {
+        for (int i = 0; i < shown.length; i++) if (shown[i] != null) discard(i);
+        unhold();
+    }
+
     /** The world cells this fall still owns (a chop there does nothing). */
     boolean holds(BlockPos pos) {
         if (n >= 1) return false;
@@ -141,6 +169,7 @@ public final class Fall {
             for (Tree.Part p : tree.parts()) if (p.hidden()) remove(p.pos(), p.state());
         } else if (n == 1) {
             for (Tree.Part p : tree.parts()) if (!p.pos().equals(tree.anchor())) remove(p.pos(), p.state());
+            owe();
         }
         send();
         if (!spawned && vanillaViewer()) spawn();
@@ -377,12 +406,18 @@ public final class Fall {
         }
         for (ItemStack s : leafDrops) drop(s, p, true);
         leafDrops.clear();
+        if (owed != null) {
+            owed.close();
+            owed = null;
+        }
+        unhold();
     }
 
     /** An item: a small hop out of a popping ring, or a burst out of the crown at the slam ({@code anim/drop_motion}). */
     private void drop(ItemStack stack, Vec3 at, boolean hop) {
         if (stack.isEmpty()) return;
         dropped += stack.getCount();
+        if (owed != null) owed.drop(stack);
         if (Config.get(Config.Key.DROPS) == 1 && !cutter.isRemoved() && cutter.level() == level) {
             ItemEntity item = new ItemEntity(level, cutter.getX(), cutter.getY(), cutter.getZ(), stack, 0, 0, 0);
             item.setPickUpDelay(0);

@@ -45,6 +45,8 @@ public final class Falls {
 
     public static void register() {
         Api.register();
+        Hold.register();
+        ServerLifecycleEvents.SERVER_STARTED.register(Pending::returnAll);
         PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, be) -> {
             if (level instanceof ServerLevel sl && player instanceof ServerPlayer sp) chop(sl, sp, pos, state);
         });
@@ -53,6 +55,7 @@ public final class Falls {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (List<Fall> falls : ACTIVE.values()) for (Fall f : falls) f.abort();
             ACTIVE.clear();
+            Hold.clear();
             FELLED.clear();
             Viewers.clear();
         });
@@ -104,6 +107,7 @@ public final class Falls {
             return;
         }
         ACTIVE.computeIfAbsent(level, l -> new ArrayList<>()).add(fall);
+        fall.hold();
         if (timed()) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
     }
@@ -196,6 +200,19 @@ public final class Falls {
             "[perf] fall %d: %d logs %d leaves, chop %.3f ms, frame 0 %.3f ms, frame 1 %.3f ms, moving mean %.4f max %.4f ms over %d ticks, finish %.3f ms, displays %s, payloads %d",
             f.id, f.tree.logs(), f.tree.leaves(), f.chopNs / 1e6, t[0] / 1e6, t[1] / 1e6, k == 0 ? 0 : sum / k / 1e6, max / 1e6, k,
             t[end] / 1e6, f.spawned() ? "yes" : "no", f.payloads));
+    }
+
+    /** Tests: the in-memory falls vanish without finishing, as after a kill; the saved pending loot stays. */
+    public static void crash() {
+        for (List<Fall> falls : ACTIVE.values()) for (Fall f : falls) f.forget();
+        ACTIVE.clear();
+        FELLED.clear();
+        Viewers.clear();
+    }
+
+    /** Chunk tickets held for the falls in a level (tests). */
+    public static int held(ServerLevel level) {
+        return Hold.count(level);
     }
 
     /** Falls in progress in a level (tests). */

@@ -7,6 +7,7 @@ import io.github.profetgit.vanillatimber.server.Conflicts;
 import io.github.profetgit.vanillatimber.server.Fall;
 import io.github.profetgit.vanillatimber.server.Falls;
 import io.github.profetgit.vanillatimber.server.Placed;
+import io.github.profetgit.vanillatimber.server.Pending;
 import io.github.profetgit.vanillatimber.server.Players;
 import io.github.profetgit.vanillatimber.server.Say;
 import io.github.profetgit.vanillatimber.server.Viewers;
@@ -550,7 +551,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "hooks"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "hooks"};
 
     /** World rules and defaults every group assumes; run again after the world is reopened. */
     static void setup() {
@@ -617,6 +618,7 @@ final class Parity {
                     case "claims" -> claims();
                     case "config_reload" -> configReload();
                     case "conflict" -> conflict();
+                    case "crash" -> crash();
                     case "hooks" -> hooks();
                     default -> { }
                 }
@@ -2394,6 +2396,100 @@ final class Parity {
         check("hooks: removing the add-on clears its requirement and hooks", requiresCount("Test requirement") <= 0 && count(Parity::isLog, 6) == 0,
             "requires=" + requiresCount("Test requirement") + " logs left " + count(Parity::isLog, 6));
         finish(120);
+    }
+
+    /** A fall on a fresh plot with some of its loot dropped and some not yet, or null. */
+    static Fall midFall() {
+        plot();
+        customTree(0, 0, 8, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        Fall f = on(() -> Falls.lastFall);
+        for (int i = 0; i < 200; i++) {
+            if (on(() -> f.dropped > 0 && f.dropped < f.rolled)) return f;
+            tick(1);
+        }
+        return null;
+    }
+
+    static Map<String, Integer> pendingItems() {
+        return on(() -> Pending.items(level));
+    }
+
+    static int pendingFalls() {
+        return on(() -> Pending.falls(level));
+    }
+
+    /** PRD 8: pending loot. The crash is in-process (falls dropped from memory, the world closed and read back), not a JVM kill. */
+    static void crash() {
+        Fall f = midFall();
+        check("crash: a fall caught mid-way with loot dropped and loot pending", f != null, "no mid state");
+        if (f == null) return;
+        Map<String, Integer> loot = new TreeMap<>(f.loot);
+        check("crash: the fall holds a chunk ticket and one pending entry", on(() -> Falls.held(level)) == 1 && pendingFalls() == 1,
+            on(() -> Falls.held(level)) + " tickets, " + pendingFalls() + " entries");
+        Trace tr = trace(f);
+        for (int i = 0; i < 200 && !tr.done; i++) tick(1);
+        tick(2);
+        check("crash: a finished fall lets its ticket and entry go", on(() -> Falls.held(level)) == 0 && pendingFalls() == 0 && pendingItems().isEmpty(),
+            on(() -> Falls.held(level)) + " tickets, " + pendingFalls() + " entries, " + pendingItems());
+
+        f = midFall();
+        check("crash: second fall caught mid-way", f != null, "no mid state");
+        if (f == null) return;
+        Fall victim = f;
+        loot = withChopped(victim.loot);
+        Map<String, Integer> pending = on(() -> {
+            cmd("save-all flush");
+            Map<String, Integer> m = Pending.items(level);
+            Falls.crash();
+            return m;
+        });
+        Map<String, Integer> before = itemsNear(p(0, 0, 0), 24);
+        int rolled = victim.rolled, dropped = victim.dropped;
+        check("crash: pending loot is what the fall had not dropped", !pending.isEmpty() && pendingFalls() == 1 && sum(pending) == rolled - dropped && sum(before) == dropped + 1,
+            "pending " + pending + ", in the world " + before + ", rolled " + rolled + ", dropped " + dropped);
+        check("crash: loot in the world plus pending is the rolled loot", plus(before, pending).equals(loot), before + " + " + pending + " vs " + loot);
+        reopen();
+        Map<String, Integer> stump = itemsNear(p(0, 0, 0), 1.5), after = itemsNear(p(0, 0, 0), 24);
+        boolean atStump = true;
+        for (var e : pending.entrySet()) atStump &= stump.getOrDefault(e.getKey(), 0) >= e.getValue();
+        check("crash: the pending loot is back at the stump", atStump, "pending " + pending + ", at the stump " + stump);
+        check("crash: all the rolled loot is in the tree's area, once", after.equals(loot), after + " vs " + loot);
+        check("crash: nothing pending after the load", pendingFalls() == 0 && pendingItems().isEmpty(), pendingFalls() + " entries, " + pendingItems());
+        reopen();
+        Map<String, Integer> again = itemsNear(p(0, 0, 0), 24);
+        check("crash: a second reopen spawns nothing more", again.equals(loot) && pendingFalls() == 0, again + " vs " + loot + ", " + pendingFalls() + " entries");
+
+        f = midFall();
+        check("crash: third fall caught mid-way (normal stop)", f != null, "no mid state");
+        if (f == null) return;
+        loot = withChopped(f.loot);
+        reopen();
+        Map<String, Integer> stopped = itemsNear(p(0, 0, 0), 24);
+        check("crash: a normal stop drops all the loot once", stopped.equals(loot), stopped + " vs " + loot);
+        check("crash: a normal stop leaves nothing pending", pendingFalls() == 0 && pendingItems().isEmpty(), pendingFalls() + " entries, " + pendingItems());
+    }
+
+    /** The fall's rolled loot plus the log the player's own break dropped. */
+    static Map<String, Integer> withChopped(Map<String, Integer> loot) {
+        Map<String, Integer> out = new TreeMap<>(loot);
+        out.merge("minecraft:oak_log", 1, Integer::sum);
+        return out;
+    }
+
+    static int sum(Map<String, Integer> m) {
+        int n = 0;
+        for (int v : m.values()) n += v;
+        return n;
+    }
+
+    static Map<String, Integer> plus(Map<String, Integer> a, Map<String, Integer> b) {
+        Map<String, Integer> out = new TreeMap<>(a);
+        b.forEach((k, v) -> out.merge(k, v, Integer::sum));
+        return out;
     }
 
     /** Enchanted Timber (data pack, unchanged): its enchantment is a dynamic registry entry, so the world is reopened with the pack in. */
