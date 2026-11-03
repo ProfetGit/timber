@@ -55,8 +55,13 @@ final class MeshFall {
     final int[] ring, light;
     final boolean[] leaf;
     final int blocks;
-    /** The client tick count when the payload was handled; see {@link #tau}. */
-    final long c0;
+    /** The client tick count when the payload was handled, moved to the frame-1 removal when it shows; see {@link #tau}. */
+    long c0;
+    /** The cell the server clears at frame 1 and its state, while this client still shows it (null: no anchor to wait for). */
+    private BlockPos probe;
+    private BlockState probeState;
+    /** How far the frame-1 anchor moved {@link #c0} (tests; 0 when it agreed or there was none). */
+    volatile int shift;
     private final double[] oy, oz;
     private final Timeline.Sample sample = new Timeline.Sample();
     private final float[] pop = new float[2];
@@ -94,6 +99,16 @@ final class MeshFall {
         kt = hi;
         oy = new double[kt - kn + 1];
         oz = new double[kt - kn + 1];
+        if (msg.probe() >= 0) {
+            int[] cells = msg.cells();
+            int i = msg.probe() * 4;
+            BlockPos at = msg.origin().offset(cells[i], cells[i + 1], cells[i + 2]);
+            BlockState st = msg.palette().get(cells[i + 3] >> 1);
+            if (level.getBlockState(at) == st) {
+                probe = at;
+                probeState = st;
+            }
+        }
         bake(level);
     }
 
@@ -103,7 +118,28 @@ final class MeshFall {
      * time C + 2 (ticks done + partial); the payload left with frame {@code e}'s packets, so tau = T - c0 - 2 + e.
      */
     double tau(double t) {
-        return t - c0 - 2 + msg.e();
+        double tau = t - c0 - 2 + msg.e();
+        // until frame 1's removal shows the clock is only a guess from the payload's arrival: hold the rest pose
+        return probe != null ? Math.min(tau, 0) : tau;
+    }
+
+    /**
+     * Every client tick, before anything reads {@link #tau}: the server's frame-1 packets (the tree's blocks cleared,
+     * the displays' first pose) arrive together, and a display starts toward that pose on the first client tick after
+     * them, so frame 1 is fully drawn one tick after the tick that first shows the cell gone. That fixes the clock to
+     * the server's frames; the payload's own arrival can be a tick off when the chop tick ran long (frame 0 late,
+     * frame 1 on time). Gives up after 3 ticks (the cell was changed some other way) and keeps the payload's clock.
+     */
+    void anchor(ClientLevel level, long ticks) {
+        if (probe == null) return;
+        if (level.getBlockState(probe) != probeState) {
+            long c = ticks - 2;
+            shift = (int) (c - c0);
+            c0 = c;
+            probe = null;
+        } else if (ticks - c0 > 4) {
+            probe = null;
+        }
     }
 
     private void bake(ClientLevel level) {
@@ -219,6 +255,28 @@ final class MeshFall {
         return n;
     }
 
+    /**
+     * World centres of every block at server frame {@code n} (its pose fully drawn), with each block's ring in
+     * {@code rings} (-1 for leaves, -2 for a log whose ring is popping at n); returns the count (tests).
+     */
+    int centresAt(int n, double[] out, int[] rings) {
+        Timeline.Sample s = tl.sample(n, new Timeline.Sample());
+        Rig.origins(s.pitch, s.bend, s.gy, tl.spec.h(), kn, kt, oy, oz);
+        Matrix4f m = new Matrix4f();
+        Vector3f w = new Vector3f();
+        float[] pp = new float[2];
+        int c = 0;
+        for (int i = 0; i < blocks && c * 3 + 2 < out.length; i++) {
+            pose(m, ring[i], leaf[i], s, 0, 0, 0).transformPosition(cx[i], cy[i], cz[i], w);
+            out[c * 3] = w.x;
+            out[c * 3 + 1] = w.y;
+            out[c * 3 + 2] = w.z;
+            rings[c] = leaf[i] ? -1 : tl.pop(ring[i], n, pp) != null ? -2 : ring[i];
+            c++;
+        }
+        return c;
+    }
+
     private boolean isGone(int k, double tau) {
         float[] p = tl.pop(k, tau, new float[2]);
         return p != null && p[0] == 0 && p[1] == 0;
@@ -226,6 +284,7 @@ final class MeshFall {
 
     /** Light every second client tick: each block's current centre, eased toward it (HavingABlast debris light). */
     void tick(ClientLevel level, long ticks) {
+        anchor(level, ticks);
         double t = tau(ticks);
         if (t >= tl.end - 1) {
             dead = true;

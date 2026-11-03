@@ -240,11 +240,14 @@ final class Scenarios {
         }
     }
 
-    /** A display's pitch and model matrix exactly as the renderer draws it this frame (DisplayRenderer.submit). */
+    /**
+     * A display's pitch and model matrix as the renderer draws it this frame (DisplayRenderer.submit), or with
+     * {@code pt} 1 the pose it is heading for: its last update fully reached (the server frame it belongs to).
+     */
     static org.joml.Matrix4f drawn(Display.BlockDisplay d, float pt, double[] pitch) {
         Display.RenderState rs = d.renderState();
         if (rs == null) return null;
-        com.mojang.math.Transformation tr = rs.transformation().get(d.calculateInterpolationProgress(pt));
+        com.mojang.math.Transformation tr = rs.transformation().get(pt >= 1 ? 1 : d.calculateInterpolationProgress(pt));
         Vec3 pos = d.getPosition(pt);
         float yr = d.getYRot(pt), xr = d.getXRot(pt);
         org.joml.Quaternionfc l = tr.leftRotation();
@@ -254,9 +257,17 @@ final class Scenarios {
     }
 
     /**
-     * Both drawings in one client (the server sends this modded viewer the displays as well): every frame, the mesh's
-     * pitch against the displays' as drawn, and each display's centre against the nearest mesh block centre. Slam =
-     * first frame at hit - 0.5 degrees on each; the drift between them is the M1 number (PRD 13: within 1 tick).
+     * Both drawings in one client (the server sends this modded viewer the displays as well). Three numbers per frame:
+     * <ul>
+     * <li>clock: the slam (first frame at hit - 0.5 degrees, median display pitch) on each; PRD 13 wants the drift
+     * within 1 tick;</li>
+     * <li>geometry: where each display is heading (its last update fully reached) against the mesh at that server
+     * frame, popping rings left out (their pop keys run over 3/1/2 ticks): the same pose maths, so ~0;</li>
+     * <li>as drawn: each display's centre against the nearest mesh block this frame. Not exact by design: a display
+     * restarts its interpolation from the last rendered frame's progress (Display.tick, lastProgress), so at 60 fps
+     * it trails a pose that changes every tick by a quarter of that tick's motion (the crown splat at the slam). The
+     * mesh draws the timeline itself.</li>
+     * </ul>
      */
     private static void sync(Script s) {
         s.waitTicks(40).server(server -> {
@@ -265,7 +276,8 @@ final class Scenarios {
         });
         for (Fix f : FIXES) {
             int x = 8 + f.dx;
-            // per frame: client time, mesh pitch, display pitch (NaN without displays), max centre gap
+            // per frame: client time, mesh pitch, display pitch (median; NaN without displays), drawn gap, displays,
+            // mesh blocks, heading-for gap, its frame offset from the mesh's, mesh tau
             List<double[]> frames = Collections.synchronizedList(new ArrayList<>());
             int[] end = {-1};
             s.server(server -> {
@@ -279,30 +291,56 @@ final class Scenarios {
                 .waitTicks(30)
                 .run(mc -> {
                     io.github.profetgit.vanillatimber.client.ClientFalls.last = null;
-                    double[] mesh = new double[3 * 4096], pitch = new double[1];
+                    double[] mesh = new double[3 * 4096], at = new double[3 * 4096], pitch = new double[1];
+                    int[] rings = new int[4096];
+                    double[] ps = new double[4096], dc = new double[3 * 4096];
                     org.joml.Vector3f c = new org.joml.Vector3f();
                     SelfTest.frameHook = m -> {
                         double mp = io.github.profetgit.vanillatimber.client.ClientFalls.drawnPitch();
                         if (Double.isNaN(mp)) return;
+                        double tau = io.github.profetgit.vanillatimber.client.ClientFalls.drawnTau();
                         float pt = m.getDeltaTracker().getGameTimeDeltaPartialTick(false);
                         int nm = io.github.profetgit.vanillatimber.client.ClientFalls.centres(mesh);
-                        double dp = Double.NaN, gap = 0;
+                        double gap = 0;
                         int nd = 0;
                         for (var e : m.level.entitiesForRendering()) {
-                            if (!(e instanceof Display.BlockDisplay d)) continue;
+                            if (!(e instanceof Display.BlockDisplay d) || nd >= ps.length) continue;
                             org.joml.Matrix4f mat = drawn(d, pt, pitch);
                             if (mat == null) continue;
-                            if (Double.isNaN(dp)) dp = pitch[0];
+                            ps[nd] = pitch[0];
                             mat.transformPosition(0.5f, 0.5f, 0.5f, c);
-                            double best = Double.MAX_VALUE;
-                            for (int i = 0; i < nm; i++) {
-                                double dx = mesh[i * 3] - c.x, dy = mesh[i * 3 + 1] - c.y, dz = mesh[i * 3 + 2] - c.z;
-                                best = Math.min(best, dx * dx + dy * dy + dz * dz);
-                            }
-                            if (nm > 0) gap = Math.max(gap, Math.sqrt(best));
+                            if (nm > 0) gap = Math.max(gap, Math.sqrt(nearest(mesh, nm, c.x, c.y, c.z, null)));
+                            drawn(d, 1, pitch).transformPosition(0.5f, 0.5f, 0.5f, c);
+                            dc[nd * 3] = c.x;
+                            dc[nd * 3 + 1] = c.y;
+                            dc[nd * 3 + 2] = c.z;
                             nd++;
                         }
-                        frames.add(new double[] {io.github.profetgit.vanillatimber.client.ClientFalls.now(), mp, dp, nd == 0 ? Double.NaN : gap, nd, nm});
+                        double dp = Double.NaN, best = Double.NaN;
+                        int off = 0;
+                        if (nd > 0) {
+                            double[] sorted = java.util.Arrays.copyOf(ps, nd);
+                            java.util.Arrays.sort(sorted);
+                            dp = sorted[nd / 2];
+                            int n0 = Math.max(0, (int) Math.ceil(tau - 1e-6)), last = io.github.profetgit.vanillatimber.client.ClientFalls.timeline().end;
+                            // the mesh's own frame first: a neighbour wins only when strictly closer (poses repeat at rest)
+                            for (int n : new int[] {n0, n0 - 1, n0 + 1}) {
+                                if (n < 0 || n > last) continue;
+                                int na = io.github.profetgit.vanillatimber.client.ClientFalls.centresAt(n, at, rings);
+                                double worst = 0;
+                                int[] hit = new int[1];
+                                for (int i = 0; i < nd; i++) {
+                                    double d2 = nearest(at, na, dc[i * 3], dc[i * 3 + 1], dc[i * 3 + 2], hit);
+                                    if (rings[hit[0]] != -2) worst = Math.max(worst, Math.sqrt(d2));
+                                }
+                                if (Double.isNaN(best) || worst < best - 1e-3) {
+                                    best = worst;
+                                    off = n - n0;
+                                }
+                            }
+                        }
+                        frames.add(new double[] {io.github.profetgit.vanillatimber.client.ClientFalls.now(), mp, dp, nd == 0 ? Double.NaN : gap, nd, nm,
+                            best, off, tau});
                     };
                 })
                 .capture("sync_" + f.name, 240)
@@ -317,31 +355,48 @@ final class Scenarios {
                 .run(mc -> {
                     double hit = Falls.lastFall.tl.spec.hit();
                     double tm = cross(frames, 1, hit - 0.5), td = cross(frames, 2, hit - 0.5);
-                    double drift = td - tm, maxd = 0, maxGap = 0, at = 0, gapAt = 0;
-                    int both = 0;
+                    double drift = td - tm, maxGeo = 0, geoAt = 0;
+                    List<Double> drawnGaps = new ArrayList<>();
+                    int both = 0, aligned = 0;
                     for (double[] r : frames) {
                         if (Double.isNaN(r[2])) continue;
                         both++;
-                        if (Math.abs(r[1] - r[2]) > maxd) {
-                            maxd = Math.abs(r[1] - r[2]);
-                            at = r[0];
-                        }
-                        if (r[3] > maxGap) {
-                            maxGap = r[3];
-                            gapAt = r[0];
+                        drawnGaps.add(r[3]);
+                        if (r[7] == 0) aligned++;
+                        if (r[6] > maxGeo) {
+                            maxGeo = r[6];
+                            geoAt = r[0];
                         }
                     }
                     double t0 = frames.isEmpty() ? 0 : frames.getFirst()[0];
+                    int shift = io.github.profetgit.vanillatimber.client.ClientFalls.anchorShift();
                     SelfTest.record("sync " + f.name + " slam drift", !Double.isNaN(drift) && Math.abs(drift) <= 1.0,
-                        String.format(java.util.Locale.ROOT, "displays %.2f ticks after the mesh (slam at mesh t+%.2f)", drift, tm - t0));
-                    SelfTest.record("sync " + f.name + " pitch", both > 0 && maxd <= 1.5, String.format(java.util.Locale.ROOT,
-                        "max |mesh - displays| %.3f deg at t+%.2f over %d frames with both", maxd, at - t0, both));
-                    SelfTest.record("sync " + f.name + " blocks", both > 0 && maxGap <= 0.25, String.format(java.util.Locale.ROOT,
-                        "max display-to-mesh centre gap %.3f blocks at t+%.2f", maxGap, gapAt - t0));
+                        String.format(java.util.Locale.ROOT, "displays %.2f ticks after the mesh (slam at mesh t+%.2f), frame-1 anchor moved the clock %d",
+                            drift, tm - t0, shift));
+                    SelfTest.record("sync " + f.name + " geometry", both > 0 && maxGeo <= 0.02, String.format(java.util.Locale.ROOT,
+                        "max heading-for gap %.4f blocks at t+%.2f over %d frames", maxGeo, geoAt - t0, both));
+                    SelfTest.record("sync " + f.name + " same frame", both > 0 && aligned >= 0.9 * both, String.format(java.util.Locale.ROOT,
+                        "%d of %d frames: the displays head for the mesh's frame", aligned, both));
+                    SelfTest.record("sync " + f.name + " as drawn", true, String.format(java.util.Locale.ROOT,
+                        "display-to-mesh centre gap p50 %.3f p95 %.3f max %.3f blocks (vanilla interpolation trails, see Scenarios.sync)",
+                        percentile(drawnGaps, 0.5), percentile(drawnGaps, 0.95), percentile(drawnGaps, 1.0)));
                     dump("sync_" + f.name, frames);
                 });
         }
         s.server(server -> io.github.profetgit.vanillatimber.server.Viewers.test = 0);
+    }
+
+    /** Squared distance from (x, y, z) to the nearest of the first n centres; its index into {@code hit}[0] if given. */
+    static double nearest(double[] c, int n, double x, double y, double z, int[] hit) {
+        double best = Double.MAX_VALUE;
+        for (int i = 0; i < n; i++) {
+            double dx = c[i * 3] - x, dy = c[i * 3 + 1] - y, dz = c[i * 3 + 2] - z, d = dx * dx + dy * dy + dz * dz;
+            if (d < best) {
+                best = d;
+                if (hit != null) hit[0] = i;
+            }
+        }
+        return best;
     }
 
     /** Client time column 0 at which column {@code col} first reaches {@code v}, linear between frames; NaN if never. */

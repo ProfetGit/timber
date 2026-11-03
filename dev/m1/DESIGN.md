@@ -129,7 +129,28 @@ sources. Durable decisions go to `CLAUDE.md` Decisions when M1 closes; this file
   clock), confirm from `.work/Timber/26.3-fabric-sync/out/sync_*.tsv` (cols: T, mesh pitch, display pitch, gap,
   displays, mesh blocks).
 
-## Exit harness plan (step 6, worked out in session 4, not built)
+## Sync scene fixed (session 5, 0.0.5)
+- **Root cause of the 1-tick drift (spruce -0.99 in one run):** the mesh clock was set from the payload's arrival, sent
+  at START_LEVEL_TICK of frame 0; the displays' clock is set by frame 1's packets (sent in `chunkSource.tick`). When
+  the chop tick runs long (scan + loot + 427 spawns), frame 0 is late and frame 1 on time, so the gap between them is
+  under a tick and a client tick boundary can fall either side. Fix: `TreeFall.probe` = a cell the server clears at
+  frame 1 (e = 0 only); `MeshFall.anchor` (every client tick, before tau is read) sets c0 = ticks - 2 on the tick that
+  first shows it gone (frame-1 block updates and entity data leave together: `ServerChunkCache.tick` runs
+  `broadcastChangedChunks` right before `chunkMap.tick`). Until then the mesh holds the rest pose; gives up after 3
+  ticks. Hello protocol 2. Measured: the anchor moved the clock -1 on 2 of 3 trees in one run, 0 in the next.
+- **The 0.2-0.7 block gaps after the slam are vanilla, not a bug:** `Display.tick` restarts a transformation
+  interpolation from `lastProgress` (the last rendered frame's progress, 0.66-0.78 at 60 fps), so a display posed
+  every tick trails by (1 - p_last) of the previous tick's motion; the crown splat (lz 380) moves outer leaves ~2
+  blocks in one tick. Gap = 0.54 (1 - p) on consecutive frames, exactly. The mesh draws the timeline itself (call:
+  don't copy a frame-rate artefact). xRot/position use the interpolation handler and don't trail.
+- **Popping rings:** displays keep the tag tick's residual (left rotation frozen), the mesh turns them with the tree:
+  up to 2.8 deg on a ring that is squashing to nothing. Kept (mesh is the cleaner one).
+- Scene `sync` now checks: slam drift (median display pitch) <= 1 tick; geometry (each display's heading-for pose,
+  `rs.transformation().get(1)` + entity pos/rot at pt 1, against `MeshFall.centresAt(n)`, popping rings skipped)
+  <= 0.02 blocks; >= 90% of frames head for the mesh's own frame (ties go to it); "as drawn" gap as info.
+  0.0.5: 15/15, drift 0.03/0.06/-0.01, geometry 0.0012, 100% same frame, as drawn p95 0.05-0.07.
+
+## Exit harness plan (step 6, worked out in session 4; probe built in session 5)
 - Chop on a dedicated server through the real path: the Timber client (Host, op) gets `effect give @s haste infinite 127
   true` + a netherite axe, stands ~3 blocks from the log at yaw -90 and calls `mc.gameMode.startDestroyBlock(pos, dir)`
   (instant at that haste: server `getDestroyProgress >= 1` -> `destroyBlock` -> `PlayerBlockBreakEvents`). No dev command.
@@ -138,9 +159,11 @@ sources. Durable decisions go to `CLAUDE.md` Decisions when M1 closes; this file
   `tellraw Guest "[probe] start <tree>"`, chop, log per frame wall ms (`System.currentTimeMillis`), T, mesh pitch, tau,
   frame ns to `mesh_<tree>.tsv`, capture frames, "[probe] stop", next tree; a 4th spruce with Guest >100 blocks away
   for the server's modded-only moving tick; then results.json + quit ("[probe] quit" to Guest).
-- `dev/probe`: copy of `packs/Timber/dev/lab/probe` (javac build.sh) + wall ms column, chat-cue mixin
-  (ChatComponent addMessage) for start/stop/quit, frame capture (runTick TAIL), results.json. Pitch from a non-popping
-  ring-0 display matrix's column 1 (angle from vertical).
+- `dev/probe` (BUILT, session 5, not run yet: `dev/probe/build.sh` -> `timberprobe.jar`, gitignored): the lab probe +
+  `-Dtimberprobe.out=<dir>`, chat cues on `ChatListener.handleSystemMessage` ("[probe] start <name>" / "stop" /
+  "quit"), per frame `<name>.frames.tsv` (frame, wall_us epoch, displays), `<name>.displays.tsv` (frame, wall_us,
+  partial, id, 3x4 matrix, xrot, progress), `<name>.blocks.tsv`, first 240 frames to `frames/<name>/`, results.json
+  ("probe <name>": rows > 0) on quit. Pitch from a non-popping ring-0 display matrix's column 1 (angle from vertical).
 - `tools/ModTest/multiplayer.py` additive keys: client `"mod_jar": false` + `"jars": [paths]` (Fabric client without the
   mod jar), `"latency_ms"` (a delaying TCP proxy per client, half each way), case `"server_props"` (-D flags after
   `java`, for `-Dvanilla_timber.perf=1`: Fall logs chop ms and moving-tick mean/max at finish). Update its docstring and

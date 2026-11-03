@@ -25,10 +25,12 @@ import net.minecraft.world.level.block.state.BlockState;
  * palette plus cells relative to {@code origin}, and {@code e}, the server frames already played when it was sent
  * (0 at the chop; a player who walks in mid-fall gets the frame it walked in at).
  *
+ * @param probe the block (index into {@code cells}) the server removes at frame 1, or -1 (sent after frame 0): the
+ *              client starts its clock when that removal shows, the tick the displays start toward frame 1's pose
  * @param cells 4 ints per block: dx, dy, dz from {@code origin}, palette index << 1 | leaf
  */
 public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin, FallSpec spec, boolean[] logRings, int e,
-                       List<BlockState> palette, int[] cells) implements CustomPacketPayload {
+                       int probe, List<BlockState> palette, int[] cells) implements CustomPacketPayload {
     public static final Type<TreeFall> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "tree_fall"));
     public static final StreamCodec<RegistryFriendlyByteBuf, TreeFall> CODEC = StreamCodec.of(TreeFall::write, TreeFall::read);
 
@@ -51,10 +53,11 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         List<BlockState> palette = new ArrayList<>();
         List<Tree.Part> parts = tree.parts();
         int[] cells = new int[parts.size() * 4];
-        int n = 0;
+        int n = 0, probe = -1;
         BlockPos o = tree.origin();
         for (Tree.Part p : parts) {
             if (p.state().isAir()) continue;
+            if (e == 0 && probe < 0 && !p.pos().equals(tree.anchor())) probe = n / 4;
             Integer i = index.get(p.state());
             if (i == null) {
                 i = palette.size();
@@ -66,7 +69,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[n++] = p.pos().getZ() - o.getZ();
             cells[n++] = i << 1 | (p.leaf() ? 1 : 0);
         }
-        return new TreeFall(id, o, tree.px(), tree.py(), tree.pz(), tree.bin(), tree.spec(), tree.logRings(), e, palette,
+        return new TreeFall(id, o, tree.px(), tree.py(), tree.pz(), tree.bin(), tree.spec(), tree.logRings(), e, probe, palette,
             n == cells.length ? cells : java.util.Arrays.copyOf(cells, n));
     }
 
@@ -102,6 +105,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             buf.writeByte(b);
         }
         buf.writeVarInt(f.e);
+        buf.writeVarInt(f.probe + 1);
         buf.writeVarInt(f.palette.size());
         for (BlockState st : f.palette) buf.writeVarInt(Block.getId(st));
         buf.writeVarInt(f.blocks());
@@ -130,7 +134,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             int b = buf.readUnsignedByte();
             for (int j = 0; j < 8 && i + j < rings.length; j++) rings[i + j] = (b >> j & 1) != 0;
         }
-        int e = buf.readVarInt();
+        int e = buf.readVarInt(), probe = buf.readVarInt() - 1;
         int np = buf.readVarInt();
         List<BlockState> palette = new ArrayList<>(np);
         for (int i = 0; i < np; i++) palette.add(Block.stateById(buf.readVarInt()));
@@ -142,7 +146,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[i + 2] = unzig(buf);
             cells[i + 3] = buf.readVarInt();
         }
-        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, e, palette, cells);
+        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, e, probe, palette, cells);
     }
 
     private static void zig(RegistryFriendlyByteBuf buf, int v) {

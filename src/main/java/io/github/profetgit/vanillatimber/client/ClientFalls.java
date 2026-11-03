@@ -86,6 +86,18 @@ public final class ClientFalls {
         return f.centres(ticks + Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false), out);
     }
 
+    /** The last fall's blocks at server frame {@code n}; see {@link MeshFall#centresAt}. */
+    public static int centresAt(int n, double[] out, int[] rings) {
+        MeshFall f = lastFall;
+        return f == null ? 0 : f.centresAt(n, out, rings);
+    }
+
+    /** How far the last fall's frame-1 anchor moved its clock, in ticks (tests). */
+    public static int anchorShift() {
+        MeshFall f = lastFall;
+        return f == null ? 0 : f.shift;
+    }
+
     /** Client time (level ticks + partial) of this frame. */
     public static double now() {
         return ticks + Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);

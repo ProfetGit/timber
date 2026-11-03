@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "timberprobe",
+  "version": "0.2.0",
+  "name": "Timber M1 exit probe (dev only)",
+  "environment": "client",
+  "mixins": ["timberprobe.mixins.json"],
+  "depends": {"fabricloader": "*"}
+}

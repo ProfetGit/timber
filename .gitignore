@@ -10,3 +10,5 @@ dist/
 *.iml
 **/.work/
 __pycache__/
+dev/probe/build/
+dev/probe/timberprobe.jar
