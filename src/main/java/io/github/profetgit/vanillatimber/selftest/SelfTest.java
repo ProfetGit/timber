@@ -89,6 +89,11 @@ public final class SelfTest {
         }));
     }
 
+    /** Index of the frame the next capture writes, or -1 when not capturing (scenes stamp their frames with it). */
+    static int captureIndex() {
+        return captureLeft > 0 ? captureFrame : -1;
+    }
+
     static boolean capturing() {
         return captureLeft > 0;
     }

@@ -316,12 +316,18 @@ final class Scenarios {
                             dc[nd * 3 + 2] = c.z;
                             nd++;
                         }
-                        double dp = Double.NaN, best = Double.NaN;
+                        double dp = Double.NaN, best = Double.NaN, prog = Double.NaN;
                         int off = 0;
                         if (nd > 0) {
                             double[] sorted = java.util.Arrays.copyOf(ps, nd);
                             java.util.Arrays.sort(sorted);
                             dp = sorted[nd / 2];
+                            for (var e : m.level.entitiesForRendering()) {
+                                if (e instanceof Display.BlockDisplay d && d.renderState() != null) {
+                                    prog = d.calculateInterpolationProgress(pt);
+                                    break;
+                                }
+                            }
                             int n0 = Math.max(0, (int) Math.ceil(tau - 1e-6)), last = io.github.profetgit.vanillatimber.client.ClientFalls.timeline().end;
                             // the mesh's own frame first: a neighbour wins only when strictly closer (poses repeat at rest)
                             for (int n : new int[] {n0, n0 - 1, n0 + 1}) {
@@ -339,8 +345,10 @@ final class Scenarios {
                                 }
                             }
                         }
+                        // the displays' own drawing time: heading for frame n0 + off, prog of the way from the frame before
+                        double tauD = nd == 0 ? Double.NaN : Math.max(0, (int) Math.ceil(tau - 1e-6)) + off - 1 + prog;
                         frames.add(new double[] {io.github.profetgit.vanillatimber.client.ClientFalls.now(), mp, dp, nd == 0 ? Double.NaN : gap, nd, nm,
-                            best, off, tau});
+                            best, off, tau, tauD});
                     };
                 })
                 .capture("sync_" + f.name, 240)
@@ -357,26 +365,29 @@ final class Scenarios {
                     double tm = cross(frames, 1, hit - 0.5), td = cross(frames, 2, hit - 0.5);
                     double drift = td - tm, maxGeo = 0, geoAt = 0;
                     List<Double> drawnGaps = new ArrayList<>();
-                    int both = 0, aligned = 0;
+                    int both = 0;
+                    List<Double> offsets = new ArrayList<>();
                     for (double[] r : frames) {
                         if (Double.isNaN(r[2])) continue;
                         both++;
                         drawnGaps.add(r[3]);
-                        if (r[7] == 0) aligned++;
+                        if (r[8] >= 1 && !Double.isNaN(r[9])) offsets.add(Math.abs(r[9] - r[8]));
                         if (r[6] > maxGeo) {
                             maxGeo = r[6];
                             geoAt = r[0];
                         }
                     }
                     double t0 = frames.isEmpty() ? 0 : frames.getFirst()[0];
-                    int shift = io.github.profetgit.vanillatimber.client.ClientFalls.anchorShift();
+                    double shift = io.github.profetgit.vanillatimber.client.ClientFalls.anchorShift();
                     SelfTest.record("sync " + f.name + " slam drift", !Double.isNaN(drift) && Math.abs(drift) <= 1.0,
-                        String.format(java.util.Locale.ROOT, "displays %.2f ticks after the mesh (slam at mesh t+%.2f), frame-1 anchor moved the clock %d",
+                        String.format(java.util.Locale.ROOT, "displays %.2f ticks after the mesh (slam at mesh t+%.2f), frame-1 anchor moved the clock %.2f",
                             drift, tm - t0, shift));
                     SelfTest.record("sync " + f.name + " geometry", both > 0 && maxGeo <= 0.02, String.format(java.util.Locale.ROOT,
                         "max heading-for gap %.4f blocks at t+%.2f over %d frames", maxGeo, geoAt - t0, both));
-                    SelfTest.record("sync " + f.name + " same frame", both > 0 && aligned >= 0.9 * both, String.format(java.util.Locale.ROOT,
-                        "%d of %d frames: the displays head for the mesh's frame", aligned, both));
+                    // the mesh keeps the average client's clock, not this client's tick phase (MeshFall.LAG): within half a tick
+                    double medOff = percentile(offsets, 0.5);
+                    SelfTest.record("sync " + f.name + " clock offset", !offsets.isEmpty() && medOff <= 0.5, String.format(java.util.Locale.ROOT,
+                        "|displays - mesh| drawing time median %.2f p95 %.2f ticks over %d frames", medOff, percentile(offsets, 0.95), offsets.size()));
                     SelfTest.record("sync " + f.name + " as drawn", true, String.format(java.util.Locale.ROOT,
                         "display-to-mesh centre gap p50 %.3f p95 %.3f max %.3f blocks (vanilla interpolation trails, see Scenarios.sync)",
                         percentile(drawnGaps, 0.5), percentile(drawnGaps, 0.95), percentile(drawnGaps, 1.0)));

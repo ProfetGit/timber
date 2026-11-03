@@ -46,7 +46,13 @@ final class MpHost {
             .until("op, haste, axe and the Guest", 6000, mc -> mc.player.hasEffect(MobEffects.HASTE)
                 && mc.player.getMainHandItem().is(Items.NETHERITE_AXE) && mc.getConnection().getPlayerInfo("Guest") != null)
             .waitTicks(60)
-            .run(mc -> SelfTest.record("mp ready", true, "op, haste 127, netherite axe, Guest in the tab list"));
+            .run(mc -> {
+                // the flicker check looks at the tree: no HUD (chat fade, actionbar, hunger jitter, the hand) and no
+                // particles (vanilla's, the same as 1.3.6, and fast enough to cross a tile in one frame)
+                hideHud(mc);
+                mc.options.particles().set(net.minecraft.server.level.ParticleStatus.MINIMAL);
+                SelfTest.record("mp ready", true, "op, haste 127, netherite axe, Guest in the tab list");
+            });
         for (Scenarios.Fix f : Scenarios.FIXES) tree(s, f, 8 + f.dx(), f.name(), true);
         Scenarios.Fix spruce = Scenarios.FIXES[2];
         s.run(mc -> cmd(mc, "tp Guest -300 -60 8"))
@@ -66,10 +72,23 @@ final class MpHost {
         return s;
     }
 
+    static void hideHud(Minecraft mc) {
+        try {
+            java.lang.reflect.Field f = mc.gui.hud.getClass().getDeclaredField("isHidden");
+            f.setAccessible(true);
+            f.setBoolean(mc.gui.hud, true);
+        } catch (ReflectiveOperationException e) {
+            SelfTest.record("mp hud hidden", false, e.toString());
+        }
+    }
+
     /** Plants, cues, chops and records one tree at (x, -60, 8). */
     private static void tree(Script s, Scenarios.Fix f, int x, String name, boolean probe) {
         // per drawn frame: wall us, client time, mesh pitch, tau, ns this mod spent on the frame
         List<double[]> frames = Collections.synchronizedList(new ArrayList<>());
+        // per captured frame: its index and wall us; and the chop's wall us (exit.py's "at the chop" window)
+        List<long[]> captured = Collections.synchronizedList(new ArrayList<>());
+        long[] chop = {0};
         s.run(mc -> {
             cmd(mc, "kill @e[type=item]");
             String box = (x - 8) + " %d -12 " + (x + 27) + " %d 28 ";
@@ -83,7 +102,7 @@ final class MpHost {
             } catch (IOException e) {
                 throw new IllegalStateException("fixture " + f.file(), e);
             }
-            cmd(mc, "tp Host " + (x - 2.5) + " -60 8.5 -90 -25");
+            cmd(mc, "tp Host " + (x - 3.5) + " -60 8.5 -90 -25");
             if (probe) cmd(mc, "tp Guest " + (x - 4.5) + " -60 21.8 facing " + (x + 3) + " -55 10");
         })
             .waitTicks(60)
@@ -96,6 +115,8 @@ final class MpHost {
                 ClientFalls.last = null;
                 ClientFalls.spent = 0;
                 SelfTest.frameHook = m -> {
+                    int ci = SelfTest.captureIndex();
+                    if (ci >= 0) captured.add(new long[] {ci, nowMicros()});
                     double p = ClientFalls.drawnPitch();
                     long ns = ClientFalls.spent;
                     ClientFalls.spent = 0;
@@ -105,6 +126,7 @@ final class MpHost {
             .capture("mp_" + name, 240)
             .run(mc -> {
                 mc.player.setYRot(-90);
+                chop[0] = nowMicros();
                 mc.gameMode.startDestroyBlock(new BlockPos(x, -60, 8), Direction.WEST);
             })
             .until("mp " + name + " payload", 200, mc -> ClientFalls.last != null)
@@ -123,13 +145,16 @@ final class MpHost {
                 SelfTest.record("mp " + name + " frame ms", true, String.format(Locale.ROOT, "p50 %.3f p95 %.3f max %.3f over %d frames, %d quads, bake %.2f ms",
                     Scenarios.percentile(ms, 0.5), Scenarios.percentile(ms, 0.95), Scenarios.percentile(ms, 1.0), ms.size(),
                     ClientFalls.quads(), ClientFalls.bakeNanos / 1e6));
-                TREES.put(name, String.format(Locale.ROOT, "{\"hit\":%.1f,\"end\":%d,\"quads\":%d,\"bake_ms\":%.3f,\"anchor_shift\":%d,\"x\":%d}",
-                    hit, tl.end, ClientFalls.quads(), ClientFalls.bakeNanos / 1e6, ClientFalls.anchorShift(), x));
+                TREES.put(name, String.format(Locale.ROOT, "{\"hit\":%.1f,\"end\":%d,\"quads\":%d,\"bake_ms\":%.3f,\"anchor_shift\":%.2f,\"x\":%d,\"chop_us\":%d}",
+                    hit, tl.end, ClientFalls.quads(), ClientFalls.bakeNanos / 1e6, ClientFalls.anchorShift(), x, chop[0]));
                 StringBuilder sb = new StringBuilder("wall_us\tnow\tpitch\ttau\tns\n");
                 for (double[] r : frames) {
                     sb.append(String.format(Locale.ROOT, "%d\t%.4f\t%.4f\t%.4f\t%d%n", (long) r[0], r[1], r[2], r[3], (long) r[4]));
                 }
+                StringBuilder cf = new StringBuilder("frame\twall_us\n");
+                for (long[] r : captured) cf.append(r[0]).append('\t').append(r[1]).append('\n');
                 try {
+                    Files.writeString(Path.of(System.getProperty("vanilla_timber.selftest"), "frames_" + name + ".tsv"), cf);
                     Files.writeString(Path.of(System.getProperty("vanilla_timber.selftest"), "mesh_" + name + ".tsv"), sb);
                 } catch (IOException e) {
                     SelfTest.record("mp " + name + " tsv", false, e.toString());

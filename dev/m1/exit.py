@@ -11,7 +11,10 @@ the epoch clock, so their slams compare on one clock. The server logs "[perf] fa
 (-Dvanilla_timber.perf=true); the last fall (spruce_solo) has only the modded Host in range.
 
 Rule, fixed before any result (STATUS.md Next 1e, PRD 13):
-  GO   every tree's |slam drift| <= 1 tick in both cases, `wb img flicker` clean on both clients' frames,
+  GO   every tree's |slam drift| <= 1 tick in both cases, `wb img flicker` clean at the chop on both clients' frames
+       (PRD 13's words; the window: from the chop until the mesh's drawing time reaches 6, the end of the shiver;
+       pops over the whole clip are reported too, as info: a fast thin crown tip crossing a tile in one frame looks
+       like a pop to the detector),
        spruce client frame p95 <= 1 ms, server moving tick mean <= 0.2 ms with only modded viewers.
   STOP (switch to Lean, PRD 12) any |drift| > 2 ticks at 200 ms, or flicker that a fix can't remove.
   else FIX and re-run.
@@ -71,13 +74,29 @@ def probe_pitch(out: Path, tree: str) -> list[tuple[float, float]]:
     return [(wall[f], statistics.median(per[f]) if f in per else math.nan) for f in sorted(wall)]
 
 
-def flicker(d: Path) -> dict:
+def flicker(d: Path, window: tuple[int, int] | None = None) -> dict:
+    """Pops in the frames; with a window (first, last frame index) only pops on frames inside it (neighbours from outside count)."""
     paths = sorted(d.glob("*.png"))
+    if window:
+        lo, hi = window
+        paths = paths[max(0, lo - 1):hi + 2]
+        off = max(0, lo - 1)
     if len(paths) < 3:
         return {"frames": len(paths), "pops": None}
     pops, n = img.flicker(paths)
+    if window:
+        for p in pops:
+            p["frame"] += off
+        pops = [p for p in pops if lo <= p["frame"] <= hi]
+        n = hi - lo + 1
     top = [{"frame": p["frame"], "px": p["px"], "jump": p["jump"]} for p in pops[:5]]
     return {"frames": n, "pops": len(pops), "top": top}
+
+
+def chop_window(walls: dict[int, int], t0: int, t1: int) -> tuple[int, int] | None:
+    """First and last captured frame index with its wall clock in [t0, t1]."""
+    inside = [i for i, w in walls.items() if t0 <= w <= t1]
+    return (min(inside), max(inside)) if inside else None
 
 
 def perf_lines(log: Path) -> list[dict]:
@@ -118,9 +137,20 @@ def case_report(case: str) -> dict:
                 tr.update(probe_frames=len(pr), drift_ticks=round((tp - tm) / TICK_US, 3) if not math.isnan(tp - tm) else None,
                           drift_first_frame_ticks=round((fp - fm) / TICK_US, 3) if not math.isnan(fp - fm) else None,
                           probe_max_pitch=round(max((x for _, x in pr if not math.isnan(x)), default=math.nan), 2))
-        tr["flicker_host"] = flicker(host / "frames" / f"mp_{t}")
+        win_h = win_g = None
+        if mesh_f.exists() and info.get("chop_us") and (host / f"frames_{t}.tsv").exists():
+            end = next((int(r[0]) for r in rows(mesh_f) if float(r[3]) >= 6), None)
+            if end:
+                t0, t1 = info["chop_us"] - 100_000, end
+                tr["chop_window_ms"] = round((t1 - t0) / 1000, 1)
+                win_h = chop_window({int(r[0]): int(r[1]) for r in rows(host / f"frames_{t}.tsv")}, t0, t1)
+                if (guest / f"{t}.frames.tsv").exists():
+                    win_g = chop_window({int(r[0]): int(r[1]) for r in rows(guest / f"{t}.frames.tsv") if int(r[0]) < 240}, t0, t1)
+        tr["flicker_host_all"] = flicker(host / "frames" / f"mp_{t}")
+        tr["flicker_host"] = flicker(host / "frames" / f"mp_{t}", win_h) if win_h else {"pops": None, "why": "no chop window"}
         if t != "spruce_solo":
-            tr["flicker_guest"] = flicker(guest / "frames" / t)
+            tr["flicker_guest_all"] = flicker(guest / "frames" / t)
+            tr["flicker_guest"] = flicker(guest / "frames" / t, win_g) if win_g else {"pops": None, "why": "no chop window"}
         rep["trees"][t] = tr
     log = w / "server/server.log"
     rep["perf"] = perf_lines(log) if log.exists() else []
@@ -143,7 +173,7 @@ def verdict(reports: dict) -> tuple[str, list[str]]:
                 if fl.get("pops") is None:
                     why.append(f"{case} {t}: no {side} frames")
                 elif fl["pops"]:
-                    why.append(f"{case} {t}: {fl['pops']} flicker pops on the {side}")
+                    why.append(f"{case} {t}: {fl['pops']} flicker pops at the chop on the {side}")
         sp = rep["trees"].get("spruce", {}).get("frame_ms_p95")
         if sp is None or sp > 1.0:
             why.append(f"{case}: spruce client frame p95 {sp} ms > 1")
@@ -160,13 +190,15 @@ def verdict(reports: dict) -> tuple[str, list[str]]:
 
 
 def table(reports: dict):
-    print(f"{'case':8} {'tree':12} {'drift':>7} {'1st-frm':>7} {'frm p95':>8} {'quads':>6} {'flick H/G':>10}")
+    print(f"{'case':8} {'tree':12} {'drift':>7} {'1st-frm':>7} {'frm p95':>8} {'quads':>6} {'chop H/G':>9} {'all H/G':>9} {'shift':>6}")
     for case, rep in reports.items():
         for t, tr in rep["trees"].items():
             fh = tr.get("flicker_host", {}).get("pops")
             fg = tr.get("flicker_guest", {}).get("pops", "-")
+            ah = tr.get("flicker_host_all", {}).get("pops")
+            ag = tr.get("flicker_guest_all", {}).get("pops", "-")
             print(f"{case:8} {t:12} {str(tr.get('drift_ticks')):>7} {str(tr.get('drift_first_frame_ticks')):>7} "
-                  f"{str(tr.get('frame_ms_p95')):>8} {str(tr.get('quads')):>6} {f'{fh}/{fg}':>10}")
+                  f"{str(tr.get('frame_ms_p95')):>8} {str(tr.get('quads')):>6} {f'{fh}/{fg}':>9} {f'{ah}/{ag}':>9} {str(tr.get('anchor_shift')):>6}")
         for p in rep["perf"]:
             print(f"{case:8} server fall {p['id']}: {p['logs']} logs, chop {p['chop_ms']} ms, frame0 {p['frame0_ms']}, "
                   f"moving mean {p['moving_mean_ms']} max {p['moving_max_ms']} ms, displays {'yes' if p['displays'] else 'no'}")

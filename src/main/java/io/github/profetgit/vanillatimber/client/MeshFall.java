@@ -55,13 +55,23 @@ final class MeshFall {
     final int[] ring, light;
     final boolean[] leaf;
     final int blocks;
-    /** The client tick count when the payload was handled, moved to the frame-1 removal when it shows; see {@link #tau}. */
-    long c0;
+    /**
+     * Ticks from a server frame's packets arriving to that frame's pose fully drawn by a vanilla client, on average. A
+     * display starts toward an update on the first client tick run after the frame that handled it and gets there one
+     * tick later: 1 to 2 ticks after the previous frame started, depending on the client's tick phase, so 1.5 minus half
+     * a frame (60 fps) after the arrival. Every vanilla client lands within about half a tick of it, whatever its phase;
+     * copying this client's own phase instead (the 0.0.5 anchor) left the mesh up to 1.3 ticks off another client's.
+     */
+    static final double LAG = 1.5 - 1.0 / 6;
+    /** The client tick count when the payload was handled (the anchor gives up 4 ticks later). */
+    final long handled;
+    /** Client time (ticks + partial) at which the drawing time is 0, NaN until the first drawn frame; see {@link #frame}. */
+    double start = Double.NaN;
     /** The cell the server clears at frame 1 and its state, while this client still shows it (null: no anchor to wait for). */
     private BlockPos probe;
     private BlockState probeState;
-    /** How far the frame-1 anchor moved {@link #c0} (tests; 0 when it agreed or there was none). */
-    volatile int shift;
+    /** How far the frame-1 anchor moved {@link #start}, in ticks (tests; 0 when there was none). */
+    volatile double shift;
     private final double[] oy, oz;
     private final Timeline.Sample sample = new Timeline.Sample();
     private final float[] pop = new float[2];
@@ -71,9 +81,9 @@ final class MeshFall {
     /** The pitch of the last drawn frame and its drawing time (tests). */
     volatile double drawnPitch = Double.NaN, drawnTau = Double.NaN;
 
-    MeshFall(TreeFall msg, ClientLevel level, long c0) {
+    MeshFall(TreeFall msg, ClientLevel level, long handled) {
         this.msg = msg;
-        this.c0 = c0;
+        this.handled = handled;
         tl = new Timeline(msg.spec(), msg.logRings());
         x = msg.px() / 1000.0;
         y0 = msg.py() / 1000.0;
@@ -112,32 +122,28 @@ final class MeshFall {
         bake(level);
     }
 
-    /**
-     * Drawing time in server frames: frame n's pose is fully drawn at tau = n, as the displays draw it. A display update
-     * handled before client tick C starts interpolating when C ticks the entity and is reached one tick later, at client
-     * time C + 2 (ticks done + partial); the payload left with frame {@code e}'s packets, so tau = T - c0 - 2 + e.
-     */
+    /** Drawing time in server frames at client time {@code t}: frame n's pose is fully drawn at tau = n. */
     double tau(double t) {
-        double tau = t - c0 - 2 + msg.e();
+        if (Double.isNaN(start)) return -1;
+        double tau = t - start;
         // until frame 1's removal shows the clock is only a guess from the payload's arrival: hold the rest pose
         return probe != null ? Math.min(tau, 0) : tau;
     }
 
     /**
-     * Every client tick, before anything reads {@link #tau}: the server's frame-1 packets (the tree's blocks cleared,
-     * the displays' first pose) arrive together, and a display starts toward that pose on the first client tick after
-     * them, so frame 1 is fully drawn one tick after the tick that first shows the cell gone. That fixes the clock to
-     * the server's frames; the payload's own arrival can be a tick off when the chop tick ran long (frame 0 late,
-     * frame 1 on time). Gives up after 3 ticks (the cell was changed some other way) and keeps the payload's clock.
+     * Each drawn frame at client time {@code t}, before {@link #submit}; {@code dt} = time since the previous frame.
+     * Packets are handled at the start of a frame, before its ticks and its drawing, so the first frame that shows the
+     * payload (or the frame-1 removal) handled it, and it arrived during the {@code dt} before: half of it on average.
+     * The payload sets the clock from its own frame {@code e}; the frame-1 removal, which leaves with the displays' first
+     * pose, replaces it (the chop tick can run long, so frame 0 leaves late and frame 1 on time).
      */
-    void anchor(ClientLevel level, long ticks) {
-        if (probe == null) return;
-        if (level.getBlockState(probe) != probeState) {
-            long c = ticks - 2;
-            shift = (int) (c - c0);
-            c0 = c;
-            probe = null;
-        } else if (ticks - c0 > 4) {
+    void frame(ClientLevel level, double t, double dt) {
+        double arrived = t - Math.max(0, Math.min(1, dt)) / 2;
+        if (Double.isNaN(start)) start = arrived + LAG - msg.e();
+        if (probe != null && level.getBlockState(probe) != probeState) {
+            double s = arrived + LAG - 1;
+            shift = s - start;
+            start = s;
             probe = null;
         }
     }
@@ -153,6 +159,7 @@ final class MeshFall {
         BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
+        RestLight rest = new RestLight(level, msg);
         for (int i = 0; i < blocks; i++) {
             cell.set(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
             BlockState state = msg.palette().get(cells[i * 4 + 3] >> 1);
@@ -177,6 +184,7 @@ final class MeshFall {
             }
             parts.clear();
             mc.getModelManager().getBlockStateModelSet().get(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
+            rest.run(cell, state);
             boolean opaque = ModelBlockRenderer.forceOpaque(cutoutLeaves, state);
             for (BlockStateModelPart part : parts) {
                 for (int d = 0; d <= 6; d++) {
@@ -191,11 +199,26 @@ final class MeshFall {
                         int ti = quad.materialInfo().tintIndex();
                         Direction sd = quad.materialInfo().shadeDirectionOverride();
                         g.add(quad, right, tx, ty, tz, c, q, ti >= 0 && ti < tints.length ? tints[ti] : -1,
-                            (sd != null ? sd : quad.direction()).ordinal(), i, quad.materialInfo().lightEmission());
+                            (sd != null ? sd : quad.direction()).ordinal(), i, quad.materialInfo().lightEmission(), rest.get(quad), lit);
                     }
                 }
             }
         }
+        Timeline.Sample s0 = tl.sample(0, new Timeline.Sample());
+        origins(s0);
+        Matrix4f m = new Matrix4f();
+        for (Group g : groups) pose(m, g.k, g.leaf, s0, 0, 0, 0).transformPosition(0, g.k + 0.5f, 0, g.rest);
+    }
+
+    /**
+     * How much of the terrain's own AO and light a group keeps at this pose: all of it at rest (the swap shows nothing),
+     * none once it has moved 4 blocks from where it stood (SeamlessDisplays' fade), where the eased light along its path
+     * takes over.
+     */
+    private static float restWeight(Matrix4f m, Group g, Vec3 cam, Vector3f tmp) {
+        m.transformPosition(0, g.k + 0.5f, 0, tmp);
+        double dx = tmp.x + cam.x - g.rest.x, dy = tmp.y + cam.y - g.rest.y, dz = tmp.z + cam.z - g.rest.z;
+        return (float) Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy + dz * dz) / 4);
     }
 
     private static RenderType type(ChunkSectionLayer layer) {
@@ -284,7 +307,8 @@ final class MeshFall {
 
     /** Light every second client tick: each block's current centre, eased toward it (HavingABlast debris light). */
     void tick(ClientLevel level, long ticks) {
-        anchor(level, ticks);
+        // the frame-1 cell was changed some other way: keep the payload's clock
+        if (probe != null && ticks - handled > 4) probe = null;
         double t = tau(ticks);
         if (t >= tl.end - 1) {
             dead = true;
@@ -332,6 +356,7 @@ final class MeshFall {
         }
         float inflate = (float) s.inflate;
         Matrix4f m = new Matrix4f();
+        Vector3f tmp = new Vector3f();
         for (Group g : groups) {
             float ex = inflate, ey = inflate;
             if (g.leaf) {
@@ -346,8 +371,10 @@ final class MeshFall {
             }
             g.ex = ex;
             g.ey = ey;
+            pose(m, g.k, g.leaf, s, cam.x, cam.y, cam.z);
+            g.w = restWeight(m, g, cam, tmp);
             ps.pushPose();
-            ps.mulPose(pose(m, g.k, g.leaf, s, cam.x, cam.y, cam.z));
+            ps.mulPose(m);
             out.submitCustomGeometry(ps, g.type, g);
             ps.popPose();
         }
@@ -361,9 +388,15 @@ final class MeshFall {
         final RenderType type;
         float[] pos = new float[48], off = new float[48], uv = new float[32];
         int[] tint = new int[4], block = new int[4];
+        /** Per vertex: the terrain's colour (AO x tint) and light where the block stood (RestLight). */
+        int[] rcol = new int[16], rlight = new int[16];
         byte[] dir = new byte[4], emission = new byte[4];
         int quads;
         float ex, ey;
+        /** This frame's share of the rest colour and light, see {@link MeshFall#restWeight}. */
+        float w = 1;
+        /** World position of the ring's axis point at rest. */
+        final Vector3f rest = new Vector3f();
 
         Group(MeshFall fall, int k, boolean leaf, RenderType type) {
             this.fall = fall;
@@ -372,7 +405,9 @@ final class MeshFall {
             this.type = type;
         }
 
-        void add(BakedQuad quad, Quaternionf right, float tx, float ty, float tz, Vector3f c, Vector3f q, int col, int sdir, int bi, int em) {
+        /** {@code lv}: the quad's 4 rest colours then 4 rest lights, or null when vanilla didn't emit it ({@code col}, {@code flat}). */
+        void add(BakedQuad quad, Quaternionf right, float tx, float ty, float tz, Vector3f c, Vector3f q, int col, int sdir, int bi, int em,
+                 int[] lv, int flat) {
             if (quads == tint.length) {
                 int n = quads * 2;
                 pos = java.util.Arrays.copyOf(pos, n * 12);
@@ -380,6 +415,8 @@ final class MeshFall {
                 uv = java.util.Arrays.copyOf(uv, n * 8);
                 tint = java.util.Arrays.copyOf(tint, n);
                 block = java.util.Arrays.copyOf(block, n);
+                rcol = java.util.Arrays.copyOf(rcol, n * 4);
+                rlight = java.util.Arrays.copyOf(rlight, n * 4);
                 dir = java.util.Arrays.copyOf(dir, n);
                 emission = java.util.Arrays.copyOf(emission, n);
             }
@@ -396,6 +433,8 @@ final class MeshFall {
                 long packed = quad.packedUV(v);
                 uv[(quads * 4 + v) * 2] = UVPair.unpackU(packed);
                 uv[(quads * 4 + v) * 2 + 1] = UVPair.unpackV(packed);
+                rcol[quads * 4 + v] = lv != null ? lv[v] : col;
+                rlight[quads * 4 + v] = lv != null ? lv[4 + v] : flat;
             }
             tint[quads] = col;
             block[quads] = bi;
@@ -411,17 +450,26 @@ final class MeshFall {
             Matrix4f m = pose.pose();
             float[] nr = fall.normals, sh = fall.shade;
             int[] lights = fall.light;
-            float gx = ex, gy = ey;
+            float gx = ex, gy = ey, rw = w;
             for (int qi = 0; qi < quads; qi++) {
                 int d = dir[qi];
-                int col = ARGB.scaleRGB(tint[qi], sh[d]);
-                int li = lights[block[qi]];
-                if (emission[qi] > 0) li = LightCoordsUtil.pack(Math.max(LightCoordsUtil.block(li), emission[qi]), LightCoordsUtil.sky(li));
+                int path = lights[block[qi]], pu = path & 0xFFFF, pv = path >>> 16;
                 float nx = nr[d * 3], ny = nr[d * 3 + 1], nz = nr[d * 3 + 2];
                 for (int v = 0; v < 4; v++) {
-                    int i = (qi * 4 + v) * 3, u = (qi * 4 + v) * 2;
+                    int i = (qi * 4 + v) * 3, u = (qi * 4 + v) * 2, rv = qi * 4 + v;
+                    int col, li;
+                    if (rw >= 1) {
+                        col = rcol[rv];
+                        li = rlight[rv];
+                    } else {
+                        col = rw <= 0 ? tint[qi] : ARGB.srgbLerp(rw, tint[qi], rcol[rv]);
+                        int rl = rlight[rv];
+                        li = Math.round(pu + ((rl & 0xFFFF) - pu) * rw) | Math.round(pv + ((rl >>> 16) - pv) * rw) << 16;
+                    }
+                    if (emission[qi] > 0) li = LightCoordsUtil.pack(Math.max(LightCoordsUtil.block(li), emission[qi]), LightCoordsUtil.sky(li));
                     vc.addVertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
-                        .setColor(col).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li).setNormal(nx, ny, nz);
+                        .setColor(ARGB.scaleRGB(col, sh[d])).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
+                        .setNormal(nx, ny, nz);
                 }
             }
             ClientFalls.spent += System.nanoTime() - t0;

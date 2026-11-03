@@ -268,3 +268,32 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
 - First run: see STATUS.md Next 1 (FIX: oak drift 1.31, host flicker pops near the chop). The server log echoes every
   Host command ("System chat: [Host: ...]"): `gamerule send_command_feedback false` / `log_admin_commands false` in
   the case steps would cut it.
+
+## First exit run read (session 7, 0.0.7)
+- **Oak drift 1.31 = the anchor copied the Host's own tick phase.** Per-frame probe vs mesh: through the whole fall the
+  Guest's displays drew exactly 1.00 tick behind the mesh (oak, birch: anchor shift -1; spruce shift 0, drift ~0); the
+  slam crossing adds ~0.3 on hit-93 trees (xRot clamps at 90, the residual sits in the trailing transformation).
+  26.3 handles packets at the start of a frame (`Minecraft.runTick`: `packetProcessor.processQueuedPackets`, then the
+  ticks, then the render) and the server sends a tick's packets together at its end (`tickChildren`:
+  `suspendFlushing` ... `resumeFlushing`; the break packet is handled at the tick's start, so frame 0 runs in the
+  break's tick). A display starts toward an update on the first tick *run* after the frame that handled it: when the
+  frame-1 packets land just after a tick boundary but before the frame that runs that tick, that client credits them
+  to the earlier tick. Two vanilla clients can so differ by up to 1 tick + 1 frame. The oak's chop tick ran 39 ms
+  (scan 26 ms cold + spawns 12.5), so its frame-0 and frame-1 flushes were 13 ms apart and the Host handled both in one
+  (38 ms, 15 ms cold bake) frame whose tick boundary had passed 16 ms before they arrived.
+- **Fix (`MeshFall.frame`, `LAG`):** the clock comes from the frame that first shows the payload / the frame-1 cell gone:
+  arrival = its client time - half its interval; frame 1 fully drawn at arrival + 4/3 tick (the vanilla average at 60
+  fps). Within ~0.5 tick of every vanilla client's displays whatever its phase, the same client's included (scene
+  `sync`'s "same frame" check became "clock offset": median |displays - mesh| drawing time <= 0.5 tick).
+- **The swap darkened the trunk (birch 130 -> 84 brightest bark texels, oak/spruce a little):** the mesh lit each block
+  with one light (brightest open neighbour) and no AO; the terrain uses smooth light + AO per vertex. Fix: `RestLight`
+  runs vanilla's `ModelBlockRenderer.tesselateBlock` (cull off, FLAT cardinal shade, the tree's cells standing) per
+  block at the bake and keeps per-vertex AO x tint and light; each group blends to the old per-block path light as it
+  moves 0..4 blocks from where it stood (SeamlessDisplays' fade). `wb img flicker` can't see this (A-B-B, not A-B-A).
+- **The Host's pops were not the tree:** oak frames 12-19 = the camera inside the crown leaning back toward it (Host
+  3 blocks from the trunk); frame 47 a leaf particle; birch 14-16 the hunger-bar jitter and bark texture sliding 3
+  texels/frame; Guest spruce 143-144 the crown tip crossing a tile in one frame near the slam. Harness: Host 4 blocks
+  out, HUD hidden and particles minimal on both clients (MpHost, probe `quiet`), frames stamped (`frames_<tree>.tsv`,
+  `chop_us`), exit.py counts pops "at the chop" (PRD 13: chop - 0.1 s .. mesh tau 6) and the whole clip as info.
+- Not fixed, seen in SeamlessDisplays: the client light engine floods when the tree's blocks vanish (ground under the
+  crown brightens at frame 1; 1.3.6 does the same). SeamlessDisplays' `LightPin` is the known fix (M6 candidate).

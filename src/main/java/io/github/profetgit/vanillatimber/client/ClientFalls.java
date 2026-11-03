@@ -45,17 +45,26 @@ public final class ClientFalls {
     }
 
     public static void submit(PoseStack ps, LevelRenderState state, SubmitNodeCollector out) {
-        if (FALLS.isEmpty()) return;
         long t0 = System.nanoTime();
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
         double t = ticks + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        // a second pass in the same frame (a shader pack's shadow pass) keeps the frame's interval
+        if (Double.isNaN(lastFrame) || t < lastFrame) frameDt = 1.0 / 3;
+        else if (t > lastFrame) frameDt = t - lastFrame;
+        lastFrame = t;
+        if (FALLS.isEmpty()) return;
         for (MeshFall f : FALLS) {
-            if (!f.dead) f.submit(ps, state.cameraRenderState.pos, out, t, level.cardinalLighting());
+            if (f.dead) continue;
+            f.frame(level, t, frameDt);
+            f.submit(ps, state.cameraRenderState.pos, out, t, level.cardinalLighting());
         }
         spent += System.nanoTime() - t0;
     }
+
+    /** Client time of the last drawn frame and the interval before it (the falls' arrival estimate). */
+    private static double lastFrame = Double.NaN, frameDt = 1.0 / 3;
 
     /** Falls being drawn (tests). */
     public static int active() {
@@ -93,7 +102,7 @@ public final class ClientFalls {
     }
 
     /** How far the last fall's frame-1 anchor moved its clock, in ticks (tests). */
-    public static int anchorShift() {
+    public static double anchorShift() {
         MeshFall f = lastFall;
         return f == null ? 0 : f.shift;
     }

@@ -72,9 +72,22 @@ public final class Probe {
             frame = rows = frameRows = captured = displaysMax = 0;
             wall = -1;
             SEEN.clear();
+            quiet(Minecraft.getInstance());
         } catch (IOException e) {
             RESULTS.add(result("probe " + n + " opened", false, e.toString()));
             name = null;
+        }
+    }
+
+    /** The flicker check looks at the tree: no HUD (chat, hotbar, the hand) and no particles, as on the Timber client. */
+    static void quiet(Minecraft mc) {
+        mc.options.particles().set(net.minecraft.server.level.ParticleStatus.MINIMAL);
+        try {
+            java.lang.reflect.Field f = mc.gui.hud.getClass().getDeclaredField("isHidden");
+            f.setAccessible(true);
+            f.setBoolean(mc.gui.hud, true);
+        } catch (ReflectiveOperationException e) {
+            RESULTS.add(result("probe hud hidden", false, e.toString()));
         }
     }
 

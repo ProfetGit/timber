@@ -1,10 +1,8 @@
 {
  "verdict": "FIX",
  "why": [
-  "m1 oak: drift 1.311 ticks > 1",
-  "m1 oak: 32 flicker pops on the host",
-  "m1 birch: 4 flicker pops on the host",
-  "m1 spruce: 5 flicker pops on the guest"
+  "m1 birch: 10 flicker pops at the chop on the host",
+  "m1_200 birch: 12 flicker pops at the chop on the host"
  ],
  "cases": {
   "m1": {
@@ -14,69 +12,80 @@
     "oak": {
      "hit": 93.0,
      "quads": 366,
-     "bake_ms": 15.558,
-     "anchor_shift": -1,
-     "mesh_frames": 151,
-     "frame_ms_p50": 0.064,
-     "frame_ms_p95": 0.452,
-     "frame_ms_max": 3.832,
-     "probe_frames": 301,
-     "drift_ticks": 1.311,
-     "drift_first_frame_ticks": 1.58,
+     "bake_ms": 30.468,
+     "anchor_shift": -1.0,
+     "mesh_frames": 152,
+     "frame_ms_p50": 0.093,
+     "frame_ms_p95": 0.772,
+     "frame_ms_max": 8.7,
+     "probe_frames": 303,
+     "drift_ticks": -0.12,
+     "drift_first_frame_ticks": 0.085,
      "probe_max_pitch": 93.0,
-     "flicker_host": {
+     "chop_window_ms": 566.3,
+     "flicker_host_all": {
       "frames": 240,
-      "pops": 32,
+      "pops": 5,
       "top": [
        {
-        "frame": 47,
-        "px": [
-         864,
-         528,
-         48
-        ],
-        "jump": 96.3
-       },
-       {
-        "frame": 53,
+        "frame": 54,
         "px": [
          48,
          384,
          48
         ],
-        "jump": 60.0
+        "jump": 87.2
        },
        {
-        "frame": 47,
-        "px": [
-         912,
-         528,
-         48
-        ],
-        "jump": 56.8
-       },
-       {
-        "frame": 13,
-        "px": [
-         48,
-         192,
-         48
-        ],
-        "jump": 55.8
-       },
-       {
-        "frame": 12,
+        "frame": 51,
         "px": [
          0,
-         48,
+         336,
          48
         ],
-        "jump": 41.2
+        "jump": 67.9
+       },
+       {
+        "frame": 52,
+        "px": [
+         0,
+         336,
+         48
+        ],
+        "jump": 65.2
+       },
+       {
+        "frame": 74,
+        "px": [
+         1056,
+         576,
+         48
+        ],
+        "jump": 26.2
+       },
+       {
+        "frame": 75,
+        "px": [
+         1056,
+         624,
+         48
+        ],
+        "jump": 21.4
        }
       ]
      },
-     "flicker_guest": {
+     "flicker_host": {
+      "frames": 25,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest_all": {
       "frames": 240,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest": {
+      "frames": 32,
       "pops": 0,
       "top": []
      }
@@ -84,60 +93,126 @@
     "birch": {
      "hit": 93.0,
      "quads": 348,
-     "bake_ms": 0.585,
-     "anchor_shift": -1,
-     "mesh_frames": 167,
-     "frame_ms_p50": 0.036,
-     "frame_ms_p95": 0.077,
-     "frame_ms_max": 0.107,
+     "bake_ms": 3.771,
+     "anchor_shift": 0.01,
+     "mesh_frames": 169,
+     "frame_ms_p50": 0.049,
+     "frame_ms_p95": 0.137,
+     "frame_ms_max": 0.163,
      "probe_frames": 315,
-     "drift_ticks": 0.995,
-     "drift_first_frame_ticks": 1.116,
+     "drift_ticks": -0.27,
+     "drift_first_frame_ticks": -0.119,
      "probe_max_pitch": 93.0,
-     "flicker_host": {
+     "chop_window_ms": 516.1,
+     "flicker_host_all": {
       "frames": 240,
-      "pops": 4,
+      "pops": 10,
       "top": [
        {
-        "frame": 16,
+        "frame": 21,
         "px": [
-         720,
-         624,
+         48,
+         240,
          48
         ],
-        "jump": 28.7
+        "jump": 45.1
        },
        {
-        "frame": 14,
+        "frame": 21,
         "px": [
-         624,
-         624,
+         144,
+         288,
          48
         ],
-        "jump": 22.9
+        "jump": 40.8
        },
        {
-        "frame": 15,
+        "frame": 21,
         "px": [
-         720,
-         432,
+         48,
+         192,
          48
         ],
-        "jump": 20.6
+        "jump": 40.0
        },
        {
-        "frame": 16,
+        "frame": 21,
         "px": [
-         720,
-         480,
+         144,
+         240,
          48
         ],
-        "jump": 19.6
+        "jump": 38.0
+       },
+       {
+        "frame": 21,
+        "px": [
+         96,
+         240,
+         48
+        ],
+        "jump": 36.8
        }
       ]
      },
-     "flicker_guest": {
+     "flicker_host": {
+      "frames": 25,
+      "pops": 10,
+      "top": [
+       {
+        "frame": 21,
+        "px": [
+         48,
+         240,
+         48
+        ],
+        "jump": 45.1
+       },
+       {
+        "frame": 21,
+        "px": [
+         144,
+         288,
+         48
+        ],
+        "jump": 40.8
+       },
+       {
+        "frame": 21,
+        "px": [
+         48,
+         192,
+         48
+        ],
+        "jump": 40.0
+       },
+       {
+        "frame": 21,
+        "px": [
+         144,
+         240,
+         48
+        ],
+        "jump": 38.0
+       },
+       {
+        "frame": 21,
+        "px": [
+         96,
+         240,
+         48
+        ],
+        "jump": 36.8
+       }
+      ]
+     },
+     "flicker_guest_all": {
       "frames": 240,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest": {
+      "frames": 31,
       "pops": 0,
       "top": []
      }
@@ -145,132 +220,150 @@
     "spruce": {
      "hit": 90.0,
      "quads": 2562,
-     "bake_ms": 3.753,
-     "anchor_shift": 0,
-     "mesh_frames": 214,
-     "frame_ms_p50": 0.086,
-     "frame_ms_p95": 0.38,
-     "frame_ms_max": 0.535,
-     "probe_frames": 362,
-     "drift_ticks": -0.061,
-     "drift_first_frame_ticks": -0.083,
-     "probe_max_pitch": 90.22,
-     "flicker_host": {
+     "bake_ms": 16.062,
+     "anchor_shift": -0.56,
+     "mesh_frames": 211,
+     "frame_ms_p50": 0.136,
+     "frame_ms_p95": 0.551,
+     "frame_ms_max": 5.381,
+     "probe_frames": 361,
+     "drift_ticks": 0.02,
+     "drift_first_frame_ticks": -0.021,
+     "probe_max_pitch": 90.07,
+     "chop_window_ms": 540.3,
+     "flicker_host_all": {
       "frames": 240,
+      "pops": 2,
+      "top": [
+       {
+        "frame": 99,
+        "px": [
+         672,
+         624,
+         48
+        ],
+        "jump": 16.8
+       },
+       {
+        "frame": 97,
+        "px": [
+         1152,
+         528,
+         48
+        ],
+        "jump": 13.7
+       }
+      ]
+     },
+     "flicker_host": {
+      "frames": 26,
       "pops": 0,
       "top": []
      },
-     "flicker_guest": {
-      "frames": 240,
-      "pops": 5,
-      "top": [
-       {
-        "frame": 143,
-        "px": [
-         1104,
-         96,
-         48
-        ],
-        "jump": 123.8
-       },
-       {
-        "frame": 143,
-        "px": [
-         1104,
-         48,
-         48
-        ],
-        "jump": 113.8
-       },
-       {
-        "frame": 144,
-        "px": [
-         1152,
-         144,
-         48
-        ],
-        "jump": 109.8
-       },
-       {
-        "frame": 144,
-        "px": [
-         1200,
-         96,
-         48
-        ],
-        "jump": 51.7
-       },
-       {
-        "frame": 143,
-        "px": [
-         1152,
-         48,
-         48
-        ],
-        "jump": 38.6
-       }
-      ]
-     }
-    },
-    "spruce_solo": {
-     "hit": 90.0,
-     "quads": 2562,
-     "bake_ms": 2.548,
-     "anchor_shift": 0,
-     "mesh_frames": 215,
-     "frame_ms_p50": 0.084,
-     "frame_ms_p95": 0.3,
-     "frame_ms_max": 0.537,
-     "flicker_host": {
+     "flicker_guest_all": {
       "frames": 240,
       "pops": 6,
       "top": [
        {
-        "frame": 120,
+        "frame": 154,
+        "px": [
+         576,
+         528,
+         48
+        ],
+        "jump": 16.6
+       },
+       {
+        "frame": 154,
+        "px": [
+         672,
+         528,
+         48
+        ],
+        "jump": 15.9
+       },
+       {
+        "frame": 154,
+        "px": [
+         624,
+         528,
+         48
+        ],
+        "jump": 15.8
+       },
+       {
+        "frame": 154,
+        "px": [
+         720,
+         528,
+         48
+        ],
+        "jump": 15.8
+       },
+       {
+        "frame": 154,
         "px": [
          768,
          528,
          48
         ],
-        "jump": 34.2
-       },
+        "jump": 15.8
+       }
+      ]
+     },
+     "flicker_guest": {
+      "frames": 32,
+      "pops": 0,
+      "top": []
+     }
+    },
+    "spruce_solo": {
+     "hit": 90.0,
+     "quads": 2562,
+     "bake_ms": 6.877,
+     "anchor_shift": 0.0,
+     "mesh_frames": 214,
+     "frame_ms_p50": 0.116,
+     "frame_ms_p95": 0.36,
+     "frame_ms_max": 0.699,
+     "chop_window_ms": 498.7,
+     "flicker_host_all": {
+      "frames": 240,
+      "pops": 3,
+      "top": [
        {
         "frame": 93,
         "px": [
-         192,
-         192,
+         1152,
+         528,
          48
         ],
-        "jump": 24.6
+        "jump": 34.9
        },
        {
-        "frame": 94,
-        "px": [
-         192,
-         240,
-         48
-        ],
-        "jump": 20.1
-       },
-       {
-        "frame": 89,
+        "frame": 91,
         "px": [
          1152,
-         336,
+         576,
          48
         ],
-        "jump": 19.3
+        "jump": 33.6
        },
        {
         "frame": 95,
         "px": [
-         144,
-         240,
+         1152,
+         528,
          48
         ],
-        "jump": 15.1
+        "jump": 12.4
        }
       ]
+     },
+     "flicker_host": {
+      "frames": 24,
+      "pops": 0,
+      "top": []
      }
     }
    },
@@ -279,13 +372,13 @@
      "id": 0,
      "logs": 5,
      "leaves": 56,
-     "chop_ms": 26.21,
-     "frame0_ms": 12.537,
-     "frame1_ms": 1.779,
-     "moving_mean_ms": 0.3009,
-     "moving_max_ms": 1.4962,
+     "chop_ms": 30.33,
+     "frame0_ms": 15.224,
+     "frame1_ms": 2.137,
+     "moving_mean_ms": 0.3462,
+     "moving_max_ms": 1.1209,
      "ticks": 50,
-     "finish_ms": 0.131,
+     "finish_ms": 0.217,
      "displays": true,
      "payloads": 1
     },
@@ -293,13 +386,13 @@
      "id": 1,
      "logs": 6,
      "leaves": 52,
-     "chop_ms": 2.602,
-     "frame0_ms": 2.71,
-     "frame1_ms": 0.567,
-     "moving_mean_ms": 0.1902,
-     "moving_max_ms": 0.8174,
+     "chop_ms": 4.117,
+     "frame0_ms": 4.861,
+     "frame1_ms": 0.7,
+     "moving_mean_ms": 0.2564,
+     "moving_max_ms": 1.1664,
      "ticks": 54,
-     "finish_ms": 0.106,
+     "finish_ms": 0.132,
      "displays": true,
      "payloads": 1
     },
@@ -307,13 +400,13 @@
      "id": 2,
      "logs": 96,
      "leaves": 331,
-     "chop_ms": 10.96,
-     "frame0_ms": 12.566,
-     "frame1_ms": 9.879,
-     "moving_mean_ms": 0.3828,
-     "moving_max_ms": 2.9901,
+     "chop_ms": 12.308,
+     "frame0_ms": 17.141,
+     "frame1_ms": 3.962,
+     "moving_mean_ms": 0.4719,
+     "moving_max_ms": 6.4666,
      "ticks": 69,
-     "finish_ms": 0.088,
+     "finish_ms": 0.098,
      "displays": true,
      "payloads": 1
     },
@@ -321,13 +414,398 @@
      "id": 3,
      "logs": 96,
      "leaves": 331,
-     "chop_ms": 4.164,
-     "frame0_ms": 0.354,
-     "frame1_ms": 1.533,
-     "moving_mean_ms": 0.1117,
-     "moving_max_ms": 0.6266,
+     "chop_ms": 3.47,
+     "frame0_ms": 0.322,
+     "frame1_ms": 1.702,
+     "moving_mean_ms": 0.1165,
+     "moving_max_ms": 0.5308,
      "ticks": 69,
-     "finish_ms": 0.039,
+     "finish_ms": 0.035,
+     "displays": false,
+     "payloads": 1
+    }
+   ]
+  },
+  "m1_200": {
+   "case": "m1_200",
+   "mp_failed": [],
+   "trees": {
+    "oak": {
+     "hit": 93.0,
+     "quads": 366,
+     "bake_ms": 34.18,
+     "anchor_shift": -1.0,
+     "mesh_frames": 151,
+     "frame_ms_p50": 0.093,
+     "frame_ms_p95": 0.77,
+     "frame_ms_max": 5.598,
+     "probe_frames": 316,
+     "drift_ticks": -0.401,
+     "drift_first_frame_ticks": -0.546,
+     "probe_max_pitch": 93.0,
+     "chop_window_ms": 733.3,
+     "flicker_host_all": {
+      "frames": 240,
+      "pops": 6,
+      "top": [
+       {
+        "frame": 60,
+        "px": [
+         0,
+         336,
+         48
+        ],
+        "jump": 67.8
+       },
+       {
+        "frame": 61,
+        "px": [
+         0,
+         336,
+         48
+        ],
+        "jump": 63.4
+       },
+       {
+        "frame": 83,
+        "px": [
+         1056,
+         576,
+         48
+        ],
+        "jump": 26.0
+       },
+       {
+        "frame": 84,
+        "px": [
+         1056,
+         624,
+         48
+        ],
+        "jump": 23.5
+       },
+       {
+        "frame": 86,
+        "px": [
+         672,
+         672,
+         48
+        ],
+        "jump": 20.7
+       }
+      ]
+     },
+     "flicker_host": {
+      "frames": 34,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest_all": {
+      "frames": 240,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest": {
+      "frames": 43,
+      "pops": 0,
+      "top": []
+     }
+    },
+    "birch": {
+     "hit": 93.0,
+     "quads": 348,
+     "bake_ms": 2.381,
+     "anchor_shift": 0.0,
+     "mesh_frames": 169,
+     "frame_ms_p50": 0.059,
+     "frame_ms_p95": 0.124,
+     "frame_ms_max": 0.152,
+     "probe_frames": 331,
+     "drift_ticks": -0.298,
+     "drift_first_frame_ticks": -0.27,
+     "probe_max_pitch": 93.0,
+     "chop_window_ms": 732.9,
+     "flicker_host_all": {
+      "frames": 240,
+      "pops": 12,
+      "top": [
+       {
+        "frame": 34,
+        "px": [
+         240,
+         336,
+         48
+        ],
+        "jump": 45.6
+       },
+       {
+        "frame": 34,
+        "px": [
+         48,
+         240,
+         48
+        ],
+        "jump": 44.8
+       },
+       {
+        "frame": 34,
+        "px": [
+         144,
+         288,
+         48
+        ],
+        "jump": 41.4
+       },
+       {
+        "frame": 34,
+        "px": [
+         48,
+         192,
+         48
+        ],
+        "jump": 40.1
+       },
+       {
+        "frame": 34,
+        "px": [
+         144,
+         240,
+         48
+        ],
+        "jump": 38.4
+       }
+      ]
+     },
+     "flicker_host": {
+      "frames": 38,
+      "pops": 12,
+      "top": [
+       {
+        "frame": 34,
+        "px": [
+         240,
+         336,
+         48
+        ],
+        "jump": 45.6
+       },
+       {
+        "frame": 34,
+        "px": [
+         48,
+         240,
+         48
+        ],
+        "jump": 44.8
+       },
+       {
+        "frame": 34,
+        "px": [
+         144,
+         288,
+         48
+        ],
+        "jump": 41.4
+       },
+       {
+        "frame": 34,
+        "px": [
+         48,
+         192,
+         48
+        ],
+        "jump": 40.1
+       },
+       {
+        "frame": 34,
+        "px": [
+         144,
+         240,
+         48
+        ],
+        "jump": 38.4
+       }
+      ]
+     },
+     "flicker_guest_all": {
+      "frames": 240,
+      "pops": 1,
+      "top": [
+       {
+        "frame": 137,
+        "px": [
+         576,
+         576,
+         48
+        ],
+        "jump": 15.4
+       }
+      ]
+     },
+     "flicker_guest": {
+      "frames": 44,
+      "pops": 0,
+      "top": []
+     }
+    },
+    "spruce": {
+     "hit": 90.0,
+     "quads": 2562,
+     "bake_ms": 13.068,
+     "anchor_shift": -1.0,
+     "mesh_frames": 211,
+     "frame_ms_p50": 0.184,
+     "frame_ms_p95": 0.571,
+     "frame_ms_max": 2.124,
+     "probe_frames": 371,
+     "drift_ticks": 0.07,
+     "drift_first_frame_ticks": -0.071,
+     "probe_max_pitch": 90.33,
+     "chop_window_ms": 701.9,
+     "flicker_host_all": {
+      "frames": 240,
+      "pops": 2,
+      "top": [
+       {
+        "frame": 109,
+        "px": [
+         672,
+         624,
+         48
+        ],
+        "jump": 15.6
+       },
+       {
+        "frame": 107,
+        "px": [
+         1152,
+         528,
+         48
+        ],
+        "jump": 13.7
+       }
+      ]
+     },
+     "flicker_host": {
+      "frames": 36,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest_all": {
+      "frames": 240,
+      "pops": 0,
+      "top": []
+     },
+     "flicker_guest": {
+      "frames": 41,
+      "pops": 0,
+      "top": []
+     }
+    },
+    "spruce_solo": {
+     "hit": 90.0,
+     "quads": 2562,
+     "bake_ms": 6.867,
+     "anchor_shift": -0.33,
+     "mesh_frames": 213,
+     "frame_ms_p50": 0.125,
+     "frame_ms_p95": 0.418,
+     "frame_ms_max": 0.57,
+     "chop_window_ms": 715.6,
+     "flicker_host_all": {
+      "frames": 240,
+      "pops": 3,
+      "top": [
+       {
+        "frame": 106,
+        "px": [
+         1152,
+         528,
+         48
+        ],
+        "jump": 34.9
+       },
+       {
+        "frame": 104,
+        "px": [
+         1152,
+         576,
+         48
+        ],
+        "jump": 33.6
+       },
+       {
+        "frame": 108,
+        "px": [
+         1152,
+         528,
+         48
+        ],
+        "jump": 12.4
+       }
+      ]
+     },
+     "flicker_host": {
+      "frames": 37,
+      "pops": 0,
+      "top": []
+     }
+    }
+   },
+   "perf": [
+    {
+     "id": 0,
+     "logs": 5,
+     "leaves": 56,
+     "chop_ms": 26.541,
+     "frame0_ms": 15.777,
+     "frame1_ms": 1.98,
+     "moving_mean_ms": 0.3069,
+     "moving_max_ms": 1.3911,
+     "ticks": 50,
+     "finish_ms": 0.125,
+     "displays": true,
+     "payloads": 1
+    },
+    {
+     "id": 1,
+     "logs": 6,
+     "leaves": 52,
+     "chop_ms": 3.126,
+     "frame0_ms": 3.639,
+     "frame1_ms": 0.876,
+     "moving_mean_ms": 0.2049,
+     "moving_max_ms": 0.7642,
+     "ticks": 54,
+     "finish_ms": 0.124,
+     "displays": true,
+     "payloads": 1
+    },
+    {
+     "id": 2,
+     "logs": 96,
+     "leaves": 331,
+     "chop_ms": 12.003,
+     "frame0_ms": 16.053,
+     "frame1_ms": 2.389,
+     "moving_mean_ms": 0.3619,
+     "moving_max_ms": 2.5601,
+     "ticks": 69,
+     "finish_ms": 0.104,
+     "displays": true,
+     "payloads": 1
+    },
+    {
+     "id": 3,
+     "logs": 96,
+     "leaves": 331,
+     "chop_ms": 5.004,
+     "frame0_ms": 0.341,
+     "frame1_ms": 1.268,
+     "moving_mean_ms": 0.1118,
+     "moving_max_ms": 0.5007,
+     "ticks": 69,
+     "finish_ms": 0.037,
      "displays": false,
      "payloads": 1
     }
