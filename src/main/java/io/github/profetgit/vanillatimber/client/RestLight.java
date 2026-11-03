@@ -22,7 +22,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * Vanilla's tessellation of each tree block where it stands (SeamlessDisplays {@code Baker}): per vertex the terrain's
  * colour (AO x tint, shade left out: the mesh applies its own per frame) and smooth light, so the mesh at rest draws what
  * the terrain drew and the swap shows nothing. The tree's blocks count as standing even when frame 1's removal arrived
- * with the payload. Every face is emitted (no culling), each quad once, keyed by identity.
+ * with the payload. Faces vanilla culls there (against the ground, the other column of a 2x2 trunk) are left out: their
+ * light is the inside of a block (0), and once the fall turns them to the camera they would draw black where 1.3.6's
+ * displays draw lit, so they take the path light like a display. Each quad once, keyed by identity.
  */
 final class RestLight implements BlockQuadOutput {
     private static final CardinalLighting FLAT = new CardinalLighting(1f, 1f, 1f, 1f, 1f, 1f);
@@ -32,7 +34,7 @@ final class RestLight implements BlockQuadOutput {
 
     RestLight(ClientLevel level, TreeFall msg) {
         Minecraft mc = Minecraft.getInstance();
-        renderer = new ModelBlockRenderer(mc.options.ambientOcclusion().get(), false, mc.getBlockColors());
+        renderer = new ModelBlockRenderer(mc.options.ambientOcclusion().get(), true, mc.getBlockColors());
         getter.level = level;
         getter.lightEngine = level.getLightEngine();
         getter.cardinalLighting = FLAT;

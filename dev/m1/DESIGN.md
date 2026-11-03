@@ -335,3 +335,18 @@ leaves/decor to the slam. `GameRules.BLOCK_DROPS`. Hop motion: (+-0.06, 0.2..0.2
   clock (LAG), i.e. speed x clock offset: 0.01-0.04 blocks at birch's tick-5 key, up to ~1 block on the spruce tip.
 - Exit run 3: birch chop pops 10 -> 0 (m1), 12 -> 1 (m1_200, exit.py window; 0 in ab.py's); oak m1 2 (frames 13, 21)
   vs 1.3.6's 1. All other gates pass (STATUS Next 1).
+
+## Pops judged, critic, rest-hidden faces (session 10 / link 8, 2026-11-03)
+- The 3 Host pops left in run 3 are the detector meeting a leaf texture that lines up again two frames later inside
+  steady motion (d_ab, d_bc 17-22, d_ac 3-6 on the pop frame); 1.3.6's displays show the same class at the same rate
+  (`dev/m1/popclass.py`: whole-crown back-and-forth median >= 1.08 on every mesh frame, pops at floors 4/8/12 swap
+  between the drawings). ab.py's chop window is m1's offsets, too short for m1_200: use exit.py's.
+- The mesh's leaves are biome-tinted (olive in plains) where the displays are default green: the mesh has more
+  contrast against the sky, so the same motion makes slightly bigger tile diffs. Intended (PRD 5.5).
+- Critic: the landed spruce's low trunk faces black on the mesh. `RestLight` used `ModelBlockRenderer(ao, cull=false)`:
+  a face vanilla culls at rest (ground below, 2x2 partner) gets light 0 from the solid cell it faces; the bottom
+  rings barely move, so `restWeight` keeps that rest light while the fall turns the face to the camera. 0.0.9 passes
+  cull = true: culled quads get no rest entry and fall back to tint x the block's flat light (`Group.add`, lv null).
+  Not yet seen in open sky (the singleplayer scenes are in a sea-lantern box). Also notice: rest light is per vertex
+  for the standing orientation; a ring that turns 90 degrees in place keeps it while restWeight is high (fine for
+  sky-lit faces, watch for other dark faces).
