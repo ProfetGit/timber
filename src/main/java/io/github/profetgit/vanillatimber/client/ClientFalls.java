@@ -1,13 +1,10 @@
 package io.github.profetgit.vanillatimber.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.state.level.LevelRenderState;
 
 /** The falls this client draws, on a clock of level ticks (paused with the game, like the displays' interpolation). */
 public final class ClientFalls {
@@ -44,22 +41,24 @@ public final class ClientFalls {
         lastFall = null;
     }
 
-    public static void submit(PoseStack ps, LevelRenderState state, SubmitNodeCollector out) {
+    public static void submit(RenderPass pass) {
         long t0 = System.nanoTime();
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
-        double t = ticks + mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        double t = ticks + RenderPass.partial(mc);
         // a second pass in the same frame (a shader pack's shadow pass) keeps the frame's interval
         if (Double.isNaN(lastFrame) || t < lastFrame) frameDt = 1.0 / 3;
         else if (t > lastFrame) frameDt = t - lastFrame;
         lastFrame = t;
         if (FALLS.isEmpty()) return;
+        float[] shades = pass.shades(level);
         for (MeshFall f : FALLS) {
             if (f.dead) continue;
             f.frame(level, t, frameDt);
-            f.submit(ps, state.cameraRenderState.pos, out, t, level.cardinalLighting());
+            f.submit(pass, t, shades);
         }
+        pass.flush();
         spent += System.nanoTime() - t0;
     }
 
@@ -109,7 +108,7 @@ public final class ClientFalls {
 
     /** Client time (level ticks + partial) of this frame. */
     public static double now() {
-        return ticks + Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        return ticks + RenderPass.partial(Minecraft.getInstance());
     }
 
     public static int quads() {
