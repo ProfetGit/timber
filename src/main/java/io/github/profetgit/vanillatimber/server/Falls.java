@@ -63,7 +63,8 @@ public final class Falls {
 
     static void chop(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
         long t0 = System.nanoTime();
-        if (!state.is(TreeScan.LOGS) || !mayFell(player) || busy(level, pos)) return;
+        boolean placed = Placed.remove(level, pos);
+        if (!state.is(TreeScan.LOGS) || placed && Config.on(Config.Key.PROTECT) || !mayFell(player) || busy(level, pos)) return;
         Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
         if (tree == null) {
             if (TreeScan.tooBig) refuse(player, "toobig", "Timber: this tree is too big to fell");

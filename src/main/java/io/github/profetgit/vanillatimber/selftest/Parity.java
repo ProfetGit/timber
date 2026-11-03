@@ -5,6 +5,7 @@ import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.server.Config;
 import io.github.profetgit.vanillatimber.server.Fall;
 import io.github.profetgit.vanillatimber.server.Falls;
+import io.github.profetgit.vanillatimber.server.Placed;
 import io.github.profetgit.vanillatimber.server.Players;
 import io.github.profetgit.vanillatimber.server.Say;
 import io.github.profetgit.vanillatimber.server.Viewers;
@@ -39,6 +40,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
@@ -279,6 +281,14 @@ final class Parity {
         cz = 256 + 64 * (i / 4);
         for (int w = 0; w < 400 && Falls.active(level) > 0; w++) tick(1);
         cmd("kill @e[type=block_display]");
+        // the fill below isn't a player break: forget this plot's placed-log keys, or a later tree on the same cells reads as built
+        on(() -> {
+            for (long k : Placed.all(level)) {
+                BlockPos q = BlockPos.of(k);
+                if (Math.abs(q.getX() - cx) <= 32 && Math.abs(q.getZ() - cz) <= 32) Placed.remove(level, q);
+            }
+            return null;
+        });
         cmd("fill " + (cx - 32) + " " + Y + " " + (cz - 32) + " " + (cx + 31) + " -10 " + (cz + 31) + " minecraft:air");
         List<String> ground = cmd("fill " + (cx - 32) + " " + G + " " + (cz - 32) + " " + (cx + 31) + " " + G + " " + (cz + 31) + " minecraft:grass_block");
         if (!ground.toString().contains("filled") && !ground.toString().contains("No blocks")) throw new IllegalStateException("plot ground: " + ground);
@@ -518,7 +528,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings"};
 
     static void run(String groups) {
         cmd("forceload add 0 224 255 351");
@@ -546,6 +556,8 @@ final class Parity {
                         hideLeaves();
                     }
                     case "gates" -> gates();
+                    case "protection" -> protection();
+                    case "neighbours" -> neighbours();
                     case "modes" -> modes();
                     case "durability" -> durability();
                     case "settings" -> settings();
@@ -925,6 +937,189 @@ final class Parity {
         cfg("welcome", 0);
         check("welcome hint", w.toString().contains("Sneak to take a single log"), w.toString());
         notApplicable("uninstall removes all objectives", "the mod has no uninstall function; its one trigger objective is removed at server stop");
+    }
+
+    /** A real placement by the player against {@code against}'s {@code face} (1.3.6 {@code TimberTest.place}). */
+    static String place(BlockPos against, Direction face) {
+        return on(() -> {
+            Vec3 hit = Vec3.atCenterOf(against).add(face.getStepX() * 0.5, face.getStepY() * 0.5, face.getStepZ() * 0.5);
+            BlockHitResult r = new BlockHitResult(hit, face, against, false);
+            return player.gameMode.useItemOn(player, level, player.getMainHandItem(), InteractionHand.MAIN_HAND, r).toString();
+        });
+    }
+
+    /** Placed-log keys inside this plot. */
+    static Set<BlockPos> keys() {
+        return on(() -> {
+            Set<BlockPos> out = new TreeSet<>();
+            for (long k : Placed.all(level)) {
+                BlockPos q = BlockPos.of(k);
+                if (Math.abs(q.getX() - cx) <= 32 && Math.abs(q.getZ() - cz) <= 32) out.add(q);
+            }
+            return out;
+        });
+    }
+
+    static int logsIn(int x0, int y0, int z0, int x1, int y1, int z1) {
+        return on(() -> {
+            int n = 0;
+            for (BlockPos q : BlockPos.betweenClosed(cx + x0, Y + y0, cz + z0, cx + x1, Y + y1, cz + z1)) if (isLog(level.getBlockState(q))) n++;
+            return n;
+        });
+    }
+
+    static int natLeavesIn(int x0, int y0, int z0, int x1, int y1, int z1) {
+        return on(() -> {
+            int n = 0;
+            for (BlockPos q : BlockPos.betweenClosed(cx + x0, Y + y0, cz + z0, cx + x1, Y + y1, cz + z1)) if (natLeaf(level.getBlockState(q))) n++;
+            return n;
+        });
+    }
+
+    /** Leaves in the box whose distance disagrees with vanilla's rule, and the distance histogram (1.3.6 {@code leafCheck}). */
+    static String leafCheck(int x0, int y0, int z0, int x1, int y1, int z1) {
+        return on(() -> {
+            int leaves = 0, bad = 0;
+            Map<String, Integer> hist = new TreeMap<>();
+            StringBuilder ex = new StringBuilder();
+            for (BlockPos q : BlockPos.betweenClosed(cx + x0, Y + y0, cz + z0, cx + x1, Y + y1, cz + z1)) {
+                BlockState s = level.getBlockState(q);
+                if (!s.is(BlockTags.LEAVES)) continue;
+                leaves++;
+                int d = s.getValue(LeavesBlock.DISTANCE);
+                hist.merge((s.getValue(LeavesBlock.PERSISTENT) ? "P" : "") + d, 1, Integer::sum);
+                int best = 7;
+                for (Direction dir : Direction.values()) {
+                    BlockState o = level.getBlockState(q.relative(dir));
+                    if (o.is(BlockTags.LOGS)) best = 1;
+                    else if (o.is(BlockTags.LEAVES)) best = Math.min(best, o.getValue(LeavesBlock.DISTANCE) + 1);
+                }
+                if (best != d) {
+                    bad++;
+                    if (ex.length() < 300) ex.append(q.toShortString()).append(" d=").append(d).append(" want ").append(best).append("; ");
+                }
+            }
+            return leaves + " leaves, " + bad + " inconsistent, hist " + hist + (bad > 0 ? " e.g. " + ex : "");
+        });
+    }
+
+    static void protection() {
+        // player-placed pillar with player-placed leaves
+        plot();
+        holdCmd("minecraft:oak_log 64");
+        cmd("fill " + at(-4, 0, -1) + " " + at(-3, 2, 1) + " minecraft:stone");
+        cmd("tp " + who() + " " + (cx - 3) + ".5 " + (Y + 3) + " " + cz + ".5 -90 60");
+        String r = place(p(0, -1, 0), Direction.UP);
+        for (int y = 0; y < 4; y++) place(p(0, y, 0), Direction.UP);
+        holdCmd("minecraft:oak_leaves 64");
+        for (int y = 2; y < 5; y++) {
+            place(p(0, y, 0), Direction.EAST);
+            place(p(0, y, 0), Direction.NORTH);
+            place(p(0, y, 0), Direction.SOUTH);
+        }
+        Set<BlockPos> keys = keys();
+        info("placed keys: " + keys + " place result " + r);
+        boolean keysMatch = true;
+        for (int y = 0; y < 5; y++) keysMatch &= keys.contains(p(0, y, 0));
+        int logs = count(Parity::isLog, 6);
+        check("placed: exactly the 5 placed logs tracked", logs == 5 && keysMatch && keys.size() == 5, logs + " logs, " + keys);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        check("placed: player pillar -> only the chopped log", count(Parity::isLog, 6) == 4 && displays() == 0, count(Parity::isLog, 6) + " logs left");
+        Set<BlockPos> keys2 = keys();
+        check("placed: key removed when the log is mined", keys2.size() == 4 && !keys2.contains(p(0, 0, 0)), keys2.toString());
+
+        // log cabin built before install (no keys, no natural leaves)
+        plot();
+        for (int dx : new int[] {0, 4}) for (int dz : new int[] {0, 4}) cmd("fill " + at(dx, 0, dz) + " " + at(dx, 3, dz) + " minecraft:spruce_log");
+        cmd("fill " + at(0, 4, 0) + " " + at(4, 4, 0) + " minecraft:spruce_log[axis=x]");
+        cmd("fill " + at(0, 4, 4) + " " + at(4, 4, 4) + " minecraft:spruce_log[axis=x]");
+        int cabin = count(Parity::isLog, 8);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        check("cabin (no leaves): only the chopped log", count(Parity::isLog, 8) == cabin - 1 && displays() == 0, cabin + " -> " + count(Parity::isLog, 8));
+
+        // cabin wall touching a natural tree's canopy
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        cmd("fill " + at(3, 0, -3) + " " + at(3, 4, 3) + " minecraft:oak_log");
+        tick(40);
+        int wall = 35;
+        hold("minecraft:iron_axe");
+        chop(3, 0, 0);
+        check("wall touching a canopy: chopping the wall takes one log", blocks("minecraft:oak_log", 8) == 7 + wall - 1 && displays() == 0,
+            "oak logs " + blocks("minecraft:oak_log", 8) + " (tree 7 + wall " + wall + ")");
+        chop(0, 0, 0);
+        int wallLeft = logsIn(3, 0, -3, 3, 4, 3);
+        check("wall touching a canopy: felling the tree leaves the wall", wallLeft == wall - 1 && count(Parity::isLog, 2) == 0,
+            "wall logs " + wallLeft + ", trunk logs " + logsIn(0, 0, 0, 0, 40, 0));
+        finish(120);
+
+        // player-built log platform attached to a natural trunk
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        tick(40);
+        holdCmd("minecraft:oak_log 64");
+        stand(4, -3, 0);
+        place(p(0, 1, 0), Direction.EAST);
+        place(p(1, 1, 0), Direction.EAST);
+        place(p(2, 1, 0), Direction.EAST);
+        stand(-2, 0, -90);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        int platform = logsIn(1, 1, 0, 3, 1, 0);
+        check("player logs attached to a trunk survive the felling", platform == 3 && logsIn(0, -1, 0, 0, 40, 0) == 0,
+            platform + " of 3 placed logs, trunk logs left " + logsIn(0, -1, 0, 0, 40, 0));
+        finish(120);
+    }
+
+    static void neighbours() {
+        // two trees whose canopies overlap
+        plot();
+        customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+        customTree(4, 0, 6, 2, "oak_log", "oak_leaves");
+        tick(40);
+        int bLeaves = natLeavesIn(3, 0, -2, 6, 8, 2);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        int bLogs = logsIn(4, 0, 0, 4, 5, 0);
+        int bLeaves2 = natLeavesIn(3, 0, -2, 6, 8, 2);
+        check("overlapping canopies: neighbour's trunk untouched", bLogs == 6, bLogs + " of 6");
+        check("overlapping canopies: neighbour keeps its own leaves", bLeaves2 == bLeaves, bLeaves + " -> " + bLeaves2);
+        int gone = natLeavesIn(-2, 0, -2, 1, 8, 2);
+        check("overlapping canopies: felled tree's leaves gone", gone == 0, gone + " left");
+        finish(120);
+        tick(20);
+        String lc = leafCheck(1, 0, -3, 7, 8, 3);
+        check("overlapping canopies: neighbour's leaves stay attached (no distance 7)", !lc.matches(".*[{ ,]7=.*"), lc);
+
+        // a branch of logs joins two trees
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        customTree(6, 0, 7, 2, "oak_log", "oak_leaves");
+        cmd("fill " + at(1, 3, 0) + " " + at(5, 3, 0) + " minecraft:oak_log[axis=x]");
+        tick(40);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        int bTrunk = logsIn(6, 0, 0, 6, 6, 0), aTrunk = logsIn(0, 0, 0, 0, 6, 0), bridge = logsIn(1, 3, 0, 5, 3, 0);
+        check("log bridge: felled tree's trunk gone", aTrunk == 0, aTrunk + " left");
+        check("log bridge: neighbour's trunk untouched", bTrunk == 7, bTrunk + " of 7");
+        check("log bridge: bridge split between the trees", bridge >= 2 && bridge <= 3, bridge + " of 5 bridge logs stay with the neighbour");
+        finish(120);
+
+        // real dark oaks growing into each other
+        plot();
+        feature("dark_oak", 0, 0);
+        feature("dark_oak", 5, 2);
+        tick(40);
+        int before = logsIn(5, 0, 2, 6, 0, 3);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        int after = logsIn(5, 0, 2, 6, 20, 3), mine = logsIn(0, 0, 0, 1, 20, 1);
+        check("dark oak pair: chopped trunk fully felled", mine == 0, mine + " logs left in its 2x2 trunk");
+        check("dark oak pair: neighbour's trunk still standing", before == 4 && after >= 8, "base " + before + ", trunk logs " + after);
+        finish(120);
     }
 
     static void direction() {

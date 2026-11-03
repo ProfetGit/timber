@@ -12,6 +12,7 @@
   },
   "mixins": [
     "BlockDisplayAccess",
+    "BlockItemMixin",
     "DisplayAccess",
     "EntityMixin"
   ]
