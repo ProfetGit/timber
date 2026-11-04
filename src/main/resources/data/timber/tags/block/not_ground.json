@@ -5,8 +5,8 @@
     "#minecraft:leaves",
     "minecraft:cocoa",
     "minecraft:mangrove_propagule",
-    "minecraft:pale_hanging_moss",
-    "minecraft:creaking_heart",
+    {"id": "minecraft:pale_hanging_moss", "required": false},
+    {"id": "minecraft:creaking_heart", "required": false},
     {"id": "minecraft:shelf_mushroom", "required": false}
   ]
 }

@@ -17,17 +17,25 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
         TimberClient.init(this);
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> TimberClient.joined());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TimberClient.left());
+//? if >=1.20.5 {
         ClientPlayNetworking.registerGlobalReceiver(TreeFall.TYPE, (payload, ctx) -> {
             if (ctx.client().isSameThread()) TimberClient.received(payload);
             else ctx.client().execute(() -> TimberClient.received(payload));
         });
-//? if >=1.21.2 {
+//?} else {
+/*        ClientPlayNetworking.registerGlobalReceiver(TreeFall.TYPE.id(), (client, handler, buf, sender) -> {
+            TreeFall payload = TreeFall.CODEC.decode(buf);
+            client.execute(() -> TimberClient.received(payload));
+        });
+*///?}
+//? if >=26.1 {
         ClientTickEvents.END_LEVEL_TICK.register(TimberClient::levelTick);
 //?} else {
 /*        ClientTickEvents.END_WORLD_TICK.register(TimberClient::levelTick);
 *///?}
     }
 
+//? if >=1.20.5 {
     @Override
     public boolean canSendToServer(CustomPacketPayload.Type<?> type) {
         return ClientPlayNetworking.canSend(type);
@@ -37,5 +45,19 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
     public void sendToServer(CustomPacketPayload payload) {
         ClientPlayNetworking.send(payload);
     }
+//?} else {
+/*    @Override
+    public boolean canSendToServer(CustomPacketPayload.Type<?> type) {
+        return ClientPlayNetworking.canSend(type.id());
+    }
+
+    // Hello is the only client-to-server payload
+    @Override
+    public void sendToServer(CustomPacketPayload payload) {
+        net.minecraft.network.FriendlyByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
+        io.github.profetgit.vanillatimber.net.Hello.CODEC.encode(buf, (io.github.profetgit.vanillatimber.net.Hello) payload);
+        ClientPlayNetworking.send(io.github.profetgit.vanillatimber.net.Hello.TYPE.id(), buf);
+    }
+*///?}
 }
 //?}

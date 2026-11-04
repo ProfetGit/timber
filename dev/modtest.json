@@ -39,6 +39,39 @@
         {
           "mc": "26.3",
           "loader": "fabric"
+        },
+        {
+          "mc": [
+            "26.2",
+            "1.21.11",
+            "1.21.8",
+            "1.21.4",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": "fabric",
+          "scenes": "smoke"
+        },
+        {
+          "mc": [
+            "26.3",
+            "26.2",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": [
+            "neoforge",
+            "forge"
+          ],
+          "scenes": "smoke"
+        },
+        {
+          "mc": [
+            "26.3",
+            "1.21.1"
+          ],
+          "loader": "quilt",
+          "scenes": "smoke"
         }
       ],
       "mp": [
@@ -53,6 +86,83 @@
         {
           "mc": "26.3",
           "loader": "fabric"
+        },
+        {
+          "mc": [
+            "26.2",
+            "1.21.11",
+            "1.21.8",
+            "1.21.4",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": "fabric",
+          "scenes": "smoke,fall,mesh"
+        },
+        {
+          "mc": [
+            "26.3",
+            "26.2",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": [
+            "neoforge",
+            "forge"
+          ],
+          "scenes": "smoke,fall,mesh"
+        },
+        {
+          "mc": [
+            "26.3",
+            "26.2",
+            "1.21.11",
+            "1.21.8",
+            "1.21.4",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": "fabric",
+          "vars": {
+            "scene": "parity",
+            "groups": [
+              "oak",
+              "replant",
+              "knock",
+              "claims",
+              "durability"
+            ]
+          }
+        },
+        {
+          "mc": [
+            "26.3",
+            "26.2",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": [
+            "neoforge",
+            "forge"
+          ],
+          "vars": {
+            "scene": "parity",
+            "groups": [
+              "oak",
+              "replant",
+              "knock",
+              "claims",
+              "durability"
+            ]
+          }
+        },
+        {
+          "mc": [
+            "26.3",
+            "1.21.1"
+          ],
+          "loader": "quilt",
+          "scenes": "smoke"
         }
       ],
       "mp": [

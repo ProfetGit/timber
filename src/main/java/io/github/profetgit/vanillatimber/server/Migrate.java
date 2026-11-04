@@ -11,7 +11,7 @@ import java.util.UUID;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
-//? if >=1.21.2 {
+//? if >=1.21.5 {
 import net.minecraft.core.component.DataComponents;
 //?}
 import net.minecraft.nbt.CompoundTag;
@@ -25,7 +25,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
-//? if >=1.21.2
+//? if >=1.21.9
 import net.minecraft.server.players.NameAndId;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.entity.Display;
@@ -33,14 +33,15 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Marker;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-//? if >=1.21.2 {
+//? if >=1.21.5 {
 import net.minecraft.world.item.component.CustomData;
 //?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
-//? if >=1.21.2
+//? if >=1.21.5
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.scores.Objective;
+//? if >=1.20.3
 import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.Scoreboard;
 
@@ -67,7 +68,7 @@ public final class Migrate extends SavedData {
     private static final Codec<Migrate> CODEC = RecordCodecBuilder.create(i -> i.group(
         Codec.STRING.optionalFieldOf("notice", "").forGetter(d -> d.notice)
     ).apply(i, Migrate::new));
-//? if >=1.21.2 {
+//? if >=1.21.5 {
     private static final SavedDataType<Migrate> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "migrate"),
         () -> new Migrate(""), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 //?} else {
@@ -93,7 +94,7 @@ public final class Migrate extends SavedData {
     }
 
     private static Migrate get(MinecraftServer server) {
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         return server.overworld().getDataStorage().computeIfAbsent(TYPE);
 //?} else {
 /*        return server.overworld().getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_migrate");
@@ -131,7 +132,7 @@ public final class Migrate extends SavedData {
     static void start(MinecraftServer server) {
         if (inert) return;
         Scoreboard sb = server.getScoreboard();
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         int versionId = server.getCommandStorage().get(Api.META).getIntOr("version_id", -1);
 //?} else {
 /*        CompoundTag metaNow = server.getCommandStorage().get(Api.META);
@@ -175,21 +176,37 @@ public final class Migrate extends SavedData {
         int config = 0;
         Objective scores = sb.getObjective("timber.config");
         if (scores != null) {
+//? if >=1.20.3 {
             for (PlayerScoreEntry e : sb.listPlayerScores(scores)) {
-                Config.Key key = Config.Key.of(e.owner().startsWith("#") ? e.owner().substring(1) : e.owner());
+                String owner = e.owner();
+                int value = e.value();
+//?} else {
+/*            for (net.minecraft.world.scores.Score e : sb.getPlayerScores(scores)) {
+                String owner = e.getOwner();
+                int value = e.getScore();
+*///?}
+                Config.Key key = Config.Key.of(owner.startsWith("#") ? owner.substring(1) : owner);
                 if (key == null || Config.authored(key)) continue;
-                Config.set(key, e.value());
+                Config.set(key, value);
                 config++;
             }
         }
         int toggles = 0, unknown = 0;
         Objective off = sb.getObjective("timber.off");
         if (off != null) {
+//? if >=1.20.3 {
             for (PlayerScoreEntry e : sb.listPlayerScores(off)) {
-                if (e.value() != 1) continue;
-                UUID id = uuid(server, e.owner());
+                String owner = e.owner();
+                int value = e.value();
+//?} else {
+/*            for (net.minecraft.world.scores.Score e : sb.getPlayerScores(off)) {
+                String owner = e.getOwner();
+                int value = e.getScore();
+*///?}
+                if (value != 1) continue;
+                UUID id = uuid(server, owner);
                 if (id == null) {
-                    Timber.LOG.warn("Timber: 1.3.x toggle of unknown player {} not imported", e.owner());
+                    Timber.LOG.warn("Timber: 1.3.x toggle of unknown player {} not imported", owner);
                     unknown++;
                     continue;
                 }
@@ -230,7 +247,7 @@ public final class Migrate extends SavedData {
     private static UUID uuid(MinecraftServer server, String name) {
         ServerPlayer online = server.getPlayerList().getPlayerByName(name);
         if (online != null) return online.getUUID();
-//? if >=1.21.2 {
+//? if >=1.21.9 {
         Optional<NameAndId> cached = server.services().nameToIdCache().get(name);
         return cached.map(NameAndId::id).orElse(null);
 //?} else {
@@ -259,7 +276,7 @@ public final class Migrate extends SavedData {
     /** Tells the operators once that the old pack was replaced. */
     private static void tell(MinecraftServer server, ServerPlayer player) {
         Migrate state = get(server);
-//? if >=1.21.2 {
+//? if >=1.21.9 {
         if (state.notice.isEmpty() || !server.getPlayerList().isOp(player.nameAndId())) return;
 //?} else {
 /*        if (state.notice.isEmpty() || !server.getPlayerList().isOp(player.getGameProfile())) return;
@@ -278,7 +295,7 @@ public final class Migrate extends SavedData {
         while ((e = QUEUE.poll()) != null) {
             if (e.isRemoved() || !(e.level() instanceof ServerLevel level)) continue;
             if (e instanceof Marker && e.entityTags().contains("timber.ctl")) {
-//? if >=1.21.2 {
+//? if >=1.21.5 {
                 CustomData data = e.get(DataComponents.CUSTOM_DATA);
                 List<ItemStack> loot = data == null ? List.of() : loot(server, data.copyTag());
 //?} else {
@@ -302,14 +319,14 @@ public final class Migrate extends SavedData {
     public static List<ItemStack> loot(MinecraftServer server, CompoundTag data) {
         List<ItemStack> out = new ArrayList<>();
         var ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         for (Tag t : data.getListOrEmpty("drops")) {
 //?} else {
 /*        for (Tag t : data.getList("drops", 10)) {
 *///?}
             if (t instanceof CompoundTag c && c.get("Item") instanceof CompoundTag item) ItemStack.CODEC.parse(ops, item).result().ifPresent(out::add);
         }
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         for (Tag t : data.getListOrEmpty("ldrops")) ItemStack.CODEC.parse(ops, t).result().ifPresent(out::add);
 //?} else {
 /*        for (Tag t : data.getList("ldrops", 10)) ItemStack.CODEC.parse(ops, t).result().ifPresent(out::add);

@@ -82,6 +82,7 @@ final class MpHost {
         return n;
     }
 
+//? if >=26.1 {
     static void hideHud(Minecraft mc) {
         try {
             java.lang.reflect.Field f = mc.gui.hud.getClass().getDeclaredField("isHidden");
@@ -91,6 +92,11 @@ final class MpHost {
             SelfTest.record("mp hud hidden", false, e.toString());
         }
     }
+//?} else {
+/*    static void hideHud(Minecraft mc) {
+        mc.options.hideGui = true;
+    }
+*///?}
 
     /** Plants, cues, chops and records one tree at (x, -60, 8). */
     private static void tree(Script s, Scenarios.Fix f, int x, String name, boolean probe) {
@@ -107,7 +113,7 @@ final class MpHost {
             cmd(mc, "fill " + box.formatted(-45, -30) + "minecraft:air");
             try (var in = MpHost.class.getResourceAsStream("/selftest/trees/" + f.file() + ".mcfunction")) {
                 for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
-                    if (!line.isBlank()) cmd(mc, "execute positioned " + x + " -60 8 run " + line.trim());
+                    if (!line.isBlank()) cmd(mc, "execute positioned " + x + " -60 8 run " + Scenarios.fixtureLine(line));
                 }
             } catch (IOException e) {
                 throw new IllegalStateException("fixture " + f.file(), e);

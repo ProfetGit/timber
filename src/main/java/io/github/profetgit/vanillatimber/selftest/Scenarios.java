@@ -38,18 +38,24 @@ final class Scenarios {
 
     static Script build() {
         Script s = new Script();
-//? if >=1.21.2 {
+//? if >=26.1 {
         s.run(mc -> mc.createWorldOpenFlows().createFreshLevel("vanilla_timbertest-" + System.currentTimeMillis(),
                 new LevelSettings("vanilla_timbertest", GameType.SURVIVAL,
                     new LevelSettings.DifficultySettings(Difficulty.PEACEFUL, false, false), true, WorldDataConfiguration.DEFAULT),
                 new WorldOptions(42L, false, false), WorldPresets::createTestWorldDimensions, mc.gui.screen()))
-//?} else {
+//?} else if >=1.21 {
 /*        s.run(mc -> mc.createWorldOpenFlows().createFreshLevel("vanilla_timbertest-" + System.currentTimeMillis(),
-                new LevelSettings("vanilla_timbertest", GameType.SURVIVAL, false, Difficulty.PEACEFUL, true, new net.minecraft.world.level.GameRules(),
+                new LevelSettings("vanilla_timbertest", GameType.SURVIVAL, false, Difficulty.PEACEFUL, true, freshRules(),
                     WorldDataConfiguration.DEFAULT),
                 new WorldOptions(42L, false, false),
-                access -> access.registryOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions(),
+                access -> access.lookupOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET).getOrThrow(WorldPresets.FLAT).value().createWorldDimensions(),
                 mc.gui.screen()))
+*///?} else {
+/*        s.run(mc -> mc.createWorldOpenFlows().createFreshLevel("vanilla_timbertest-" + System.currentTimeMillis(),
+                new LevelSettings("vanilla_timbertest", GameType.SURVIVAL, false, Difficulty.PEACEFUL, true, freshRules(),
+                    WorldDataConfiguration.DEFAULT),
+                new WorldOptions(42L, false, false),
+                access -> access.registryOrThrow(net.minecraft.core.registries.Registries.WORLD_PRESET).getHolderOrThrow(WorldPresets.FLAT).value().createWorldDimensions()))
 *///?}
             .until("world to load", 2400, mc -> mc.player != null && mc.level != null && mc.gui.screen() == null)
             .waitTicks(40)
@@ -75,6 +81,17 @@ final class Scenarios {
                int rs, int px, int py, int pz) {}
 
     // dev/m1/sample136.py: tree at (8, -60, 8), chopped there by a player at yaw -90 (falls at 303.75)
+//? if >=1.21.2 <26.1 {
+/*    private static net.minecraft.world.level.gamerules.GameRules freshRules() {
+        return new net.minecraft.world.level.gamerules.GameRules(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
+    }
+
+*///?} else if <1.21.2 {
+/*    private static net.minecraft.world.level.gamerules.GameRules freshRules() {
+        return new net.minecraft.world.level.gamerules.GameRules();
+    }
+
+*///?}
     static final Fix[] FIXES = {
         new Fix("oak", "oak_c", 0, 93, 11, 7, 10.80, 4, 1, 1, 0, 2, 8908, -58998, 8772),
         new Fix("birch", "birch_a", 48, 93, 12, 8, 9.45, 5, 1, 1, 0, 3, 8908, -58998, 8772),
@@ -94,11 +111,20 @@ final class Scenarios {
         CommandSourceStack src = root.withPosition(new Vec3(x, -60, 8));
         try (var in = Scenarios.class.getResourceAsStream("/selftest/trees/" + file + ".mcfunction")) {
             for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
-                if (!line.isBlank()) server.getCommands().performPrefixedCommand(src, line.trim());
+                if (!line.isBlank()) server.getCommands().performPrefixedCommand(src, fixtureLine(line));
             }
         } catch (java.io.IOException e) {
             throw new IllegalStateException("fixture " + file, e);
         }
+    }
+
+    /** A fixture line: they use 1.21.5's "setblock ... strict"; older versions only know replace (as the 1.3.6 pack's 1.21.4 build). */
+    static String fixtureLine(String line) {
+        String s = line.trim();
+//? if <1.21.5 {
+        /*if (s.endsWith(" strict")) s = s.substring(0, s.length() - 7) + " replace";*/
+//?}
+        return s;
     }
 
     /** Chops the log at (x, -60, 8) as the sampler's player: survival, netherite axe, yaw -90. */
@@ -458,7 +484,7 @@ final class Scenarios {
         if (rs == null) return null;
         com.mojang.math.Transformation tr = rs.transformation().get(pt >= 1 ? 1 : d.calculateInterpolationProgress(pt));
         Vec3 pos = d.getPosition(pt);
-//? if >=1.21.2 {
+//? if >=1.21.4 {
         float yr = d.getYRot(pt), xr = d.getXRot(pt);
 //?} else {
 /*        float yr = net.minecraft.util.Mth.rotLerp(pt, d.yRotO, d.getYRot()), xr = net.minecraft.util.Mth.lerp(pt, d.xRotO, d.getXRot());

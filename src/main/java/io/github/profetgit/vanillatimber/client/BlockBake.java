@@ -8,7 +8,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=26.1 {
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
@@ -16,13 +16,21 @@ import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.util.RandomSource;
-//?} else {
+//?} else if >=1.21.5 {
+/*import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.util.RandomSource;
+*///?} else {
 /*import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.util.RandomSource;
 *///?}
+//? if >=1.21.11 <26.1
+/*import net.minecraft.client.model.geom.builders.UVPair;*/
 
 /**
  * The version's block models as the mesh wants them (the other half of the port seam, beside {@link RenderPass}): per
@@ -44,7 +52,7 @@ final class BlockBake {
     private static Direction shadeOverride(BakedQuad quad) {
         return quad.materialInfo().shadeDirectionOverride();
     }
-//?} else if >=1.21.2 {
+//?} else if >=26.1 {
 /*    private static Direction shadeOverride(BakedQuad quad) {
         return quad.materialInfo().shade() ? null : Direction.UP;
     }
@@ -63,7 +71,7 @@ final class BlockBake {
     void end() {
         rest.end();
     }
-//? if >=1.21.2 {
+//? if >=26.1 {
     private final boolean cutoutLeaves = mc.options.cutoutLeaves().get();
     private final List<BlockStateModelPart> parts = new ArrayList<>();
 
@@ -116,7 +124,51 @@ final class BlockBake {
         }
         return out;
     }
-//?} else {
+//?} else if >=1.21.5 {
+/*    private final List<BlockModelPart> parts = new ArrayList<>();
+
+    BlockBake(ClientLevel level, TreeFall msg) {
+        this.level = level;
+        rest = new RestLight(level, msg);
+    }
+
+    // the quads of the block at cell; the list is reused by the next call
+    List<Quad> block(BlockPos cell, BlockState state) {
+        parts.clear();
+        mc.getBlockRenderer().getBlockModel(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
+        rest.run(cell, state);
+        RenderPass.Layer layer = layer(state);
+        out.clear();
+        for (BlockModelPart part : parts) {
+            for (int d = 0; d <= 6; d++) {
+                for (BakedQuad quad : part.getQuads(d < 6 ? DIRS[d] : null)) {
+                    Quad q = new Quad();
+                    q.layer = layer;
+                    if (quad.isTinted()) {
+                        int c = mc.getBlockColors().getColor(state, level, cell, quad.tintIndex());
+                        q.color = c == -1 ? -1 : c | 0xFF000000;
+                    }
+                    q.shade = (quad.shade() ? quad.direction() : Direction.UP).ordinal();
+                    q.emission = quad.lightEmission();
+                    q.rest = rest.get(quad);
+                    corners(quad, q);
+                    out.add(q);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static RenderPass.Layer layer(BlockState state) {
+        ChunkSectionLayer layer = ItemBlockRenderTypes.getChunkRenderType(state);
+        return switch (layer) {
+            case SOLID -> RenderPass.Layer.SOLID;
+            case CUTOUT -> RenderPass.Layer.CUTOUT;
+            case TRANSLUCENT, TRIPWIRE -> RenderPass.Layer.TRANSLUCENT;
+            default -> RenderPass.Layer.CUTOUT_MIPPED;
+        };
+    }
+*///?} else {
 /*    BlockBake(ClientLevel level, TreeFall msg) {
         this.level = level;
         rest = new RestLight(level, msg);
@@ -158,6 +210,29 @@ final class BlockBake {
         if (type == RenderType.cutout()) return RenderPass.Layer.CUTOUT;
         if (type == RenderType.cutoutMipped()) return RenderPass.Layer.CUTOUT_MIPPED;
         return RenderPass.Layer.TRANSLUCENT;
+    }
+*///?}
+//? if >=1.21.11 <26.1 {
+/*    private static void corners(BakedQuad quad, Quad q) {
+        for (int v = 0; v < 4; v++) {
+            var p = quad.position(v);
+            q.pos[v * 3] = p.x();
+            q.pos[v * 3 + 1] = p.y();
+            q.pos[v * 3 + 2] = p.z();
+            long packed = quad.packedUV(v);
+            q.uv[v * 2] = UVPair.unpackU(packed);
+            q.uv[v * 2 + 1] = UVPair.unpackV(packed);
+        }
+    }
+*///?}
+//? if >=1.21.5 <1.21.11 {
+/*    private static void corners(BakedQuad quad, Quad q) {
+        int[] vertices = quad.vertices();
+        for (int v = 0; v < 4; v++) {
+            for (int i = 0; i < 3; i++) q.pos[v * 3 + i] = Float.intBitsToFloat(vertices[v * 8 + i]);
+            q.uv[v * 2] = Float.intBitsToFloat(vertices[v * 8 + 4]);
+            q.uv[v * 2 + 1] = Float.intBitsToFloat(vertices[v * 8 + 5]);
+        }
     }
 *///?}
 }

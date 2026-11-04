@@ -11,7 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ColorResolver;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=26.1 {
 import com.mojang.blaze3d.vertex.QuadInstance;
 import net.minecraft.client.renderer.block.BlockModelLighter;
 import net.minecraft.client.renderer.block.BlockQuadOutput;
@@ -29,6 +29,8 @@ import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
 *///?}
+//? if >=1.21.5 <26.1
+/*import net.minecraft.client.renderer.block.model.BlockModelPart;*/
 
 /**
  * Vanilla's tessellation of each tree block where it stands (SeamlessDisplays {@code Baker}): per vertex the terrain's
@@ -38,7 +40,7 @@ import net.minecraft.world.level.material.FluidState;
  * light is the inside of a block (0), and once the fall turns them to the camera they would draw black where 1.3.6's
  * displays draw lit, so they take the path light like a display. Each quad once, keyed by identity.
  */
-//? if >=1.21.2 {
+//? if >=26.1 {
 final class RestLight implements BlockQuadOutput {
     private static final CardinalLighting FLAT = new CardinalLighting(1f, 1f, 1f, 1f, 1f, 1f);
     private final ModelBlockRenderer renderer;
@@ -146,7 +148,25 @@ final class RestLight implements BlockQuadOutput {
         }
     }
 
-    void run(BlockPos cell, BlockState state) {
+    // the quad's 4 colours then 4 packed lights from the last run, or null if vanilla didn't emit it
+    int[] get(Object quad) {
+        return quads.get(quad);
+    }
+*///?}
+//? if >=1.21.5 <26.1 {
+/*    void run(BlockPos cell, BlockState state) {
+        quads.clear();
+        BlockPos at = cell.immutable();
+        java.util.List<BlockModelPart> parts = Minecraft.getInstance().getBlockRenderer().getBlockModel(state).collectParts(RandomSource.create(state.getSeed(at)));
+        ModelBlockRenderer.enableCaching();
+        try {
+            renderer.tesselateBlock(getter, parts, state, at, new PoseStack(), sink, true, OverlayTexture.NO_OVERLAY);
+        } finally {
+            ModelBlockRenderer.clearCache();
+        }
+    }
+*///?} else if <26.1 {
+/*    void run(BlockPos cell, BlockState state) {
         quads.clear();
         BlockPos at = cell.immutable();
         ModelBlockRenderer.enableCaching();
@@ -157,18 +177,55 @@ final class RestLight implements BlockQuadOutput {
             ModelBlockRenderer.clearCache();
         }
     }
-
-    // the quad's 4 colours then 4 packed lights from the last run, or null if vanilla didn't emit it
-    int[] get(Object quad) {
-        return quads.get(quad);
-    }
-
+*///?}
+//? if <26.1 {
+/*
     // vanilla hands each quad over whole: its brightness (AO, shade left out by the getter) and light per vertex, and the tint
     private final class Sink implements VertexConsumer {
+*///?}
+//? if >=1.21.11 <26.1 {
+/*        @Override
+        public void putBulkData(PoseStack.Pose pose, BakedQuad quad, float[] brightness, float r, float g, float b, float a, int[] lights, int overlay) {
+            int[] v = new int[8];
+            for (int i = 0; i < 4; i++) {
+                v[i] = 0xFF000000 | (int) (255 * brightness[i] * r) << 16 | (int) (255 * brightness[i] * g) << 8 | (int) (255 * brightness[i] * b);
+                v[4 + i] = lights[i];
+            }
+            quads.put(quad, v);
+        }
+
         @Override
+        public VertexConsumer setColor(int argb) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer setLineWidth(float width) {
+            return this;
+        }
+*///?} else if >=1.21.5 <26.1 {
+/*        @Override
         public void putBulkData(PoseStack.Pose pose, BakedQuad quad, float[] brightness, float r, float g, float b, float a, int[] lights, int overlay,
                                 boolean readAlpha) {
-            int[] vertices = quad.getVertices(), v = new int[8];
+            colors(quad.vertices(), brightness, r, g, b, lights, quad);
+        }
+*///?} else if >=1.21 <26.1 {
+/*        @Override
+        public void putBulkData(PoseStack.Pose pose, BakedQuad quad, float[] brightness, float r, float g, float b, float a, int[] lights, int overlay,
+                                boolean readAlpha) {
+            colors(quad.getVertices(), brightness, r, g, b, lights, quad);
+        }
+*///?} else if <1.21 {
+/*        @Override
+        public void putBulkData(PoseStack.Pose pose, BakedQuad quad, float[] brightness, float r, float g, float b, int[] lights, int overlay,
+                                boolean readExisting) {
+            colors(quad.getVertices(), brightness, r, g, b, lights, quad);
+        }
+*///?}
+//? if <1.21.11 {
+/*
+        private void colors(int[] vertices, float[] brightness, float r, float g, float b, int[] lights, BakedQuad quad) {
+            int[] v = new int[8];
             for (int i = 0; i < 4; i++) {
                 int c = vertices[i * 8 + 3];
                 v[i] = 0xFF000000 | (int) ((c & 0xFF) * brightness[i] * r) << 16 | (int) ((c >> 8 & 0xFF) * brightness[i] * g) << 8
@@ -177,7 +234,9 @@ final class RestLight implements BlockQuadOutput {
             }
             quads.put(quad, v);
         }
-
+*///?}
+//? if >=1.21 <26.1 {
+/*
         @Override
         public VertexConsumer addVertex(float x, float y, float z) {
             return this;
@@ -208,6 +267,54 @@ final class RestLight implements BlockQuadOutput {
             return this;
         }
     }
+*///?}
+//? if <1.21 {
+/*
+        @Override
+        public VertexConsumer vertex(double x, double y, double z) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer color(int r, int g, int b, int a) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer uv(float u, float v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer overlayCoords(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer uv2(int u, int v) {
+            return this;
+        }
+
+        @Override
+        public VertexConsumer normal(float x, float y, float z) {
+            return this;
+        }
+
+        @Override
+        public void endVertex() {
+        }
+
+        @Override
+        public void defaultColor(int r, int g, int b, int a) {
+        }
+
+        @Override
+        public void unsetDefaultColor() {
+        }
+    }
+*///?}
+//? if <26.1 {
+/*
 
     private static final class Getter implements BlockAndTintGetter {
         ClientLevel level;
@@ -250,8 +357,8 @@ final class RestLight implements BlockQuadOutput {
         }
 
         @Override
-        public int getMinBuildHeight() {
-            return level.getMinBuildHeight();
+        public int getMinY() {
+            return level.getMinY();
         }
     }
 }

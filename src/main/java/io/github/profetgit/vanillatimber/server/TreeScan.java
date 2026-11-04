@@ -304,7 +304,7 @@ public final class TreeScan {
     }
 
     private static boolean heartBlock(BlockState s) {
-//? if >=1.21.2 {
+//? if >=1.21.4 {
         return s.is(Blocks.CREAKING_HEART);
 //?} else {
 /*        return false;

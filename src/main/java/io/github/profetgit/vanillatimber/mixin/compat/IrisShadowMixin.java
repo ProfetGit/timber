@@ -1,7 +1,7 @@
 package io.github.profetgit.vanillatimber.mixin.compat;
 
 import org.spongepowered.asm.mixin.Mixin;
-//? if >=1.21.2 {
+//? if >=26.1 {
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.profetgit.vanillatimber.client.ClientFalls;
@@ -20,9 +20,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * sun's camera. The falls join them here, so the mesh casts a shadow like the standing tree did. Applied only when
  * Iris has {@code renderEntities} with exactly the descriptor listed in {@code MixinPlugin}.
  */
+//? if >=26.1 {
 @Mixin(targets = "net.irisshaders.iris.shadows.ShadowRenderer")
+//?} else {
+/*@Mixin(net.minecraft.client.Minecraft.class) // before 26.1 Iris's shadow pass draws entities itself: no hook, MixinPlugin skips this
+*///?}
 abstract class IrisShadowMixin {
-//? if >=1.21.2 {
+//? if >=26.1 {
     @Shadow
     @Final
     private SubmitNodeStorage submitNodeStorage;

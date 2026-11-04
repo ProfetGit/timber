@@ -3,9 +3,9 @@
     "minecraft:vine",
     "minecraft:cocoa",
     "minecraft:mangrove_propagule",
-    "minecraft:pale_hanging_moss",
-    "minecraft:resin_clump",
-    "minecraft:creaking_heart",
+    {"id": "minecraft:pale_hanging_moss", "required": false},
+    {"id": "minecraft:resin_clump", "required": false},
+    {"id": "minecraft:creaking_heart", "required": false},
     {"id": "minecraft:shelf_mushroom", "required": false}
   ]
 }

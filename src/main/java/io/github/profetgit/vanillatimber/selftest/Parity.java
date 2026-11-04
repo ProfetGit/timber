@@ -236,16 +236,28 @@ final class Parity {
     static List<String> cmd(String command) {
         return on(() -> {
             List<String> out = new ArrayList<>();
-            CommandSource capture = (CommandSource) java.lang.reflect.Proxy.newProxyInstance(CommandSource.class.getClassLoader(),
-                new Class<?>[] {CommandSource.class}, (proxy, m, a) -> switch (m.getName()) {
-                    case "sendSystemMessage" -> {
-                        out.add(((Component) a[0]).getString());
-                        yield null;
-                    }
-                    case "acceptsSuccess", "acceptsFailure" -> true;
-                    case "shouldInformAdmins" -> false;
-                    default -> m.invoke(server, a);
-                });
+            // a class, not a reflective proxy: 1.x Fabric runs with intermediary method names
+            CommandSource capture = new CommandSource() {
+                @Override
+                public void sendSystemMessage(Component c) {
+                    out.add(c.getString());
+                }
+
+                @Override
+                public boolean acceptsSuccess() {
+                    return true;
+                }
+
+                @Override
+                public boolean acceptsFailure() {
+                    return true;
+                }
+
+                @Override
+                public boolean shouldInformAdmins() {
+                    return false;
+                }
+            };
             server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSource(capture), command);
             return out;
         });
@@ -353,6 +365,10 @@ final class Parity {
 
     /** Holds a stack with components (damage, enchantments): the {@code item replace} command, as 1.3.6 did. */
     static void holdCmd(String item) {
+//? if <1.20.5 {
+        /*item = item.replace("[minecraft:damage=245]", "{Damage:245}").replace("[minecraft:unbreakable={}]", "{Unbreakable:1b}")
+            .replace("[minecraft:enchantments={\"minecraft:unbreaking\":3}]", "{Enchantments:[{id:\"minecraft:unbreaking\",lvl:3s}]}");*/
+//?}
         cmd("item replace entity " + who() + " weapon.mainhand with " + item);
     }
 
@@ -538,18 +554,8 @@ final class Parity {
 
     // ---- display geometry (server side, from the entity data) ----
 
-    private static java.lang.reflect.Method xfMethod;
-
     static Transformation xf(Display d) {
-        try {
-            if (xfMethod == null) {
-                xfMethod = Display.class.getDeclaredMethod("createTransformation", net.minecraft.network.syncher.SynchedEntityData.class);
-                xfMethod.setAccessible(true);
-            }
-            return (Transformation) xfMethod.invoke(null, d.getEntityData());
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
+        return io.github.profetgit.vanillatimber.mixin.DisplayAccess.timber$createTransformation(d.getEntityData());
     }
 
     /** World position of a display's block-local point v as the client draws it: entity yaw/pitch, then the transformation. */
@@ -1782,7 +1788,7 @@ final class Parity {
         }
         on(() -> {
             var src = server.createCommandSourceStack().withSuppressedOutput().withPosition(Vec3.atLowerCornerOf(p(0, 0, 0)));
-            for (String line : text.split("\n")) if (!line.isBlank()) server.getCommands().performPrefixedCommand(src, line.trim());
+            for (String line : text.split("\n")) if (!line.isBlank()) server.getCommands().performPrefixedCommand(src, Scenarios.fixtureLine(line));
             return null;
         });
     }
@@ -2478,15 +2484,26 @@ final class Parity {
         String id = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.DATAPACK_DIR).getParent().getFileName().toString();
         MinecraftServer old = server;
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-//? if >=1.21.2 {
+//? if >=1.21.9 {
         client(m -> m.disconnectFromWorld(Component.literal("self-test reopen")));
-//?} else {
+//?} else if >=1.21.2 {
+/*        client(m -> m.disconnect(new net.minecraft.client.gui.screens.GenericMessageScreen(Component.literal("self-test reopen")), false));
+*///?} else if >=1.21 {
 /*        client(m -> m.disconnect(new net.minecraft.client.gui.screens.GenericMessageScreen(Component.literal("self-test reopen"))));
+*///?} else {
+/*        client(m -> {
+            m.level.disconnect();
+            m.clearLevel(new net.minecraft.client.gui.screens.GenericMessageScreen(Component.literal("self-test reopen")));
+        });
 *///?}
         for (int i = 0; i < 2400 && (old.isRunning() || mc.getSingleplayerServer() != null || mc.level != null); i++) sleep(50);
         if (old.isRunning() || mc.getSingleplayerServer() != null) throw new IllegalStateException("world did not close");
         info("world closed, reopening " + id);
+//? if >=1.21 {
         client(m -> m.createWorldOpenFlows().openWorld(id, () -> { }));
+//?} else {
+/*        client(m -> m.createWorldOpenFlows().loadLevel(new net.minecraft.client.gui.screens.TitleScreen(), id));
+*///?}
         MinecraftServer fresh = null;
         for (int i = 0; i < 4800; i++) {
             if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.BackupConfirmScreen) {
@@ -2811,7 +2828,7 @@ final class Parity {
             on(() -> {
                 for (net.minecraft.world.entity.Entity e : level.getAllEntities()) {
                     if (!(e instanceof net.minecraft.world.entity.Marker) || !e.entityTags().contains("timber.ctl")) continue;
-//? if >=1.21.2 {
+//? if >=1.21.5 {
                     var data = e.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
                     held[0] = data == null ? List.of() : Migrate.loot(server, data.copyTag());
 //?} else {

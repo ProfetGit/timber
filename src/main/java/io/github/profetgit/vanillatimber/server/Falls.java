@@ -20,7 +20,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.world.level.gamerules.GameRules;
 //?} else {
 /*import net.minecraft.world.level.GameRules;
@@ -97,7 +97,7 @@ public final class Falls {
             return;
         }
         if (!wear(level, player, tree.logs())) return;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
         Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
 //?} else {
 /*        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS));
@@ -153,7 +153,14 @@ public final class Falls {
     private static boolean wear(ServerLevel level, ServerPlayer player, int logs) {
         ItemStack tool = player.getMainHandItem();
         if (!Config.on(Config.Key.DURABILITY) || !tool.isDamageableItem() || logs <= 0) return true;
+//? if >=1.21 {
         int dmg = EnchantmentHelper.processDurabilityChange(level, tool, logs);
+//?} else {
+/*        int unbreaking = EnchantmentHelper.getItemEnchantmentLevel(net.minecraft.world.item.enchantment.Enchantments.UNBREAKING, tool), dmg = 0;
+        for (int i = 0; i < logs; i++) {
+            if (!net.minecraft.world.item.enchantment.DigDurabilityEnchantment.shouldIgnoreDurabilityDrop(tool, unbreaking, level.random)) dmg++;
+        }
+*///?}
         int left = tool.getMaxDamage() - tool.getDamageValue() - 1;
         if (dmg > left) {
             refuse(player, "worn", "Timber: your axe is too worn to fell this tree");

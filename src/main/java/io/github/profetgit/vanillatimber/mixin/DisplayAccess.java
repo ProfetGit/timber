@@ -11,6 +11,7 @@ public interface DisplayAccess {
     @Invoker("setTransformation")
     void timber$setTransformation(Transformation transformation);
 
+//? if >=1.20.2 {
     @Invoker("setTransformationInterpolationDuration")
     void timber$setInterpolationDuration(int duration);
 
@@ -20,6 +21,20 @@ public interface DisplayAccess {
 
     @Invoker("setPosRotInterpolationDuration")
     void timber$setTeleportDuration(int duration);
+//?} else {
+/*    @Invoker("setInterpolationDuration")
+    void timber$setInterpolationDuration(int duration);
+
+    // 1.20.1 has one interpolation (the transformation's) and no teleport interpolation
+    @Invoker("setInterpolationDelay")
+    void timber$setInterpolationDelay(int ticks);
+*///?}
+
+    /** Tests: the pose the entity data holds (an invoker, not reflection: 1.x Fabric runs with intermediary names). */
+    @Invoker("createTransformation")
+    static Transformation timber$createTransformation(net.minecraft.network.syncher.SynchedEntityData data) {
+        throw new AssertionError();
+    }
 
     @Invoker("setViewRange")
     void timber$setViewRange(float range);

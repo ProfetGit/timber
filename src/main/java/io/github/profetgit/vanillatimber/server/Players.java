@@ -21,9 +21,10 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
-//? if >=1.21.2
+//? if >=1.21.5
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.scores.Objective;
+//? if >=1.20.3
 import net.minecraft.world.scores.ScoreAccess;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.scores.criteria.ObjectiveCriteria;
@@ -39,7 +40,7 @@ public final class Players extends SavedData {
     private static final Codec<Players> CODEC = RecordCodecBuilder.create(i -> i.group(
         UUIDUtil.CODEC.listOf().optionalFieldOf("off", List.of()).forGetter(d -> List.copyOf(d.off))
     ).apply(i, Players::new));
-//? if >=1.21.2 {
+//? if >=1.21.5 {
     private static final SavedDataType<Players> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "players"),
         () -> new Players(List.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 //?} else {
@@ -59,7 +60,7 @@ public final class Players extends SavedData {
     }
 
     private static Players get(MinecraftServer server) {
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         return server.overworld().getDataStorage().computeIfAbsent(TYPE);
 //?} else {
 /*        return server.overworld().getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_players");
@@ -93,7 +94,11 @@ public final class Players extends SavedData {
         Scoreboard sb = server.getScoreboard();
         Objective o = sb.getObjective(OBJECTIVE);
         if (o == null) {
+//? if >=1.20.3 {
             o = sb.addObjective(OBJECTIVE, ObjectiveCriteria.TRIGGER, Component.literal("Timber"), ObjectiveCriteria.RenderType.INTEGER, true, null);
+//?} else {
+/*            o = sb.addObjective(OBJECTIVE, ObjectiveCriteria.TRIGGER, Component.literal("Timber"), ObjectiveCriteria.RenderType.INTEGER);
+*///?}
         }
         return o;
     }
@@ -103,6 +108,7 @@ public final class Players extends SavedData {
         Scoreboard sb = server.getScoreboard();
         Objective o = ensureObjective(server);
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+//? if >=1.20.3 {
             ScoreAccess score = sb.getOrCreatePlayerScore(p, o);
             int v = score.get();
             if (v > 0) {
@@ -110,6 +116,15 @@ public final class Players extends SavedData {
                 toggle(server, p, v);
             }
             if (score.locked()) score.unlock();
+//?} else {
+/*            net.minecraft.world.scores.Score score = sb.getOrCreatePlayerScore(p.getScoreboardName(), o);
+            int v = score.getScore();
+            if (v > 0) {
+                score.setScore(0);
+                toggle(server, p, v);
+            }
+            if (score.isLocked()) score.setLocked(false);
+*///?}
         }
     }
 

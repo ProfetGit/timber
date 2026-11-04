@@ -2,7 +2,6 @@ package io.github.profetgit.vanillatimber.net;
 
 import io.github.profetgit.vanillatimber.Timber;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
@@ -14,7 +13,7 @@ import net.minecraft.resources.Identifier;
 public record Hello(int version) implements CustomPacketPayload {
     public static final int VERSION = 2;
     public static final Type<Hello> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "hello"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, Hello> CODEC = StreamCodec.composite(ByteBufCodecs.VAR_INT, Hello::version, Hello::new);
+    public static final StreamCodec<RegistryFriendlyByteBuf, Hello> CODEC = StreamCodec.of((buf, h) -> buf.writeVarInt(h.version()), buf -> new Hello(buf.readVarInt()));
 
     @Override
     public Type<Hello> type() {

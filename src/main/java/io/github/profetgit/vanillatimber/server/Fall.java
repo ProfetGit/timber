@@ -37,7 +37,7 @@ import org.joml.Vector3f;
 public final class Fall {
     /** 1.3.6 {@code #budget}: displays per fall (logs first). Over it, the rest of the crown only bursts at the slam. */
     static final int DISPLAY_CAP = 600;
-//? if >=1.21.2 {
+//? if >=1.21.5 {
     static final int STRICT = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS
         | Block.UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS | Block.UPDATE_SKIP_ON_PLACE;
 //?} else {

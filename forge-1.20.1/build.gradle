@@ -1,0 +1,124 @@
+// Forge 1.20.1 build of Profet's Timber. Forge 1.20.1 needs ForgeGradle 6 (the Stonecutter project has no ForgeGradle 6 target),
+// so this is a small project of its own that compiles the 1.20.1 sources Stonecutter generated for the Fabric target
+// (../versions/1.20.1-fabric) minus platform/fabric and platform/neoforge, plus its own platform/forge entry class.
+// Forge 1.20.1 runs SRG names at runtime: a mixin refmap (the Mixin Gradle plugin) and reobfJar/reobfJarJar.
+// Run it with JAVA_HOME=/usr/lib/jvm/java-17-openjdk and Gradle 8.14 (ForgeGradle 6 does not run on Gradle 9):
+//   JAVA_HOME=/usr/lib/jvm/java-17-openjdk ~/.gradle/wrapper/dists/gradle-8.14.3-bin/*/gradle-8.14.3/bin/gradle build
+// after `./gradlew :1.20.1-fabric:compileJava` in the parent so the generated sources are current (mt.py and
+// tools/Backport/port.py do both).
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+    id 'org.spongepowered.mixin'
+}
+
+def props = new Properties()
+file('../gradle.properties').withInputStream { props.load(it) }
+def modId = props['mod.id']
+version = props['mod.version'] + '+1.20.1-forge'
+group = props['mod.group']
+base { archivesName = modId }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            args '--username', 'Builder'
+            mods { vanilla_timber { source sourceSets.main } }
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, "vanilla_timber.refmap.json"
+    config "vanilla_timber.mixins.json"
+}
+
+repositories {
+    mavenCentral()
+}
+
+jarJar.enable()
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly(annotationProcessor('io.github.llamalad7:mixinextras-common:0.4.1'))
+    implementation(jarJar('io.github.llamalad7:mixinextras-forge:0.4.1')) { jarJar.ranged(it, '[0.4.1,)') }
+}
+
+def generated = file('../versions/1.20.1-fabric/build/generated/legacy/main/java')
+def prep = tasks.register('prepSources', Copy) {
+    inputs.file(buildFile)
+    from generated
+    exclude 'io/github/profetgit/vanillatimber/platform/fabric/**', 'io/github/profetgit/vanillatimber/platform/neoforge/**', 'io/github/profetgit/vanillatimber/platform/forge/**'
+    // the parity scene's claim stand-in is Fabric API in the Fabric target's sources: Forge's break event here
+    filesMatching('**/selftest/Parity.java') {
+        filter { String line ->
+            line.contains('PlayerBlockBreakEvents.BEFORE.register((w, pl, pos, st, be) -> {')
+                ? '            net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.level.BlockEvent.BreakEvent e) -> { var pos = e.getPos();'
+                : (line.contains('return b == null || !b.isInside(pos);') ? '                if (b != null && b.isInside(pos)) e.setCanceled(true);' : line)
+        }
+    }
+    into layout.buildDirectory.dir('src')
+}
+sourceSets.main.java.srcDirs = [layout.buildDirectory.dir('src'), file('src')]
+tasks.named('compileJava') { dependsOn prep }
+sourceSets.main.resources.srcDirs = [file('../src/main/resources')]
+// the 1.3.6 sampler's trees, for the self-test scenes
+processResources { from(file('../dev/fixtures/trees')) { into 'selftest/trees' } }
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+processResources {
+    exclude 'fabric.mod.json', 'META-INF/neoforge.mods.toml'
+    def p = [version: project.version.toString(), mc: '1.20.1', mc_next: '1.21', name: props['mod.name'],
+             description: props['mod.description'], author: props['mod.author'], homepage: props['mod.homepage']]
+    inputs.properties(p)
+    inputs.file(buildFile)
+    filesMatching('META-INF/mods.toml') { expand(p) }
+    // before 1.21 data packs read tags from the plural folders
+    filesMatching('data/*/tags/block/**') { it.path = it.path.replace('/tags/block/', '/tags/blocks/') }
+    filesMatching('data/*/tags/function/**') { it.path = it.path.replace('/tags/function/', '/tags/functions/') }
+    filesMatching('*.mixins.json') { filter { it.replace('JAVA_21', 'JAVA_17').replace('"required": true,', '"required": true,\n  "refmap": "vanilla_timber.refmap.json",')
+        .replace('"ServerPlayerGameModeMixin"', '"ServerPlayerGameModeMixin",\n    "forge.ForgeChopMixin"') } }
+    filesMatching('pack.mcmeta') {
+        filter { line -> line.contains('"min_format"') ? '    "pack_format": 15' : (line.contains('"max_format"') ? null : line) }
+    }
+}
+
+jar {
+    from(rootProject.file('../LICENSE'))
+    manifest { attributes 'MixinConfigs': 'vanilla_timber.mixins.json' }
+    finalizedBy 'reobfJar'
+}
+
+tasks.jarJar.configure {
+    archiveClassifier = ''
+    manifest { attributes 'MixinConfigs': 'vanilla_timber.mixins.json' }
+    finalizedBy 'reobfJarJar'
+}
+tasks.named('assemble') { dependsOn 'jarJar' }
+jar { archiveClassifier = 'slim' }
+tasks.register('publishForTests', Copy) {
+    from layout.buildDirectory.dir('libs')
+    include 'vanilla_timber-*+1.20.1-forge.jar'
+    into file('../versions/1.20.1-forge/build/libs')
+}
+reobf { jarJar { } }
+tasks.named('reobfJarJar') { finalizedBy 'publishForTests' }
+// NeoForge's 1.20.1 line (47.1.x) still loads Forge mods: the same jar is the NeoForge 1.20.1 build (mt.py boots it as the neoforge loader)
+tasks.register('publishNeoForgeCopy', Copy) {
+    from layout.buildDirectory.dir('libs')
+    include 'vanilla_timber-*+1.20.1-forge.jar'
+    rename { it.replace('1.20.1-forge', '1.20.1-neoforge') }
+    into file('../versions/1.20.1-neoforge/build/libs')
+}
+tasks.named('publishForTests') { finalizedBy 'publishNeoForgeCopy' }

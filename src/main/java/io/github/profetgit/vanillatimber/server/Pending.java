@@ -19,7 +19,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.saveddata.SavedData;
-//? if >=1.21.2
+//? if >=1.21.5
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
@@ -71,7 +71,7 @@ public final class Pending extends SavedData {
         Codec.INT.optionalFieldOf("format", FORMAT).forGetter(d -> FORMAT),
         ENTRY.listOf().optionalFieldOf("falls", List.of()).forGetter(d -> d.entries)
     ).apply(i, (format, falls) -> new Pending(falls)));
-//? if >=1.21.2 {
+//? if >=1.21.5 {
     private static final SavedDataType<Pending> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "pending"),
         () -> new Pending(List.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 //?} else {
@@ -94,7 +94,7 @@ public final class Pending extends SavedData {
     }
 
     static Pending get(ServerLevel level) {
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         return level.getDataStorage().computeIfAbsent(TYPE);
 //?} else {
 /*        return level.getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_pending");

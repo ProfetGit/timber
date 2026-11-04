@@ -9,7 +9,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
-//? if >=1.21.2
+//? if >=1.21.5
 import net.minecraft.world.level.block.TintedParticleLeavesBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
@@ -25,18 +25,29 @@ public final class TestBlocks {
     }
 
     public static void register() {
-//? if >=1.21.2 {
+        register((key, block) -> Registry.register(BuiltInRegistries.BLOCK, key, block));
+    }
+
+    /** Through a loader's own registration (NeoForge 1.20.1 refuses Registry.register inside RegisterEvent). */
+    public static void register(java.util.function.BiConsumer<ResourceKey<Block>, Block> sink) {
+        TestBlocks.sink = sink;
+//? if >=1.21.5 {
         block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new TintedParticleLeavesBlock(0.01f, BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()
             .setId(k)));
-//?} else {
+//?} else if >=1.21.2 {
+/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
+        block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion().setId(k)));
+*///?} else {
 /*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()));
 *///?}
     }
 
+    private static java.util.function.BiConsumer<ResourceKey<Block>, Block> sink;
+
     private static void block(String name, java.util.function.Function<ResourceKey<Block>, Block> make) {
         ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath(Timber.ID, name));
-        Registry.register(BuiltInRegistries.BLOCK, key, make.apply(key));
+        sink.accept(key, make.apply(key));
     }
 }

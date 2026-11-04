@@ -84,7 +84,7 @@ public final class SelfTest {
         if (captureLeft <= 0) return;
         Path out = Path.of(OUT, "frames", captureName, String.format("f%03d.png", captureFrame++));
         captureLeft--;
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget(), (NativeImage img) -> WRITER.execute(() -> {
             try (img) {
                 Files.createDirectories(out.getParent());

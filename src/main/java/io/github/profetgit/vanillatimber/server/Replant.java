@@ -6,7 +6,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.tags.BlockTags;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -22,6 +23,8 @@ import net.minecraft.world.phys.Vec3;
  * trunk cells, so a 2x2 giant regrows as a giant. Plain block sets and vanilla level events, so every client sees it.
  */
 final class Replant {
+    // by id: 26.2 keeps the saplings tag in BlockItemTags, not BlockTags
+    private static final TagKey<Block> SAPLINGS = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("minecraft", "saplings"));
     private Replant() {}
 
     static void plant(Fall f) {
@@ -119,7 +122,7 @@ final class Replant {
     private static Block valid(Block b) {
         if (b == null || b == Blocks.AIR) return null;
         BlockState s = b.defaultBlockState();
-        boolean ok = s.is(BlockTags.SAPLINGS) || b == Blocks.CRIMSON_FUNGUS || b == Blocks.WARPED_FUNGUS || b == Blocks.RED_MUSHROOM
+        boolean ok = s.is(SAPLINGS) || b == Blocks.CRIMSON_FUNGUS || b == Blocks.WARPED_FUNGUS || b == Blocks.RED_MUSHROOM
             || b == Blocks.BROWN_MUSHROOM;
         return ok ? b : null;
     }

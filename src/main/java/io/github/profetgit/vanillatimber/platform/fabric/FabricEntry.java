@@ -19,7 +19,7 @@ import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 //?} else {
 /*import java.util.concurrent.CompletableFuture;
@@ -44,18 +44,38 @@ public final class FabricEntry implements ModInitializer, Platform {
     @Override
     public void onInitialize() {
         Timber.init(this);
-//? if >=1.21.2 {
+//? if >=26.1 {
         PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(TreeFall.TYPE, TreeFall.CODEC);
-//?} else {
+//?} else if >=1.20.5 {
 /*        PayloadTypeRegistry.playC2S().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.playS2C().register(TreeFall.TYPE, TreeFall.CODEC);
 *///?}
+//? if >=1.20.5 {
         ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE, (msg, ctx) -> ctx.server().execute(() -> Hooks.hello(ctx.player(), msg.version())));
-        Hold.register();
-//? if >=1.21.2 {
-        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(TreeTypes.ID, TreeTypes.listener());
 //?} else {
+/*        ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE.id(), (server, player, handler, buf, sender) -> {
+            Hello msg = Hello.CODEC.decode(buf);
+            server.execute(() -> Hooks.hello(player, msg.version()));
+        });
+*///?}
+        Hold.register();
+//? if >=1.21.11 {
+        ResourceLoader.get(PackType.SERVER_DATA).registerReloadListener(TreeTypes.ID, TreeTypes.listener());
+//?} else if >=1.21.2 {
+/*        PreparableReloadListener types = TreeTypes.listener();
+        ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new IdentifiableResourceReloadListener() {
+            @Override
+            public ResourceLocation getFabricId() {
+                return TreeTypes.ID;
+            }
+
+            @Override
+            public CompletableFuture<Void> reload(PreparationBarrier barrier, ResourceManager manager, Executor backgroundExecutor, Executor gameExecutor) {
+                return types.reload(barrier, manager, backgroundExecutor, gameExecutor);
+            }
+        });
+*///?} else {
 /*        PreparableReloadListener types = TreeTypes.listener();
         ResourceManagerHelper.get(PackType.SERVER_DATA).registerReloadListener(new IdentifiableResourceReloadListener() {
             @Override
@@ -75,7 +95,7 @@ public final class FabricEntry implements ModInitializer, Platform {
         ServerLifecycleEvents.SERVER_STOPPING.register(Hooks::serverStopping);
         ServerLifecycleEvents.SERVER_STOPPED.register(Hooks::serverStopped);
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resources, success) -> Hooks.dataReloaded(server, success));
-//? if >=1.21.2 {
+//? if >=26.1 {
         ServerTickEvents.START_LEVEL_TICK.register(Hooks::levelTickStart);
 //?} else {
 /*        ServerTickEvents.START_WORLD_TICK.register(Hooks::levelTickStart);
@@ -115,6 +135,7 @@ public final class FabricEntry implements ModInitializer, Platform {
         return PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, player, pos, state, level.getBlockEntity(pos));
     }
 
+//? if >=1.20.5 {
     @Override
     public boolean canSend(ServerPlayer player, CustomPacketPayload.Type<?> type) {
         return ServerPlayNetworking.canSend(player, type);
@@ -124,5 +145,19 @@ public final class FabricEntry implements ModInitializer, Platform {
     public void send(ServerPlayer player, CustomPacketPayload payload) {
         ServerPlayNetworking.send(player, payload);
     }
+//?} else {
+/*    @Override
+    public boolean canSend(ServerPlayer player, CustomPacketPayload.Type<?> type) {
+        return ServerPlayNetworking.canSend(player, type.id());
+    }
+
+    // TreeFall is the only server-to-client payload
+    @Override
+    public void send(ServerPlayer player, CustomPacketPayload payload) {
+        net.minecraft.network.FriendlyByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
+        TreeFall.CODEC.encode(buf, (TreeFall) payload);
+        ServerPlayNetworking.send(player, TreeFall.TYPE.id(), buf);
+    }
+*///?}
 }
 //?}

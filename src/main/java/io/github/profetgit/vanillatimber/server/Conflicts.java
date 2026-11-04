@@ -10,7 +10,7 @@ import java.util.UUID;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-//? if >=1.21.2 {
+//? if >=1.21.11 {
 import net.minecraft.server.permissions.Permissions;
 //?}
 
@@ -45,7 +45,7 @@ public final class Conflicts {
 
     /** Tells an op about each conflict, once per server run; true when it said something. */
     public static boolean tell(ServerPlayer player) {
-//? if >=1.21.2 {
+//? if >=1.21.11 {
         if (present.isEmpty() || !player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER) || !TOLD.add(player.getUUID())) return false;
 //?} else {
 /*        if (present.isEmpty() || !player.hasPermissions(2) || !TOLD.add(player.getUUID())) return false;

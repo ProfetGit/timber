@@ -2,7 +2,7 @@
   {
     "regex": "org\\.jspecify\\.annotations\\.Nullable",
     "to": "org.jetbrains.annotations.Nullable",
-    "when": "<1.21.2"
+    "when": "<1.21.11"
   },
   {
     "regex": "new HoverEvent\\.ShowText\\(",
@@ -17,17 +17,17 @@
   {
     "regex": "net\\.minecraft\\.util\\.LightCoordsUtil",
     "to": "io.github.profetgit.vanillatimber.core.LegacyLight",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "from": "LightCoordsUtil",
     "to": "LegacyLight",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "from": "BlockAndLightGetter",
     "to": "BlockAndTintGetter",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "from": "EntityTypes",
@@ -37,27 +37,27 @@
   {
     "regex": "\\.entityTags\\(\\)",
     "to": ".getTags()",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "\\.snapTo\\(",
     "to": ".moveTo(",
-    "when": "<1.21.2"
+    "when": "<1.21.5"
   },
   {
     "regex": "ChunkPos\\.pack\\(",
     "to": "ChunkPos.asLong(",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "ChunkPos\\.containing\\(",
     "to": "new ChunkPos(",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "\\bchunk\\.pack\\(\\)",
     "to": "chunk.toLong()",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "BuiltInRegistries\\.(\\w+)\\.getValue\\(",
@@ -78,7 +78,7 @@
   {
     "from": "HASTE",
     "to": "DIG_SPEED",
-    "when": "<1.21.2"
+    "when": "<1.21.5"
   },
   {
     "regex": "net\\.minecraft\\.server\\.level\\.ParticleStatus",
@@ -88,29 +88,29 @@
   {
     "regex": "\\.leftRotation\\(\\)",
     "to": ".getLeftRotation()",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "\\.rightRotation\\(\\)",
     "to": ".getRightRotation()",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "regex": "\\bt\\.scale\\(\\)",
     "to": "t.getScale()",
-    "when": "<1.21.2",
+    "when": "<26.1",
     "files": "^Parity\\.java$"
   },
   {
     "regex": "\\bt\\.translation\\(\\)",
     "to": "t.getTranslation()",
-    "when": "<1.21.2",
+    "when": "<26.1",
     "files": "^Parity\\.java$"
   },
   {
     "regex": "\\b(chunks|keys|stored)\\.keySet\\(\\)",
     "to": "$1.getAllKeys()",
-    "when": "<1.21.2",
+    "when": "<1.21.5",
     "files": "^(Migrate|Parity)\\.java$",
     "groups": "1"
   },
@@ -157,5 +157,207 @@
     "from": "ClientPacketDistributor",
     "to": "PacketDistributor",
     "when": "<1.21.2"
+  },
+  {
+    "from": "getMinY",
+    "to": "getMinBuildHeight",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "(\\w+)\\.getMaxY\\(\\)",
+    "to": "($1.getMaxBuildHeight() - 1)",
+    "groups": "1",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "getLightDampening",
+    "to": "getLightBlock",
+    "when": ">=1.21.2 <26.1"
+  },
+  {
+    "regex": "\\.getLightDampening\\(\\)",
+    "to": ".getLightBlock(net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO)",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.create\\(level, net\\.minecraft\\.world\\.entity\\.EntitySpawnReason\\.\\w+\\)",
+    "to": ".create(level)",
+    "when": "<1.21.2"
+  },
+  {
+    "from": "EntitySpawnReason",
+    "to": "MobSpawnType",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.lookupOrThrow\\(",
+    "to": ".registryOrThrow(",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "\\.getOrThrow\\(WorldPresets\\.FLAT\\)",
+    "to": ".getHolderOrThrow(WorldPresets.FLAT)",
+    "when": "<1.21.2"
+  },
+  {
+    "regex": "net\\.minecraft\\.world\\.level\\.gamerules\\.GameRules",
+    "to": "net.minecraft.world.level.GameRules",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "new SavedDataType<>\\((?:Identifier|ResourceLocation)\\.fromNamespaceAndPath\\(Timber\\.ID, \"(\\w+)\"\\)",
+    "to": "new SavedDataType<>(\"vanilla_timber_$1\"",
+    "groups": "1",
+    "when": ">=1.21.5 <26.1"
+  },
+  {
+    "regex": "net\\.minecraft\\.client\\.renderer\\.state\\.level\\.LevelRenderState",
+    "to": "net.minecraft.client.renderer.state.LevelRenderState",
+    "when": "<26.1"
+  },
+  {
+    "regex": "\\.registerReloadListener\\(TreeTypes\\.ID, ",
+    "to": ".registerReloader(TreeTypes.ID, ",
+    "when": "<26.1"
+  },
+  {
+    "regex": "import net\\.fabricmc\\.fabric\\.api\\.networking\\.v1\\.PayloadTypeRegistry;\\n",
+    "to": "",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "net\\.minecraft\\.network\\.protocol\\.common\\.custom\\.CustomPacketPayload",
+    "to": "io.github.profetgit.vanillatimber.net.legacy.CustomPacketPayload",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "net\\.minecraft\\.network\\.codec\\.StreamCodec",
+    "to": "io.github.profetgit.vanillatimber.net.legacy.StreamCodec",
+    "when": "<1.20.5"
+  },
+  {
+    "from": "RegistryFriendlyByteBuf",
+    "to": "FriendlyByteBuf",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "ResourceLocation\\.(fromNamespaceAndPath|parse|withDefaultNamespace)\\(",
+    "to": "new ResourceLocation(",
+    "when": "<1.21"
+  },
+  {
+    "regex": "server\\.registryAccess\\(\\)\\.createSerializationContext\\(NbtOps\\.INSTANCE\\)",
+    "to": "net.minecraft.resources.RegistryOps.create(NbtOps.INSTANCE, server.registryAccess())",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "SavedData\\.Factory",
+    "to": "SavedCodec.Factory",
+    "when": "<1.20.2"
+  },
+  {
+    "regex": "\\.computeIfAbsent\\(TYPE, (\"\\w+\")\\)",
+    "to": ".computeIfAbsent(TYPE.load(), TYPE.create(), $1)",
+    "groups": "1",
+    "when": "<1.20.2"
+  },
+  {
+    "regex": "public CompoundTag save\\(CompoundTag tag, HolderLookup\\.Provider lookup\\)",
+    "to": "public CompoundTag save(CompoundTag tag)",
+    "when": "<1.20.2"
+  },
+  {
+    "regex": "SavedCodec\\.save\\(CODEC, this, tag, lookup\\)",
+    "to": "SavedCodec.save(CODEC, this, tag, null)",
+    "when": "<1.20.2"
+  },
+  {
+    "regex": "\\bps\\.mulPose\\(m\\)",
+    "to": "ps.mulPoseMatrix(m)",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "(\\w+)\\.getTimer\\(\\)\\.getGameTimeDeltaPartialTick\\((?:false|true)\\)",
+    "to": "$1.getFrameTime()",
+    "when": "<1.21",
+    "groups": "1"
+  },
+  {
+    "regex": "\\.getFirst\\(\\)",
+    "to": ".get(0)",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "(\\w+(?:\\.\\w+\\(\\))?)\\.getLast\\(\\)",
+    "to": "$1.get($1.size() - 1)",
+    "groups": "1",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "\\bMath\\.clamp\\(",
+    "to": "net.minecraft.util.Mth.clamp(",
+    "when": "<1.20.5"
+  },
+  {
+    "from": "GenericMessageScreen",
+    "to": "GenericDirtMessageScreen",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "(\\w+)\\.isGameLoadFinished\\(\\)",
+    "to": "($1.getOverlay() == null)",
+    "groups": "1",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "ParticleTypes\\.(SMALL_GUST|DUST_PLUME)\\b",
+    "to": "ParticleTypes.POOF",
+    "when": "<1.20.5"
+  },
+  {
+    "regex": "DataFixTypes\\.SAVED_DATA_COMMAND_STORAGE",
+    "to": "null",
+    "when": "<1.20.2"
+  },
+  {
+    "regex": "gamerule max_block_modifications\\b",
+    "to": "gamerule commandModificationBlockLimit",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "gamerule random_tick_speed\\b",
+    "to": "gamerule randomTickSpeed",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "gamerule block_drops\\b",
+    "to": "gamerule doTileDrops",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "gamerule spawn_mobs\\b",
+    "to": "gamerule doMobSpawning",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "gamerule advance_time\\b",
+    "to": "gamerule doDaylightCycle",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "gamerule advance_weather\\b",
+    "to": "gamerule doWeatherCycle",
+    "when": "<1.21.11"
+  },
+  {
+    "regex": "\"function/tick\\.mcfunction\"",
+    "to": "\"functions/tick.mcfunction\"",
+    "when": "<1.21"
+  },
+  {
+    "regex": "data/(\\w+)/tags/block/",
+    "to": "data/$1/tags/blocks/",
+    "groups": "1",
+    "when": "<1.21"
   }
 ]

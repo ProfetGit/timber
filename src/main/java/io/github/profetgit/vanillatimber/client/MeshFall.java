@@ -490,9 +490,16 @@ final class MeshFall {
                         li = Math.round(pu + ((rl & 0xFFFF) - pu) * qw) | Math.round(pv + ((rl >>> 16) - pv) * qw) << 16;
                     }
                     if (emission[qi] > 0) li = Packed.light(Math.max(Packed.block(li), emission[qi]), Packed.sky(li));
+//? if >=1.21 {
                     vc.addVertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
                         .setColor(Packed.scaleRGB(col, sh[d])).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
                         .setNormal(nx, ny, nz);
+//?} else {
+/*                    int argb = Packed.scaleRGB(col, sh[d]);
+                    vc.vertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
+                        .color(argb >> 16 & 0xFF, argb >> 8 & 0xFF, argb & 0xFF, argb >>> 24).uv(uv[u], uv[u + 1]).overlayCoords(OverlayTexture.NO_OVERLAY)
+                        .uv2(li).normal(nx, ny, nz).endVertex();
+*///?}
                 }
             }
             if (open >= 0) IrisCompat.end(vc);

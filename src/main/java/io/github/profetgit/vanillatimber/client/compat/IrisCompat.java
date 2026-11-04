@@ -1,12 +1,12 @@
 package io.github.profetgit.vanillatimber.client.compat;
 
+import io.github.profetgit.vanillatimber.platform.Platform;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.profetgit.vanillatimber.Timber;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -28,7 +28,7 @@ public final class IrisCompat {
     public static void frame() {
         if (!tried) {
             tried = true;
-            if (FabricLoader.getInstance().isModLoaded("iris")) {
+            if (Platform.get().isModLoaded("iris")) {
                 try {
                     MethodHandles.Lookup l = MethodHandles.publicLookup();
                     sensitive = Class.forName("net.irisshaders.iris.vertices.BlockSensitiveBufferBuilder");

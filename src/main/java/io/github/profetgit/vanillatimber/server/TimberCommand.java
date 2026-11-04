@@ -45,7 +45,7 @@ public final class TimberCommand {
                 if (r > 0) menu(c.getSource());
                 return r;
             }));
-//? if >=1.21.2 {
+//? if >=1.21.6 {
         d.register(Commands.literal("timber").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 //?} else {
 /*        d.register(Commands.literal("timber").requires(s -> s.hasPermission(2))

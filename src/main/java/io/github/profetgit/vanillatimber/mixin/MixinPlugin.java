@@ -31,6 +31,7 @@ public final class MixinPlugin implements IMixinConfigPlugin {
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
         if (!mixinClassName.contains(".compat.")) return true;
+        if (targetClassName.startsWith("net.minecraft.")) return false; // a version's placeholder target
         ClassNode node;
         try {
             node = MixinService.getService().getBytecodeProvider().getClassNode(targetClassName);

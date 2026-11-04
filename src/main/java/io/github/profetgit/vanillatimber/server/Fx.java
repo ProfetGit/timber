@@ -3,6 +3,7 @@ package io.github.profetgit.vanillatimber.server;
 //? if >=26.3
 import net.minecraft.commands.arguments.coordinates.LocalCoordinates;
 import net.minecraft.core.particles.BlockParticleOption;
+//? if >=1.20.5
 import net.minecraft.core.particles.ColorParticleOption;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
@@ -45,7 +46,7 @@ final class Fx {
     static Vec3 local(Vec3 from, Vec2 rot, double left, double up, double forward) {
         //? if >=26.3 {
         return new LocalCoordinates(left, up, forward).apply(from, rot);
-        //?} else if >=1.21.2 {
+        //?} else if >=26.1 {
         /*return Vec3.applyLocalCoordinatesToRotation(rot, new Vec3(left, up, forward)).add(from);
         *///?} else {
         /*float yaw = (rot.y + 90f) * (float) (Math.PI / 180.0), pitch = -rot.x * (float) (Math.PI / 180.0), pitchUp = (-rot.x + 90f) * (float) (Math.PI / 180.0);
@@ -63,7 +64,7 @@ final class Fx {
         // a wart crown or a mushroom cap sheds dust of its own colour, not green flakes
         if (!leafy(leaf)) return new BlockParticleOption(ParticleTypes.FALLING_DUST, leaf.getBlock().defaultBlockState());
         if (leaf.is(Blocks.CHERRY_LEAVES)) return ParticleTypes.CHERRY_LEAVES;
-//? if >=1.21.2
+//? if >=1.21.4
         if (leaf.is(Blocks.PALE_OAK_LEAVES)) return ParticleTypes.PALE_OAK_LEAVES;
         if (leaf.is(Blocks.BIRCH_LEAVES)) return tinted(0.502f, 0.655f, 0.333f);
         if (leaf.is(Blocks.SPRUCE_LEAVES)) return tinted(0.38f, 0.6f, 0.38f);
@@ -79,9 +80,11 @@ final class Fx {
     }
 
     private static ParticleOptions tinted(float r, float g, float b) {
-//? if >=1.21.2 {
+//? if >=1.21.5 {
         return ColorParticleOption.create(ParticleTypes.TINTED_LEAVES, r, g, b);
-//?} else {
+//?} else if >=1.21.2 {
+/*        return new DustParticleOptions(net.minecraft.util.ARGB.colorFromFloat(1f, r, g, b), 1f);
+*///?} else {
 /*        return new DustParticleOptions(new org.joml.Vector3f(r, g, b), 1f);
 *///?}
     }

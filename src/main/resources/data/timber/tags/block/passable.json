@@ -8,7 +8,7 @@
     "#minecraft:buttons",
     "#minecraft:pressure_plates",
     "minecraft:moss_carpet",
-    "minecraft:pale_moss_carpet",
+    {"id": "minecraft:pale_moss_carpet", "required": false},
     "minecraft:brown_mushroom",
     "minecraft:red_mushroom",
     "minecraft:torch",

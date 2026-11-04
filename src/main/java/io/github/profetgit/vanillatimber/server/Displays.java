@@ -34,6 +34,7 @@ public final class Displays {
         d.snapTo(x, y, z, yaw, pitch);
         ((BlockDisplayAccess) d).timber$setBlockState(state);
         DisplayAccess a = (DisplayAccess) d;
+        //? if >=1.20.2
         a.timber$setTeleportDuration(1);
         a.timber$setViewRange(1.5f);
         a.timber$setTransformation(pose);

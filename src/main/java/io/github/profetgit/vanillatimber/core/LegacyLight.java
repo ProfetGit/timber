@@ -1,6 +1,6 @@
 package io.github.profetgit.vanillatimber.core;
 
-//? if <1.21.2 {
+//? if <26.1 {
 /*import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.LightLayer;
