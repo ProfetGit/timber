@@ -196,10 +196,11 @@ My calls, open to veto:
 - The sapling is free (user's pick): the loot is not touched and nothing comes from the inventory.
 - Which sapling, first match wins:
   1. a sapling item in this tree's rolled loot (`#minecraft:saplings`), its block;
-  2. the crown block's id: `_leaves` → `_sapling` (modded trees follow this convention);
+  2. the crown block's id: `_leaves` → `_sapling` (modded trees follow this convention), then azalea leaves →
+     `azalea` and flowering azalea leaves → `flowering_azalea` (their crown sits on an oak trunk, so before step 3);
   3. the trunk block's id: `_log`, `_wood`, `_stem` → `_sapling`;
-  4. vanilla exceptions: mangrove → `mangrove_propagule`, azalea leaves → `azalea`, flowering azalea leaves →
-     `flowering_azalea`, crimson/warped stem → crimson/warped fungus, red/brown mushroom block → red/brown mushroom;
+  4. vanilla exceptions: mangrove → `mangrove_propagule`, crimson/warped stem → crimson/warped fungus, red/brown
+     mushroom block → red/brown mushroom;
   5. nothing found: no replant.
   The block must exist and be in `#minecraft:saplings` or be one of the step-4 blocks.
 - A cell is planted only if it is air now and the sapling `canSurvive` there (a huge mushroom in daylight on grass,
@@ -217,7 +218,7 @@ My calls, open to veto:
   from the pivot is within the tree's height plus crown, and its side offset is within the trunk half-width (crown
   half-width where the crown is), plus the mob's half-width.
 - Knockback along the fall direction with a small lift, strength scaled by how fast the tree moves at that distance,
-  clamped (guess: 0.4..1.6, tune by feel). Vanilla `knockback`, so knockback resistance (iron golems, ravagers) counts.
+  clamped (0.4..1.0: 1.6 flung a cow 8 blocks in the m8 scene; tune by feel). Vanilla `knockback`, so knockback resistance (iron golems, ravagers) counts.
 - Damage (user's pick): only hostile mobs (`Enemy`) without a name tag take `trunk_damage` (default 4 = 2 hearts,
   0..20), from a vanilla damage type with the chopper as the cause (so drops and XP count as a player kill). Pets,
   villagers, animals and named mobs are only pushed.

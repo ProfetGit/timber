@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
  */
 final class Knock {
     /** Knockback strength per block/tick of the trunk's speed at the mob, and its clamp (tune by feel). */
-    static final double PER_SPEED = 1.5, MIN = 0.4, MAX = 1.6;
+    static final double PER_SPEED = 1.0, MIN = 0.4, MAX = 1.0;
     /** Slack around a mob's box so a thin sweep does not slip through it. */
     private static final double SLACK = 0.1;
 
