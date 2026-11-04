@@ -2242,6 +2242,11 @@ final class Parity {
         for (String[] t : trees) {
             plot();
             fixture(t[1]);
+            // the self-test world is solid above the plot pit: open a sky column over the tree and the camera, or every still is black
+            for (int y = -9; y < 320; y += 24)
+                cmd("fill " + (cx - 10) + " " + y + " " + (cz - 28) + " " + (cx + 24) + " " + Math.min(y + 23, 319) + " " + (cz + 10) + " minecraft:air");
+            // block light in front of the tree for the sets that draw no sun (the pit is deep, so sky light alone stays dim)
+            cmd("fill " + at(-10, 0, -6) + " " + at(22, 22, -6) + " minecraft:light[level=15] replace air");
             tick(10);
             hold("minecraft:netherite_axe");
             int dist = Integer.parseInt(t[2]);
