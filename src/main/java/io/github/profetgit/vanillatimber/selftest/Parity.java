@@ -592,8 +592,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : ALL) {
-            if (!(groups.equals("all") || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks")).toList()) {
+            if (!((groups.equals("all") && !g.equals("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
