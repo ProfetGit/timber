@@ -72,6 +72,8 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // moddev's legacy setup keeps Minecraft's libraries off the test classpath; 1.21.1 ships gson 2.10.1
+    testImplementation("com.google.code.gson:gson:2.10.1")
 }
 
 tasks.test {

@@ -2,7 +2,7 @@
 
 **Chop one log and the whole tree comes down, cartoon style.**
 
-Timber 2.0 is a mod for **Minecraft Java 26.3 on Fabric**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.6.
+Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fabric, Quilt, NeoForge and Forge**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.6.
 
 | ![An oak: one chop and the whole tree comes down](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak.webp) | ![A tall birch felled with one chop](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_birch.webp) |
 | --- | --- |
@@ -16,7 +16,7 @@ Timber 2.0 is a mod for **Minecraft Java 26.3 on Fabric**. Put it on the server 
 - **One tree at a time.** In a crowded forest, neighbouring trees keep their own logs and leaves.
 - **Never fells builds.** Logs you placed are left alone, and so is anything without a leafy crown.
 - **Falls where it makes sense:** away from you, or into open space when something is in the way.
-- **The forest grows back.** A free sapling is planted in the stump when the tree has fallen. Giant 2×2 trees get four.
+- **The forest can grow back.** Turn on auto-replant (`replant` 1) and a free sapling is planted in the stump when the tree has fallen. Giant 2×2 trees get four. It's off by default.
 - **Mind the trunk.** The falling tree knocks back mobs in its way, and hostile ones take a little damage. Players are never touched.
 - **Everything attached comes along,** such as vines, cocoa, hanging moss and snow.
 - **Safe for servers.** Land claims and other protections are asked about every block before a tree falls. If the server crashes mid-fall, the loot is waiting at the stump on the next start. A multi-break mod fells one tree, not twenty.
@@ -44,7 +44,7 @@ Making your own add-on? The data pack hooks from 1.x still work (`#timber:api/ca
 
 ![Installation](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-installation.webp)
 
-Put the jar in the `mods` folder of the server (or your singleplayer game) (needs [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api)). Players can join with an unmodified game. Putting the mod on their client as well gives them the smoother fall.
+Put the jar in the `mods` folder of the server (or your singleplayer game). On Fabric and Quilt it needs Fabric API. Players can join with an unmodified game. Putting the mod on their client as well gives them the smoother fall.
 
 **Works with.** The falling tree is tested alongside Sodium, Iris with Complementary, Entity Culling, Continuity, Seamless Displays and Snappy Blocks, and a Flashback replay shows the fall.
 
@@ -52,7 +52,7 @@ Put the jar in the `mods` folder of the server (or your singleplayer game) (need
 
 **Coming from Timber 1.3.x?** Remove the old data pack or jar and add this one. The first time a 1.3.x world loads, Timber brings over the placed-log protection, your settings and each player's on/off choice, returns any drops that were mid-fall, and switches off the old data pack. Operators are told once in chat.
 
-**Minecraft 26.2 and older** stay on Timber 1.3.6 for now. More loaders and versions are coming later.
+**On 1.20.1** one jar serves Forge and NeoForge. The data pack hook `#timber:api/cancel` doesn't run there (the Java hook does), and players without the mod see a steppier fall than on newer versions.
 
 To uninstall, remove the jar. Nothing is left behind in the world.
 
