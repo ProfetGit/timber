@@ -44,7 +44,7 @@ Making your own add-on? The data pack hooks from 1.x still work (`#timber:api/ca
 
 Put the jar in the `mods` folder of the server (or your singleplayer game) (needs [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api)). Players can join with an unmodified game. Putting the mod on their client as well gives them the smoother fall.
 
-**Works with.** The falling tree is tested alongside Sodium, Iris with Complementary, Entity Culling, Continuity, Seamless Displays and Snappy Blocks.
+**Works with.** The falling tree is tested alongside Sodium, Iris with Complementary, Entity Culling, Continuity, Seamless Displays and Snappy Blocks, and a Flashback replay shows the fall.
 
 **Conflicts.** FallingTree and HT's TreeChop also fell trees. If either is installed, Timber warns the operators and the log. Use only one of them.
 

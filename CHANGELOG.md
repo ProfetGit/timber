@@ -10,6 +10,7 @@ Timber is now a mod. It replaces the data pack, keeps the same fall, and runs on
 - **Claims and protections.** Every block of a tree is checked against the server's block-break permission before it falls. If any block is denied, only the chopped log breaks and the action bar says part of the tree is protected.
 - **Crash safety.** The loot of a fall in progress is saved, and a crash or a stopped server returns it at the stump on the next start. A fall keeps its chunks loaded until it finishes.
 - **One fell per player per tick**, so a multi-break mod fells one tree instead of twenty.
+- **Shader and render mod support.** The mesh casts a shadow and keeps its materials under Iris with Complementary; tested with Sodium, Entity Culling, Continuity, Seamless Displays and Snappy Blocks, and a Flashback replay shows the fall.
 - **Conflict warning.** If FallingTree or HT's TreeChop is installed too, operators are told once and the log says so.
 - **`/timber`** for operators: `config`, `reload` and `menu`.
 - **Config file** `config/timber.json`, re-read while the game runs, with limits checked and the last good values kept if the file is broken.
