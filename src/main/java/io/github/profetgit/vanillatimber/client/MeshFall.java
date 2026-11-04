@@ -147,6 +147,20 @@ final class MeshFall {
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
         BlockBake baker = new BlockBake(level, msg);
+        baker.begin();
+        try {
+            bakeBlocks(level, baker, right, q, c, byKey, cell, o, cells, bin);
+        } finally {
+            baker.end();
+        }
+        Timeline.Sample s0 = tl.sample(0, new Timeline.Sample());
+        origins(s0);
+        Matrix4f m = new Matrix4f();
+        for (Group g : groups) pose(m, g.k, g.leaf, s0, 0, 0, 0).transformPosition(0, g.k + 0.5f, 0, g.rest);
+    }
+
+    private void bakeBlocks(ClientLevel level, BlockBake baker, Quaternionf right, Vector3f q, Vector3f c, Map<Long, Group> byKey,
+                            BlockPos.MutableBlockPos cell, BlockPos o, int[] cells, int bin) {
         for (int i = 0; i < blocks; i++) {
             cell.set(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
             BlockState state = msg.palette().get(cells[i * 4 + 3] >> 1);
@@ -173,10 +187,6 @@ final class MeshFall {
                 g.add(quad, right, tx, ty, tz, c, q, i, lit);
             }
         }
-        Timeline.Sample s0 = tl.sample(0, new Timeline.Sample());
-        origins(s0);
-        Matrix4f m = new Matrix4f();
-        for (Group g : groups) pose(m, g.k, g.leaf, s0, 0, 0, 0).transformPosition(0, g.k + 0.5f, 0, g.rest);
     }
 
     /**

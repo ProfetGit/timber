@@ -633,6 +633,7 @@ final class Parity {
                     case "swamps" -> leafWalk("swamp_oak", 12);
                     case "jungles" -> leafWalk("jungle_tree", 16);
                     case "m3sheet" -> m3sheet();
+                    case "looks" -> looks();
                     case "azshapes" -> azaleaShapes();
                     case "multibreak" -> multibreak();
                     case "claims" -> claims();
@@ -2226,6 +2227,54 @@ final class Parity {
         }
         tick(10);
         Viewers.test = Viewers.VANILLA;
+    }
+
+    /**
+     * M6 render sheet stills: daylight, no lantern box, three trees; stills at the chop, mid-fall, the slam and just after.
+     * Run once per render set (addon); files frames/looks_<tree>_t<tick>/f000.png.
+     */
+    static void looks() {
+        cmd("time set 6000");
+        cmd("weather clear");
+        cmd("gamerule advance_time false");
+        Viewers.test = 0;
+        String[][] trees = {{"oak", "oak_c", "15"}, {"birch", "birch_a", "15"}, {"spruce", "spruce_b", "22"}};
+        for (String[] t : trees) {
+            plot();
+            fixture(t[1]);
+            tick(10);
+            hold("minecraft:netherite_axe");
+            int dist = Integer.parseInt(t[2]);
+            cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + 6) + " " + cz);
+            client(MpHost::hideHud);
+            tick(40);
+            on(() -> {
+                float yaw = player.getYRot();
+                player.setYRot(-90);
+                destroy(p(0, 0, 0));
+                player.setYRot(yaw);
+                return null;
+            });
+            Fall f = cur;
+            if (f == null) {
+                check("looks " + t[0] + ": fell", false, "no fall");
+                continue;
+            }
+            int slam = 0;
+            while (slam < f.tl.end && f.tl.p[slam] < f.tl.spec.hit() - 0.5) slam++;
+            int[] at = {1, Math.max(2, slam / 2), slam, slam + 8};
+            int done = 0;
+            for (int a : at) {
+                tick(a - done);
+                done = a;
+                String shot = "looks_" + t[0] + String.format(java.util.Locale.ROOT, "_t%02d", a);
+                client(mc -> SelfTest.startCapture(shot, 1));
+            }
+            info("looks " + t[0] + ": stills at " + java.util.Arrays.toString(at) + ", slam tick " + slam);
+            check("looks " + t[0] + ": fell and stills taken", slam > 0 && slam < f.tl.end, "slam " + slam + ", end " + f.tl.end);
+            finish(160);
+        }
+        tick(10);
     }
 
     /** Stem cells straight up from the origin in a kept tree. */

@@ -73,6 +73,79 @@
         "FreshAnimations_*.zip",
         "FA+Player-*.zip"
       ]
+    },
+    "sodium": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "sodium-*.jar"
+      ],
+      "packs": []
+    },
+    "iris": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "sodium-*.jar",
+        "iris-*.jar"
+      ],
+      "packs": [],
+      "shaders": true
+    },
+    "ec": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "entityculling-*.jar"
+      ],
+      "packs": []
+    },
+    "continuity": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "sodium-*.jar",
+        "continuity-*.jar"
+      ],
+      "packs": []
+    },
+    "sd": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "seamless_displays-*.jar"
+      ],
+      "packs": []
+    },
+    "snappy": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "sodium-*.jar",
+        "snappy_blocks-*.jar"
+      ],
+      "packs": []
+    },
+    "stack": {
+      "profile": {
+        "26.3": "Fabric 26.3"
+      },
+      "mods": [
+        "sodium-*.jar",
+        "iris-*.jar",
+        "entityculling-*.jar",
+        "continuity-*.jar",
+        "seamless_displays-*.jar",
+        "snappy_blocks-*.jar"
+      ],
+      "packs": [],
+      "shaders": true
     }
   },
   "mp": {

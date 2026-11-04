@@ -65,13 +65,17 @@ final class RestLight implements BlockQuadOutput {
         getter.blockPos = at;
         getter.randomSeedPos = at;
         getter.blockState = state;
+        renderer.tesselateBlock(this, 0, 0, 0, getter, at, state, Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
+            state.getSeed(at));
+    }
+
+    /** One bake shares vanilla's light and AO cache between its blocks (the getter's world doesn't change meanwhile). */
+    void begin() {
         BlockModelLighter.enableCaching();
-        try {
-            renderer.tesselateBlock(this, 0, 0, 0, getter, at, state, Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
-                state.getSeed(at));
-        } finally {
-            BlockModelLighter.clearCache();
-        }
+    }
+
+    void end() {
+        BlockModelLighter.clearCache();
     }
 
     // the quad's 4 colours then 4 packed lights from the last run, or null if vanilla didn't emit it
@@ -126,6 +130,10 @@ final class RestLight implements BlockQuadOutput {
     private final Getter getter = new Getter();
     private final Sink sink = new Sink();
     private final Map<BakedQuad, int[]> quads = new IdentityHashMap<>();
+
+    void begin() {}
+
+    void end() {}
 
     RestLight(ClientLevel level, TreeFall msg) {
         renderer = new ModelBlockRenderer(Minecraft.getInstance().getBlockColors());

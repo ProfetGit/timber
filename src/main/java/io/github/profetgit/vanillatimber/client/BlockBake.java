@@ -54,6 +54,15 @@ final class BlockBake {
     private final ClientLevel level;
     private final RestLight rest;
     private final List<Quad> out = new ArrayList<>();
+
+    /** Call once before the first block and {@link #end} after the last (a shared light cache, see {@link RestLight}). */
+    void begin() {
+        rest.begin();
+    }
+
+    void end() {
+        rest.end();
+    }
 //? if >=1.21.2 {
     private final boolean cutoutLeaves = mc.options.cutoutLeaves().get();
     private final List<BlockStateModelPart> parts = new ArrayList<>();

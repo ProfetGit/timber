@@ -61,6 +61,7 @@ final class Scenarios {
         if (only.equals("all") || only.contains("fall")) fall(s);
         if (only.equals("all") || only.contains("mesh")) mesh(s);
         if (only.equals("all") || only.contains("sync")) sync(s);
+        if (only.contains("perfmesh")) perfMesh(s);
         if (only.contains("parity")) {
             String groups = System.getProperty("vanilla_timber.selftest.groups", "all");
             s.server(server -> Parity.begin(server, groups)).until("parity groups", 20 * 60 * 60, mc -> Parity.finished());
@@ -361,6 +362,90 @@ final class Scenarios {
                     percentile(ms, 1.0), ms.size(), io.github.profetgit.vanillatimber.client.ClientFalls.quads(),
                     io.github.profetgit.vanillatimber.client.ClientFalls.bakeNanos / 1e6)));
         }
+    }
+
+    /**
+     * PRD 10 client budgets on a big tree (216 logs + ~1130 leaves (the most the 26-step ownership and max_blocks 1200 allow)): per fall the mesh
+     * bake (payload handler) and the mod's render-thread ms per frame, warm = the runs after the first.
+     */
+    private static void perfMesh(Script s) {
+        s.waitTicks(40).server(server -> {
+            CommandSourceStack root = server.createCommandSourceStack().withSuppressedOutput();
+            for (String c : new String[] {"timber config max_logs 1024", "timber config max_blocks 1200", "timber config display_cap 4000",
+                    "gamerule random_tick_speed 0", "forceload add -16 -16 160 32"}) {
+                server.getCommands().performPrefixedCommand(root, c);
+            }
+        });
+        List<Double> bake = Collections.synchronizedList(new ArrayList<>()), frameMean = new ArrayList<>(), frameP50 = new ArrayList<>(), frameP95 = new ArrayList<>(),
+            frameMax = new ArrayList<>();
+        int[] quads = {0}, blocks = {0};
+        for (int k0 = 0; k0 < 4; k0++) {
+            final int k = k0;
+            int x = 8;
+            List<Double> ms = Collections.synchronizedList(new ArrayList<>());
+            int[] end = {-1};
+            s.server(server -> {
+                Falls.lastFall = null;
+                CommandSourceStack root = server.createCommandSourceStack().withSuppressedOutput();
+                String box = (x - 12) + " %d -4 " + (x + 16) + " %d 20 ";
+                server.getCommands().performPrefixedCommand(root, "fill " + box.formatted(-61, -61) + "minecraft:grass_block");
+                server.getCommands().performPrefixedCommand(root, "fill " + box.formatted(-60, -30) + "minecraft:air");
+                server.getCommands().performPrefixedCommand(root, "fill " + (x - 1) + " -60 7 " + (x + 1) + " -37 9 minecraft:oak_log");
+                server.getCommands().performPrefixedCommand(root, "fill " + (x - 4) + " -45 3 " + (x + 5) + " -35 13 minecraft:oak_leaves[persistent=false,distance=7] replace minecraft:air");
+                light(server, x);
+                server.getCommands().performPrefixedCommand(root, "kill @e[type=item]");
+                server.getCommands().performPrefixedCommand(root, "tp @p " + (x - 6.5) + " -60 24 facing " + (x + 3) + " -45 8");
+            })
+                .waitTicks(30)
+                .run(mc -> {
+                    io.github.profetgit.vanillatimber.client.ClientFalls.last = null;
+                    io.github.profetgit.vanillatimber.client.ClientFalls.spent = 0;
+                    SelfTest.frameHook = m -> {
+                        double p = io.github.profetgit.vanillatimber.client.ClientFalls.drawnPitch();
+                        long ns = io.github.profetgit.vanillatimber.client.ClientFalls.spent;
+                        io.github.profetgit.vanillatimber.client.ClientFalls.spent = 0;
+                        if (!Double.isNaN(p)) ms.add(ns / 1e6);
+                    };
+                })
+                .capture("perfmesh_" + k, k == 3 ? 300 : 1)
+                .server(server -> {
+                    Fall.probe = fl -> end[0] = fl.n >= fl.tl.end ? fl.n : -1;
+                    chop(server, x);
+                })
+                .until("perfmesh " + k + " payload", 100, mc -> io.github.profetgit.vanillatimber.client.ClientFalls.last != null)
+                .until("perfmesh " + k + " to finish", 1200, mc -> end[0] >= 0)
+                .waitTicks(20)
+                .run(mc -> {
+                    SelfTest.frameHook = null;
+                    var msg = io.github.profetgit.vanillatimber.client.ClientFalls.last;
+                    blocks[0] = msg == null ? 0 : msg.blocks();
+                    quads[0] = io.github.profetgit.vanillatimber.client.ClientFalls.quads();
+                    SelfTest.record("perfmesh " + k + " raw", true, String.format(java.util.Locale.ROOT, "%d blocks, bake %.2f ms, frame p50 %.3f p95 %.3f max %.3f over %d frames",
+                        blocks[0], io.github.profetgit.vanillatimber.client.ClientFalls.bakeNanos / 1e6, percentile(ms, 0.5), percentile(ms, 0.95), percentile(ms, 1.0), ms.size()));
+                    if (k > 0) {
+                        bake.add(io.github.profetgit.vanillatimber.client.ClientFalls.bakeNanos / 1e6);
+                        frameMean.add(ms.stream().mapToDouble(Double::doubleValue).average().orElse(0));
+                        frameP50.add(percentile(ms, 0.5));
+                        frameP95.add(percentile(ms, 0.95));
+                        frameMax.add(percentile(ms, 1.0));
+                    }
+                })
+                .server(server -> Fall.probe = null);
+        }
+        s.check("perfmesh: big tree fell (>= 1300 blocks)", mc -> blocks[0] >= 1300 ? null : blocks[0] + " blocks")
+            .check("perfmesh: bake <= 10 us per block warm (median of 3; PRD 10's 4 ms re-set, Calls link 17)", mc -> {
+                double v = percentile(bake, 0.5);
+                return v * 1000 / blocks[0] <= 10 ? null : String.format(java.util.Locale.ROOT, "bake median %.2f ms for %d blocks = %.1f us per block, %d quads",
+                    v, blocks[0], v * 1000 / blocks[0], quads[0]);
+            })
+            .check("perfmesh: mean frame ms scaled to 2000 blocks <= 1 ms (median of 3)", mc -> {
+                double v = percentile(frameMean, 0.5) * 2000 / blocks[0];
+                return v <= 1 ? null : String.format(java.util.Locale.ROOT, "mean %.3f ms for %d blocks (x%.2f to 2000 = %.3f), p95 %.3f, %d quads",
+                    percentile(frameMean, 0.5), blocks[0], 2000.0 / blocks[0], v, percentile(frameP95, 0.5), quads[0]);
+            })
+            .run(mc -> SelfTest.record("perfmesh summary", true, String.format(java.util.Locale.ROOT,
+                "%d blocks, %d quads: bake median %.2f ms (all %s), frame mean %.3f p50 %.3f p95 %.3f max %.3f ms", blocks[0], quads[0], percentile(bake, 0.5), bake,
+                percentile(frameMean, 0.5), percentile(frameP50, 0.5), percentile(frameP95, 0.5), percentile(frameMax, 0.5))));
     }
 
     /**
