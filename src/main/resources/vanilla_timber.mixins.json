@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "plugin": "io.github.profetgit.vanillatimber.mixin.MixinPlugin",
   "client": [
+    "LayerLightSectionStorageMixin",
     "LevelRendererMixin",
     "MinecraftMixin",
     "compat.IrisShadowMixin"

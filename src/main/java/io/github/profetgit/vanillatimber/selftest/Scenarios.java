@@ -61,6 +61,10 @@ final class Scenarios {
         if (only.equals("all") || only.contains("fall")) fall(s);
         if (only.equals("all") || only.contains("mesh")) mesh(s);
         if (only.equals("all") || only.contains("sync")) sync(s);
+        if (only.contains("perfmeshoff")) s.run(mc -> {
+            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
+            io.github.profetgit.vanillatimber.client.LightHold.on = false;
+        });
         if (only.contains("perfmesh")) perfMesh(s);
         if (only.contains("parity")) {
             String groups = System.getProperty("vanilla_timber.selftest.groups", "all");

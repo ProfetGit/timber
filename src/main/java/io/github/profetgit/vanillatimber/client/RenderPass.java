@@ -13,6 +13,7 @@ import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.resources.Identifier;
 import io.github.profetgit.vanillatimber.client.compat.IrisCompat;
 import net.minecraft.world.level.CardinalLighting;
 //?} else {
@@ -67,6 +68,16 @@ public final class RenderPass {
         ps.popPose();
     }
 
+    /** The ground shadow of the falls, in the entity pass like vanilla's own shadows. */
+    void shadow() {
+        ps.pushPose();
+        ps.translate(-cam.x, -cam.y, -cam.z);
+        out.submitCustomGeometry(ps, SHADOW, (pose, vc) -> GroundShadow.render(pose.pose(), vc));
+        ps.popPose();
+    }
+
+    private static final RenderType SHADOW = RenderTypes.entityShadow(Identifier.withDefaultNamespace("textures/misc/shadow.png"));
+
     void flush() {
     }
 
@@ -108,6 +119,9 @@ public final class RenderPass {
     }
 
     // the shared buffer holds one batch at a time: close each used type so the frame's falls are drawn before the hook returns
+    void shadow() {
+    }
+
     void flush() {
         for (RenderType t : used) buffers.endBatch(t);
         used.clear();

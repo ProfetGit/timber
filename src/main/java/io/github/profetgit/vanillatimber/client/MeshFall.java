@@ -46,6 +46,10 @@ final class MeshFall {
     final boolean[] leaf;
     final BlockState[] states;
     final int blocks;
+    /** Farthest a block centre is from the pivot (sizes the ground shadow's grid). */
+    final float reach;
+    private Matrix4f[] shadowMats;
+    private byte[] shadowSeen;
     /**
      * Ticks from a server frame's packets arriving to that frame's pose fully drawn by a vanilla client, on average. A
      * display starts toward an update on the first client tick run after the frame that handled it and gets there one
@@ -115,6 +119,9 @@ final class MeshFall {
             }
         }
         bake(level);
+        float far = 0;
+        for (int i = 0; i < blocks; i++) far = Math.max(far, cx[i] * cx[i] + cy[i] * cy[i] + cz[i] * cz[i]);
+        reach = (float) Math.sqrt(far) + 1;
     }
 
     /** Drawing time in server frames at client time {@code t}: frame n's pose is fully drawn at tau = n. */
@@ -253,6 +260,32 @@ final class MeshFall {
             n++;
         }
         return n;
+    }
+
+    /** Feeds the ground shadow with the blocks as drawn in the last frame: a leaf stops 1 of the sky's 15, a log all of it. */
+    void shadowBlocks(GroundShadow.Zone zone) {
+        DrawnPose d = drawn;
+        if (dead || d.tau >= tl.end - 1) return;
+        int rings = kt - kn + 1;
+        if (shadowMats == null) {
+            shadowMats = new Matrix4f[rings * 2];
+            shadowSeen = new byte[rings * 2];
+        } else {
+            java.util.Arrays.fill(shadowSeen, (byte) 0);
+        }
+        Vector3f w = new Vector3f();
+        for (int i = 0; i < blocks; i++) {
+            int gi = (ring[i] - kn) * 2 + (leaf[i] ? 1 : 0);
+            if (shadowSeen[gi] == 0) {
+                float[] p = leaf[i] ? null : d.pop(ring[i], pop);
+                boolean shown = leaf[i] ? d.leaves : p == null || p[0] != 0 || p[1] != 0;
+                shadowSeen[gi] = (byte) (shown ? 1 : 2);
+                if (shown) shadowMats[gi] = pose(shadowMats[gi] == null ? new Matrix4f() : shadowMats[gi], ring[i], leaf[i], d, 0, 0, 0);
+            }
+            if (shadowSeen[gi] == 2) continue;
+            shadowMats[gi].transformPosition(cx[i], cy[i], cz[i], w);
+            zone.add(w.x, w.z, leaf[i] ? 1 : 15);
+        }
     }
 
     /**

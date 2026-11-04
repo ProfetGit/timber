@@ -592,7 +592,7 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense")).toList()) {
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksbefore", "looksprobe", "looksprobebefore")).toList()) {
             if (!((groups.equals("all") && !g.startsWith("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
@@ -635,6 +635,27 @@ final class Parity {
                     case "m3sheet" -> m3sheet();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
+                    case "looksprobebefore" -> {
+                        client(mc -> {
+                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
+                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
+                        });
+                        probe = true;
+                        looks(false);
+                        probe = false;
+                    }
+                    case "looksprobe" -> {
+                        probe = true;
+                        looks(false);
+                        probe = false;
+                    }
+                    case "looksbefore" -> {
+                        client(mc -> {
+                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
+                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
+                        });
+                        looks(false);
+                    }
                     case "azshapes" -> azaleaShapes();
                     case "multibreak" -> multibreak();
                     case "claims" -> claims();
@@ -2234,6 +2255,25 @@ final class Parity {
      * M6 render sheet stills: daylight, no lantern box, three trees; stills at the chop, mid-fall, the slam and just after.
      * Run once per render set (addon); files frames/looks_<tree>_t<tick>/f000.png.
      */
+    static boolean probe;
+
+    /** Published sky light and the shadow's alpha over three ground cells, as the chunk meshes and the quads show them. */
+    static void skyProbe(String tag) {
+        int[][] cells = {{0, 0}, {3, 0}, {6, 0}, {14, 0}};
+        BlockPos[] ps = new BlockPos[cells.length];
+        for (int i = 0; i < ps.length; i++) ps[i] = p(cells[i][0], -1, cells[i][1]);
+        client(mc -> {
+            StringBuilder sb = new StringBuilder("probe " + tag + ":");
+            for (BlockPos q : ps) {
+                int sky = mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, q.above());
+                float a = io.github.profetgit.vanillatimber.client.GroundShadow.alphaAt(q.getX(), q.getZ());
+                sb.append(String.format(java.util.Locale.ROOT, " sky %2d a %.2f eff %.3f |", sky, a, sky / 15.0 * (1 - a)));
+            }
+            info(sb.toString());
+        });
+        tick(0);
+    }
+
     static void looks(boolean dense) {
         cmd("time set 6000");
         cmd("weather clear");
@@ -2254,6 +2294,9 @@ final class Parity {
             cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + 6) + " " + cz);
             client(MpHost::hideHud);
             tick(40);
+            if (probe) skyProbe("pre");
+            else client(mc -> SelfTest.startCapture("looks_" + t[0] + "_pre", 1));
+            tick(2);
             on(() -> {
                 float yaw = player.getYRot();
                 player.setYRot(-90);
@@ -2274,6 +2317,13 @@ final class Parity {
                 for (int i = 0; i < at.length; i++) at[i] = slam - 4 + 2 * i;
             }
             int done = 0;
+            if (probe) {
+                for (int i = 1; i <= 24; i++) {
+                    tick(1);
+                    skyProbe("t" + i);
+                }
+                at = new int[0];
+            }
             for (int a : at) {
                 tick(a - done);
                 done = a;

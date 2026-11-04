@@ -27,6 +27,10 @@ public final class ClientFalls {
         MeshFall f = new MeshFall(msg, level, ticks);
         bakeNanos = System.nanoTime() - t0;
         FALLS.add(f);
+        if (!IrisCompat.active()) {
+            LightHold.arm(level, msg, ticks);
+            GroundShadow.start(f);
+        }
         last = msg;
         lastFall = f;
     }
@@ -35,10 +39,13 @@ public final class ClientFalls {
         ticks++;
         for (MeshFall f : FALLS) f.tick(level, ticks);
         FALLS.removeIf(f -> f.dead);
+        LightHold.tick(level, ticks, !FALLS.isEmpty());
     }
 
     static void clear() {
         FALLS.clear();
+        GroundShadow.clear();
+        LightHold.clear();
         lastFall = null;
     }
 
@@ -53,12 +60,25 @@ public final class ClientFalls {
         if (Double.isNaN(lastFrame) || t < lastFrame) frameDt = 1.0 / 3;
         else if (t > lastFrame) frameDt = t - lastFrame;
         lastFrame = t;
-        if (FALLS.isEmpty()) return;
+        boolean shadow = false;
+        if (IrisCompat.active()) {
+            if (GroundShadow.pending()) {
+                GroundShadow.clear();
+                LightHold.release(level);
+            }
+        } else {
+            shadow = GroundShadow.pending();
+        }
+        if (FALLS.isEmpty() && !shadow) return;
         float[] shades = pass.shades(level);
         for (MeshFall f : FALLS) {
             if (f.dead) continue;
             f.frame(level, t, frameDt);
             f.submit(pass, t, shades);
+        }
+        if (shadow) {
+            GroundShadow.frame(level, frameDt, ticks);
+            pass.shadow();
         }
         pass.flush();
         spent += System.nanoTime() - t0;
