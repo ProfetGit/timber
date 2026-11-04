@@ -592,7 +592,7 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksbefore", "looksprobe", "looksprobebefore")).toList()) {
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore", "looksplantsnoshadow", "looksplantsnohold")).toList()) {
             if (!((groups.equals("all") && !g.startsWith("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
@@ -635,6 +635,32 @@ final class Parity {
                     case "m3sheet" -> m3sheet();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
+                    case "looksplants" -> {
+                        plants = true;
+                        looks(false);
+                        plants = false;
+                    }
+                    case "looksplantsbefore" -> {
+                        client(mc -> {
+                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
+                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
+                        });
+                        plants = true;
+                        looks(false);
+                        plants = false;
+                    }
+                    case "looksplantsnoshadow" -> {
+                        client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
+                        plants = true;
+                        looks(false);
+                        plants = false;
+                    }
+                    case "looksplantsnohold" -> {
+                        client(mc -> io.github.profetgit.vanillatimber.client.LightHold.on = false);
+                        plants = true;
+                        looks(false);
+                        plants = false;
+                    }
                     case "looksprobebefore" -> {
                         client(mc -> {
                             io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
@@ -2255,7 +2281,22 @@ final class Parity {
      * M6 render sheet stills: daylight, no lantern box, three trees; stills at the chop, mid-fall, the slam and just after.
      * Run once per render set (addon); files frames/looks_<tree>_t<tick>/f000.png.
      */
-    static boolean probe;
+    static boolean probe, plants;
+
+    private static final String[] PLANTS = {"short_grass", "short_grass", "short_grass", "fern", "fern", "tall_grass[half=lower]", "large_fern[half=lower]", "poppy", "dandelion", "sweet_berry_bush[age=3]", "azure_bluet", "cornflower"};
+
+    /** Ground cover around the tree: every kind of non-full plant block, a deterministic scatter within 9 blocks. */
+    static void plantCover() {
+        java.util.Random r = new java.util.Random(7);
+        for (int dx = -9; dx <= 9; dx++) {
+            for (int dz = -9; dz <= 9; dz++) {
+                if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 || r.nextInt(100) >= 65) continue;
+                String b = PLANTS[r.nextInt(PLANTS.length)];
+                cmd("setblock " + at(dx, 0, dz) + " minecraft:" + b + " keep");
+                if (b.contains("half=lower")) cmd("setblock " + at(dx, 1, dz) + " minecraft:" + b.replace("lower", "upper") + " keep");
+            }
+        }
+    }
 
     /** Published sky light and the shadow's alpha over three ground cells, as the chunk meshes and the quads show them. */
     static void skyProbe(String tag) {
@@ -2274,6 +2315,10 @@ final class Parity {
         tick(0);
     }
 
+    static String shotName(String tree) {
+        return (plants ? "looksp_" : "looks_") + tree;
+    }
+
     static void looks(boolean dense) {
         cmd("time set 6000");
         cmd("weather clear");
@@ -2288,14 +2333,19 @@ final class Parity {
                 cmd("fill " + (cx - 10) + " " + y + " " + (cz - 28) + " " + (cx + 24) + " " + Math.min(y + 23, 319) + " " + (cz + 10) + " minecraft:air");
             // block light in front of the tree for the sets that draw no sun (the pit is deep, so sky light alone stays dim)
             cmd("fill " + at(-10, 0, -6) + " " + at(22, 22, -6) + " minecraft:light[level=15] replace air");
-            tick(120);
+            if (plants) plantCover();
+            tick(plants ? 400 : 120);
             hold("minecraft:netherite_axe");
             int dist = Integer.parseInt(t[2]);
-            cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + 6) + " " + cz);
+            if (plants) {
+                cmd("fill " + at(3, 0, -11) + " " + at(3, 1, -11) + " minecraft:stone");
+                cmd("tp " + who() + " " + (cx + 3) + ".5 " + (Y + 2) + " " + (cz - 11) + ".5 facing " + (cx + 1) + " " + Y + " " + (cz - 1));
+            }
+            else cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + 6) + " " + cz);
             client(MpHost::hideHud);
             tick(40);
             if (probe) skyProbe("pre");
-            else client(mc -> SelfTest.startCapture("looks_" + t[0] + "_pre", 1));
+            else client(mc -> SelfTest.startCapture(shotName(t[0]) + "_pre", 1));
             tick(2);
             on(() -> {
                 float yaw = player.getYRot();
@@ -2311,7 +2361,7 @@ final class Parity {
             }
             int slam = 0;
             while (slam < f.tl.end && f.tl.p[slam] < f.tl.spec.hit() - 0.5) slam++;
-            int[] at = {1, Math.max(2, slam / 2), slam, slam + 8};
+            int[] at = plants ? new int[] {1, 2, 6, slam} : new int[] {1, Math.max(2, slam / 2), slam, slam + 8};
             if (dense) {
                 at = new int[18];
                 for (int i = 0; i < at.length; i++) at[i] = slam - 4 + 2 * i;
@@ -2327,7 +2377,7 @@ final class Parity {
             for (int a : at) {
                 tick(a - done);
                 done = a;
-                String shot = "looks_" + t[0] + String.format(java.util.Locale.ROOT, "_t%02d", a);
+                String shot = shotName(t[0]) + String.format(java.util.Locale.ROOT, "_t%02d", a);
                 client(mc -> SelfTest.startCapture(shot, 1));
             }
             info("looks " + t[0] + ": stills at " + java.util.Arrays.toString(at) + ", slam tick " + slam);

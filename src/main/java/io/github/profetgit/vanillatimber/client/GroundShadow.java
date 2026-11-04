@@ -6,11 +6,9 @@ import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -228,16 +226,15 @@ public final class GroundShadow {
             }
         }
 
-        /** Top of the ground in a column, or NaN. Leaves and logs are looked through. */
+        /** Top of the ground in a column, or NaN: leaves, logs and blocks without collision (plants, water) are looked through, and only a full-block top takes a quad, as vanilla's entity shadows do. */
         private float groundTop(ClientLevel level, int x, int z) {
             int lo = Math.max(level.getMinY(), bottom);
             for (int y = top; y >= lo; y--) {
                 MP.set(x, y, z);
                 BlockState s = level.getBlockState(MP);
                 if (s.isAir() || s.is(BlockTags.LEAVES) || s.is(BlockTags.LOGS)) continue;
-                VoxelShape shape = s.getCollisionShape(level, MP);
-                if (shape.isEmpty()) continue;
-                return (float) (y + shape.max(Direction.Axis.Y) + 0.005);
+                if (s.getCollisionShape(level, MP).isEmpty()) continue;
+                return s.isCollisionShapeFullBlock(level, MP) ? y + 1.0f : Float.NaN;
             }
             return Float.NaN;
         }
