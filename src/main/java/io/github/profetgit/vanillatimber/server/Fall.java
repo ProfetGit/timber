@@ -318,10 +318,7 @@ public final class Fall {
 
     private void fire(Timeline.Event e, Vec3 at, double pitch) {
         switch (e.kind()) {
-            case CHOP -> {
-                Fx.chop(level, this, at);
-                Falls.feedback(cutter, tree.logs());
-            }
+            case CHOP -> Fx.chop(level, this, at);
             case LAND -> Fx.land(level, this, at);
             case CREAK -> Fx.creak(level, at);
             case CRACK -> Fx.crack(level, this, at);

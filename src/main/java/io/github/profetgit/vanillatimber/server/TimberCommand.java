@@ -121,7 +121,7 @@ public final class TimberCommand {
         boolRow(src, Key.DURABILITY, "Use axe durability", "Each log costs durability (Unbreaking applies); a tree that would break the axe is not felled");
         boolRow(src, Key.ANIMATION, "Falling animation", "Off: the tree vanishes at once and drops at the stump");
         boolRow(src, Key.PROTECT, "Protect placed logs", "Logs placed by players are never felled");
-        boolRow(src, Key.FEEDBACK, "Action bar message", "Show how many logs were felled");
+        boolRow(src, Key.FEEDBACK, "Refusal message", "Say on the action bar why a tree was not felled");
         boolRow(src, Key.HIDE_LEAVES, "Hide inner leaves", "Leaves shut in on all sides get no display: cheaper, but the crown looks hollow when it falls");
         boolRow(src, Key.WELCOME, "Join hint", "Explain Timber to each player once");
         line(src, Component.literal(" ").append(Players.button("[Reset to defaults]", ChatFormatting.YELLOW, "Restore every setting to its default", "/timber menu reset")));

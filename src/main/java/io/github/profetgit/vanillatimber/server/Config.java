@@ -25,7 +25,7 @@ public final class Config {
         ANIMATION("animation", 1, 0, 1, "0: the tree vanishes at once and drops at the stump"),
         DROPS("drops", 0, 0, 1, "0: each log hops out where it lands, leaf drops burst from the crown; 1: everything drops at the player"),
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),
-        FEEDBACK("feedback", 1, 0, 1, "1: action bar messages (logs felled, and why a tree was not felled)"),
+        FEEDBACK("feedback", 1, 0, 1, "1: action bar message when a tree is not felled, and why"),
         WELCOME("welcome", 0, 0, 1, "1: explain Timber to each player once, on their first join"),
         HIDE_LEAVES("hide_leaves", 0, 0, 1, "1: leaves shut in on all sides get no display (cheaper, but the crown looks hollow when it falls)"),
         DISPLAY_CAP("display_cap", 1200, 100, 4000, "Most displays one fall may spawn"),

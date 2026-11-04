@@ -163,14 +163,6 @@ public final class Falls {
         return true;
     }
 
-    static void feedback(ServerPlayer player, int logs) {
-        if (player.isRemoved() || !Config.on(Config.Key.FEEDBACK)) return;
-        Say.bar(player, Component.literal("🪓 ").withStyle(ChatFormatting.GOLD)
-            .append(Component.translatableWithFallback("vanilla_timber.msg.timber", "Timber! ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD))
-            .append(Component.literal(Integer.toString(logs)).withStyle(ChatFormatting.WHITE))
-            .append(Component.translatableWithFallback("vanilla_timber.msg.logs", " logs").withStyle(ChatFormatting.GRAY)));
-    }
-
     static void tick(ServerLevel level) {
         List<Fall> falls = ACTIVE.get(level);
         if (falls == null || falls.isEmpty()) return;
