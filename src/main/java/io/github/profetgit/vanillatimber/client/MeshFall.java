@@ -1,11 +1,13 @@
 package io.github.profetgit.vanillatimber.client;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import io.github.profetgit.vanillatimber.client.compat.IrisCompat;
 import io.github.profetgit.vanillatimber.core.DrawnPose;
 import io.github.profetgit.vanillatimber.core.Layout;
 import io.github.profetgit.vanillatimber.core.Rig;
 import io.github.profetgit.vanillatimber.core.Timeline;
 import io.github.profetgit.vanillatimber.net.TreeFall;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
@@ -41,6 +44,7 @@ final class MeshFall {
     final float[] cx, cy, cz, bl, sk;
     final int[] ring, light;
     final boolean[] leaf;
+    final BlockState[] states;
     final int blocks;
     /**
      * Ticks from a server frame's packets arriving to that frame's pose fully drawn by a vanilla client, on average. A
@@ -87,6 +91,7 @@ final class MeshFall {
         ring = new int[blocks];
         light = new int[blocks];
         leaf = new boolean[blocks];
+        states = new BlockState[blocks];
         int lo = 0, hi = 0;
         for (int i = 0; i < blocks; i++) {
             int wy = (msg.origin().getY() + msg.cells()[i * 4 + 1]) * 1000 - msg.py();
@@ -173,6 +178,7 @@ final class MeshFall {
             cz[i] = tz + c.z;
             ring[i] = k;
             leaf[i] = lf;
+            states[i] = state;
             int lit = lightAt(level, cell);
             bl[i] = Packed.block(lit);
             sk[i] = Packed.sky(lit);
@@ -414,10 +420,20 @@ final class MeshFall {
         @Override
         public void render(Matrix4f m, VertexConsumer vc) {
             long t0 = System.nanoTime();
+            Vector3f c = new Vector3f();
             float[] nr = fall.normals, sh = fall.shade;
             int[] lights = fall.light;
             float gx = ex, gy = ey, rw = w;
+            Object2IntMap<BlockState> ids = IrisCompat.applies(vc) ? IrisCompat.ids() : null;
+            int open = -1;
             for (int qi = 0; qi < quads; qi++) {
+                if (ids != null && block[qi] != open) {
+                    if (open >= 0) IrisCompat.end(vc);
+                    open = block[qi];
+                    BlockState st = fall.states[open];
+                    m.transformPosition(fall.cx[open], fall.cy[open], fall.cz[open], c);
+                    IrisCompat.begin(vc, ids.getOrDefault(st, -1), st.getLightEmission(), Mth.floor(c.x), Mth.floor(c.y), Mth.floor(c.z));
+                }
                 int d = dir[qi];
                 int path = lights[block[qi]], pu = path & 0xFFFF, pv = path >>> 16;
                 float nx = nr[d * 3], ny = nr[d * 3 + 1], nz = nr[d * 3 + 2];
@@ -440,6 +456,7 @@ final class MeshFall {
                         .setNormal(nx, ny, nz);
                 }
             }
+            if (open >= 0) IrisCompat.end(vc);
             ClientFalls.spent += System.nanoTime() - t0;
         }
     }

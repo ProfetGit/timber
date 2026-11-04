@@ -12,6 +12,8 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import io.github.profetgit.vanillatimber.client.compat.IrisCompat;
 import net.minecraft.world.level.CardinalLighting;
 //?} else {
 /*import java.util.LinkedHashSet;
@@ -43,6 +45,13 @@ public final class RenderPass {
         this.out = out;
     }
 
+    /** A pass into another collector with its own camera: Iris's shadow pass submits entities from the sun. */
+    public RenderPass(PoseStack ps, Vec3 cam, SubmitNodeCollector out) {
+        this.ps = ps;
+        this.cam = cam;
+        this.out = out;
+    }
+
     // the six face values by Direction.ordinal; byFace, not the record fields: Iris patches it when a shader pack turns vanilla shading off
     float[] shades(ClientLevel level) {
         CardinalLighting cl = level.cardinalLighting();
@@ -66,6 +75,7 @@ public final class RenderPass {
     }
 
     private static RenderType type(Layer layer) {
+        if (IrisCompat.active() && layer != Layer.TRANSLUCENT) return RenderTypes.itemCutout(TextureAtlas.LOCATION_BLOCKS);
         return switch (layer) {
             case SOLID -> RenderTypes.solidMovingBlock();
             case CUTOUT, CUTOUT_MIPPED -> RenderTypes.cutoutMovingBlock();

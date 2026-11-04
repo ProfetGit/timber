@@ -3,6 +3,7 @@ package io.github.profetgit.vanillatimber.client;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import java.util.ArrayList;
 import java.util.List;
+import io.github.profetgit.vanillatimber.client.compat.IrisCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 
@@ -46,6 +47,7 @@ public final class ClientFalls {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
+        IrisCompat.frame();
         double t = ticks + RenderPass.partial(mc);
         // a second pass in the same frame (a shader pack's shadow pass) keeps the frame's interval
         if (Double.isNaN(lastFrame) || t < lastFrame) frameDt = 1.0 / 3;

@@ -3,9 +3,11 @@
   "minVersion": "0.8",
   "package": "io.github.profetgit.vanillatimber.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "io.github.profetgit.vanillatimber.mixin.MixinPlugin",
   "client": [
     "LevelRendererMixin",
-    "MinecraftMixin"
+    "MinecraftMixin",
+    "compat.IrisShadowMixin"
   ],
   "injectors": {
     "defaultRequire": 1
