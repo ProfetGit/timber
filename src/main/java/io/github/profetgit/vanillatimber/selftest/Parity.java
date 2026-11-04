@@ -2288,11 +2288,6 @@ final class Parity {
     /** Ground cover around the tree: every kind of non-full plant block, a deterministic scatter within 9 blocks. */
     static void plantCover() {
         java.util.Random r = new java.util.Random(7);
-        cmd("setblock " + at(2, 0, 2) + " minecraft:fern");
-        cmd("setblock " + at(-2, 0, 2) + " minecraft:tall_grass[half=lower]");
-        cmd("setblock " + at(-2, 1, 2) + " minecraft:tall_grass[half=upper]");
-        cmd("setblock " + at(0, 0, 3) + " minecraft:short_grass");
-        cmd("setblock " + at(3, 0, 0) + " minecraft:poppy");
         for (int dx = -9; dx <= 9; dx++) {
             for (int dz = -9; dz <= 9; dz++) {
                 if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1 || r.nextInt(100) >= 65) continue;
@@ -2318,25 +2313,6 @@ final class Parity {
             info(sb.toString());
         });
         tick(0);
-    }
-
-    /** The shadow quad over plant cells sits at the top of the plant, over bare ground at the ground. */
-    static void coverCheck(String tree) {
-        int[][] cells = {{2, 2}, {-2, 2}, {0, 3}, {3, 0}, {6, 6}};
-        for (int[] c : cells) {
-            BlockPos q = p(c[0], 0, c[1]);
-            float[] got = new float[2];
-            client(mc -> {
-                got[0] = io.github.profetgit.vanillatimber.client.GroundShadow.heightAt(q.getX(), q.getZ());
-                got[1] = io.github.profetgit.vanillatimber.client.GroundShadow.alphaAt(q.getX(), q.getZ());
-                var st = mc.level.getBlockState(q);
-                double top = st.isAir() ? 0 : st.getShape(mc.level, q).max(Direction.Axis.Y);
-                if (st.is(net.minecraft.world.level.block.Blocks.TALL_GRASS)) top = 2;
-                info("cover " + tree + " " + c[0] + "," + c[1] + " " + st.getBlock().getDescriptionId() + " expected " + (q.getY() + top) + " got " + got[0] + " alpha " + got[1]);
-                if (!Float.isNaN(got[0])) check("looks " + tree + ": shadow height over " + c[0] + "," + c[1], Math.abs(got[0] - (q.getY() + top)) < 0.01, "expected " + (q.getY() + top) + ", got " + got[0]);
-            });
-            tick(2);
-        }
     }
 
     static String shotName(String tree) {
@@ -2385,7 +2361,7 @@ final class Parity {
             }
             int slam = 0;
             while (slam < f.tl.end && f.tl.p[slam] < f.tl.spec.hit() - 0.5) slam++;
-            int[] at = plants ? new int[] {1, 2, 6, 14, slam} : new int[] {1, Math.max(2, slam / 2), slam, slam + 8};
+            int[] at = plants ? new int[] {1, 2, 6, slam} : new int[] {1, Math.max(2, slam / 2), slam, slam + 8};
             if (dense) {
                 at = new int[18];
                 for (int i = 0; i < at.length; i++) at[i] = slam - 4 + 2 * i;
@@ -2401,7 +2377,6 @@ final class Parity {
             for (int a : at) {
                 tick(a - done);
                 done = a;
-                if (plants && a == 6) coverCheck(t[0]);
                 String shot = shotName(t[0]) + String.format(java.util.Locale.ROOT, "_t%02d", a);
                 client(mc -> SelfTest.startCapture(shot, 1));
             }

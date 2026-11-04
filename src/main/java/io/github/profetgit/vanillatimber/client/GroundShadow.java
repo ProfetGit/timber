@@ -6,11 +6,9 @@ import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -26,7 +24,7 @@ public final class GroundShadow {
     /** Off with -Dvanilla_timber.groundShadow=false (the tests switch it for before/after sheets). */
     public static volatile boolean on = !"false".equals(System.getProperty("vanilla_timber.groundShadow"));
     private static final float STRENGTH = 0.55f, DECAY_PER_TICK = 0.25f, MAX_ALPHA = 0.92f;
-    private static final int RELAX = 8, MAX_REACH = 56, GROUND_BUDGET = 300, GROUND_REFRESH = 40, COVER = 3;
+    private static final int RELAX = 8, MAX_REACH = 56, GROUND_BUDGET = 300, GROUND_REFRESH = 40;
     private static final List<Zone> ZONES = new ArrayList<>();
     private static int budget;
     private static final Vector3f SCRATCH = new Vector3f();
@@ -86,15 +84,6 @@ public final class GroundShadow {
             if (i >= 1 && j >= 1 && i < zn.n && j < zn.n) a = Math.max(a, zn.corner(i, j, STRENGTH * fade));
         }
         return a;
-    }
-
-    /** The height the shadow quad takes over a cell now, NaN if none (tests). */
-    public static float heightAt(int x, int z) {
-        for (Zone zn : ZONES) {
-            int i = x - zn.ox, j = z - zn.oz;
-            if (i >= 1 && j >= 1 && i < zn.n && j < zn.n) return zn.ground[i * zn.n + j];
-        }
-        return Float.NaN;
     }
 
     private static float curve(float level) {
@@ -237,11 +226,7 @@ public final class GroundShadow {
             }
         }
 
-        /**
-         * Height the shadow quad takes in a column, or NaN. Leaves, logs and blocks without collision are looked through
-         * down to a full-block top (vanilla's rule); plants standing on it (up to COVER blocks, top of the highest one)
-         * lift the quad to their top, so they read darkened with the ground and nothing is darkened twice.
-         */
+        /** Top of the ground in a column, or NaN: leaves, logs and blocks without collision (plants, water) are looked through, and only a full-block top takes a quad, as vanilla's entity shadows do. */
         private float groundTop(ClientLevel level, int x, int z) {
             int lo = Math.max(level.getMinY(), bottom);
             for (int y = top; y >= lo; y--) {
@@ -249,16 +234,7 @@ public final class GroundShadow {
                 BlockState s = level.getBlockState(MP);
                 if (s.isAir() || s.is(BlockTags.LEAVES) || s.is(BlockTags.LOGS)) continue;
                 if (s.getCollisionShape(level, MP).isEmpty()) continue;
-                if (!s.isCollisionShapeFullBlock(level, MP)) return Float.NaN;
-                float surface = y + 1.0f;
-                for (int c = 1; c <= COVER; c++) {
-                    MP.set(x, y + c, z);
-                    BlockState p = level.getBlockState(MP);
-                    if (p.isAir() || p.is(BlockTags.LEAVES) || p.is(BlockTags.LOGS) || !p.getFluidState().isEmpty()) continue;
-                    VoxelShape shape = p.getShape(level, MP);
-                    if (!shape.isEmpty()) surface = y + c + (float) shape.max(Direction.Axis.Y);
-                }
-                return surface;
+                return s.isCollisionShapeFullBlock(level, MP) ? y + 1.0f : Float.NaN;
             }
             return Float.NaN;
         }
