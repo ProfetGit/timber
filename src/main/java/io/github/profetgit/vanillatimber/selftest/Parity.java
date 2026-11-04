@@ -592,7 +592,7 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore", "looksplantsnoshadow", "looksplantsnohold")).toList()) {
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
             if (!((groups.equals("all") && !g.startsWith("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
@@ -635,37 +635,23 @@ final class Parity {
                     case "m3sheet" -> m3sheet();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
+                    case "looksdensebefore" -> {
+                        client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
+                        looks(true);
+                    }
                     case "looksplants" -> {
                         plants = true;
                         looks(false);
                         plants = false;
                     }
                     case "looksplantsbefore" -> {
-                        client(mc -> {
-                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
-                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
-                        });
-                        plants = true;
-                        looks(false);
-                        plants = false;
-                    }
-                    case "looksplantsnoshadow" -> {
                         client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
                         plants = true;
                         looks(false);
                         plants = false;
                     }
-                    case "looksplantsnohold" -> {
-                        client(mc -> io.github.profetgit.vanillatimber.client.LightHold.on = false);
-                        plants = true;
-                        looks(false);
-                        plants = false;
-                    }
                     case "looksprobebefore" -> {
-                        client(mc -> {
-                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
-                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
-                        });
+                        client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
                         probe = true;
                         looks(false);
                         probe = false;
@@ -676,10 +662,7 @@ final class Parity {
                         probe = false;
                     }
                     case "looksbefore" -> {
-                        client(mc -> {
-                            io.github.profetgit.vanillatimber.client.GroundShadow.on = false;
-                            io.github.profetgit.vanillatimber.client.LightHold.on = false;
-                        });
+                        client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
                         looks(false);
                     }
                     case "azshapes" -> azaleaShapes();
@@ -2298,7 +2281,7 @@ final class Parity {
         }
     }
 
-    /** Published sky light and the shadow's alpha over three ground cells, as the chunk meshes and the quads show them. */
+    /** Published and engine sky light over three ground cells, as the chunk meshes and the light engine have them. */
     static void skyProbe(String tag) {
         int[][] cells = {{0, 0}, {3, 0}, {6, 0}, {14, 0}};
         BlockPos[] ps = new BlockPos[cells.length];
@@ -2307,12 +2290,44 @@ final class Parity {
             StringBuilder sb = new StringBuilder("probe " + tag + ":");
             for (BlockPos q : ps) {
                 int sky = mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, q.above());
-                float a = io.github.profetgit.vanillatimber.client.GroundShadow.alphaAt(q.getX(), q.getZ());
-                sb.append(String.format(java.util.Locale.ROOT, " sky %2d a %.2f eff %.3f |", sky, a, sky / 15.0 * (1 - a)));
+                sb.append(String.format(java.util.Locale.ROOT, " pub %2d eng %2d |", sky, io.github.profetgit.vanillatimber.client.LightHold.liveAt(q.above())));
             }
             info(sb.toString());
         });
         tick(0);
+    }
+
+    /** Waits until the client's sky light equals the server's over a grid of cells around the tree for 10 ticks in a row, and neither light engine has work. */
+    static void waitLight() {
+        int quiet = 0, n = 0, off = 0;
+        while (quiet < 10 && n < 300) {
+            java.util.concurrent.CompletableFuture<Integer> diff = new java.util.concurrent.CompletableFuture<>();
+            int[][] sv = on(() -> {
+                int[][] v = new int[6 * 6 * 3][2];
+                int k = 0;
+                for (int dx = -8; dx <= 12; dx += 4) for (int dz = -8; dz <= 12; dz += 4) for (int dy = 0; dy <= 12; dy += 6) {
+                    BlockPos q = p(dx, dy, dz);
+                    v[k][0] = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, q);
+                    v[k][1] = q.getX() << 8 ^ q.getZ();
+                    v[k][1] = k++;
+                }
+                return v;
+            });
+            client(mc -> {
+                int bad = mc.level.getLightEngine().hasLightWork() ? 1000 : 0, k = 0;
+                for (int dx = -8; dx <= 12; dx += 4) for (int dz = -8; dz <= 12; dz += 4) for (int dy = 0; dy <= 12; dy += 6) {
+                    BlockPos q = p(dx, dy, dz);
+                    if (mc.level.getBrightness(net.minecraft.world.level.LightLayer.SKY, q) != sv[k++][0]) bad++;
+                }
+                diff.complete(bad);
+            });
+            off = diff.join();
+            boolean busy = on(() -> level.getLightEngine().hasLightWork());
+            quiet = off > 0 || busy ? 0 : quiet + 1;
+            tick(1);
+            n++;
+        }
+        info("light settled after " + n + " ticks, " + off + " cells still differ");
     }
 
     static String shotName(String tree) {
@@ -2324,7 +2339,7 @@ final class Parity {
         cmd("weather clear");
         cmd("gamerule advance_time false");
         Viewers.test = 0;
-        String[][] trees = dense ? new String[][] {{"spruce", "spruce_b", "22"}} : new String[][] {{"oak", "oak_c", "15"}, {"birch", "birch_a", "15"}, {"spruce", "spruce_b", "22"}};
+        String[][] trees = dense ? new String[][] {{"spruce", "spruce_b", "22"}} : new String[][] {{"warm", "birch_a", "15"}, {"birch", "birch_a", "15"}, {"spruce", "spruce_b", "22"}, {"oak", "oak_c", "15"}};
         for (String[] t : trees) {
             plot();
             fixture(t[1]);
@@ -2334,7 +2349,8 @@ final class Parity {
             // block light in front of the tree for the sets that draw no sun (the pit is deep, so sky light alone stays dim)
             cmd("fill " + at(-10, 0, -6) + " " + at(22, 22, -6) + " minecraft:light[level=15] replace air");
             if (plants) plantCover();
-            tick(plants ? 400 : 120);
+            tick(plants ? 200 : 120);
+            waitLight();
             hold("minecraft:netherite_axe");
             int dist = Integer.parseInt(t[2]);
             if (plants) {
@@ -2344,9 +2360,15 @@ final class Parity {
             else cmd("tp " + who() + " " + (cx + 4) + ".5 " + Y + " " + (cz - dist) + ".5 facing " + (cx + 4) + " " + (Y + 6) + " " + cz);
             client(MpHost::hideHud);
             tick(40);
+            waitLight();
             if (probe) skyProbe("pre");
             else client(mc -> SelfTest.startCapture(shotName(t[0]) + "_pre", 1));
             tick(2);
+            io.github.profetgit.vanillatimber.client.GroundShadow.stats = true;
+            io.github.profetgit.vanillatimber.client.LightHold.dirtied = 0;
+            io.github.profetgit.vanillatimber.client.GroundShadow.updates = 0;
+            io.github.profetgit.vanillatimber.client.GroundShadow.totalNanos = 0;
+            io.github.profetgit.vanillatimber.client.GroundShadow.maxNanos = 0;
             on(() -> {
                 float yaw = player.getYRot();
                 player.setYRot(-90);
@@ -2359,9 +2381,13 @@ final class Parity {
                 check("looks " + t[0] + ": fell", false, "no fall");
                 continue;
             }
+            for (int w = 0; w < 40 && io.github.profetgit.vanillatimber.client.GroundShadow.stats; w++) tick(1);
+            info("looks " + t[0] + ": field fit vs standing engine: darker " + io.github.profetgit.vanillatimber.client.GroundShadow.darker + " (max "
+                + io.github.profetgit.vanillatimber.client.GroundShadow.maxDarker + "), brighter " + io.github.profetgit.vanillatimber.client.GroundShadow.brighter + " (max "
+                + io.github.profetgit.vanillatimber.client.GroundShadow.maxBrighter + "), region " + io.github.profetgit.vanillatimber.client.GroundShadow.region);
             int slam = 0;
             while (slam < f.tl.end && f.tl.p[slam] < f.tl.spec.hit() - 0.5) slam++;
-            int[] at = plants ? new int[] {1, 2, 6, slam} : new int[] {1, Math.max(2, slam / 2), slam, slam + 8};
+            int[] at = plants ? new int[] {1, 2, 6, 14, slam, slam + 8} : new int[] {1, Math.max(2, slam / 2), slam, slam + 8};
             if (dense) {
                 at = new int[18];
                 for (int i = 0; i < at.length; i++) at[i] = slam - 4 + 2 * i;
@@ -2380,6 +2406,7 @@ final class Parity {
                 String shot = shotName(t[0]) + String.format(java.util.Locale.ROOT, "_t%02d", a);
                 client(mc -> SelfTest.startCapture(shot, 1));
             }
+            info("looks " + t[0] + ": remeshed sections " + io.github.profetgit.vanillatimber.client.LightHold.dirtied + ", field updates " + io.github.profetgit.vanillatimber.client.GroundShadow.updates + " over " + done + " ticks, field+publish total " + io.github.profetgit.vanillatimber.client.GroundShadow.totalNanos / 1000000 + " ms, worst tick " + io.github.profetgit.vanillatimber.client.GroundShadow.maxNanos / 1000 + " us");
             info("looks " + t[0] + ": stills at " + java.util.Arrays.toString(at) + ", slam tick " + slam);
             check("looks " + t[0] + ": fell and stills taken", slam > 0 && slam < f.tl.end, "slam " + slam + ", end " + f.tl.end);
             finish(160);

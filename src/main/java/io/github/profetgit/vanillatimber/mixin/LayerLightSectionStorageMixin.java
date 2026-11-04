@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** The client light engine's published layers can be swapped for held ones, see {@link LightHold}. */
+/** The client light engine's published layers can be swapped for limited copies, see {@link LightHold}. */
 @Mixin(LayerLightSectionStorage.class)
 abstract class LayerLightSectionStorageMixin<M extends DataLayerStorageMap<M>> implements LightHold.Storage {
     @Shadow
@@ -32,7 +32,7 @@ abstract class LayerLightSectionStorageMixin<M extends DataLayerStorageMap<M>> i
 
     @Inject(method = "swapSectionMap", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/lighting/DataLayerStorageMap;disableCache()V", shift = At.Shift.AFTER))
     private void vanilla_timber$hold(CallbackInfo ci, @Local DataLayerStorageMap<?> copy) {
-        if (chunkSource instanceof ClientChunkCache) LightHold.apply(layer, copy);
+        if (chunkSource instanceof ClientChunkCache) LightHold.apply(layer, copy, false);
     }
 
     @Inject(method = "swapSectionMap", at = @At("HEAD"))
@@ -44,19 +44,7 @@ abstract class LayerLightSectionStorageMixin<M extends DataLayerStorageMap<M>> i
     public void vanilla_timber$republish() {
         M copy = visibleSectionData.copy();
         copy.disableCache();
-        LightHold.apply(layer, copy);
-        visibleSectionData = copy;
-    }
-
-    @Override
-    public void vanilla_timber$restore(it.unimi.dsi.fastutil.longs.LongOpenHashSet nodes) {
-        M copy = visibleSectionData.copy();
-        copy.disableCache();
-        for (long node : nodes) {
-            DataLayer live = updatingSectionData.getLayer(node);
-            if (live != null) copy.setLayer(node, live);
-            else copy.removeLayer(node);
-        }
+        LightHold.apply(layer, copy, true);
         visibleSectionData = copy;
     }
 

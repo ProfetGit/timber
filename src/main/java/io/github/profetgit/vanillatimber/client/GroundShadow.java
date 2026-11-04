@@ -1,274 +1,453 @@
 package io.github.profetgit.vanillatimber.client;
 
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.util.Mth;
+import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.block.state.BlockState;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
+import net.minecraft.world.level.chunk.DataLayer;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
 
 /**
- * The ground shadow of a falling tree, for vanilla rendering (a shader pack casts the real one). The standing tree's
- * shadow is the light engine's, held by {@link LightHold} for a few ticks after the chop; from then on this casts it:
- * every leaf and log of the live mesh counts as sky-light opacity in its (x,z) column (leaf 1, log 15, like the engine),
- * the columns are relaxed sideways like the engine floods light, and the result darkens the ground with the translucent
- * quads vanilla uses for entity shadows. One {@link Zone} per fall, a dense grid around its pivot; it outlives the fall
- * until its strength has faded out. Ported from SeamlessDisplays' TreeShadow.
+ * The sky light a falling tree takes from the world, for vanilla rendering (a shader pack casts the real shadow). Every
+ * other tick each live fall's light-blocking blocks, where its mesh draws them, are put into a small grid of cells next
+ * to the real world's dampening, and the sky light is computed in that grid the way the light engine does it: columns
+ * open to the sky are 15, every cell passes on its level minus the target's dampening (at least 1), the grid's rim keeps
+ * the engine's values. The engine's own values (which already have the tree gone) are then limited to the result by
+ * {@link LightHold}, so terrain, plants, block sides and entities are lit by vanilla's smooth lighting as if the tree
+ * stood where the mesh is. Cells a tree block occupies keep the engine's value: the mesh is lit by its own cell.
  */
 public final class GroundShadow {
     /** Off with -Dvanilla_timber.groundShadow=false (the tests switch it for before/after sheets). */
     public static volatile boolean on = !"false".equals(System.getProperty("vanilla_timber.groundShadow"));
-    private static final float STRENGTH = 0.55f, DECAY_PER_TICK = 0.25f, MAX_ALPHA = 0.92f;
-    private static final int RELAX = 8, MAX_REACH = 56, GROUND_BUDGET = 300, GROUND_REFRESH = 40;
+    private static final int EVERY = 2, FADE_TICKS = 10, REFRESH = 20, MAX_CELLS = 600_000;
+    private static final int MARGIN = Integer.getInteger("vanilla_timber.shadowMargin", 8);
+    private static final byte[] SOLID = new byte[4096];
+    private static final java.util.function.Predicate<BlockState> BLOCKS = s -> s.getLightDampening() > 0;
     private static final List<Zone> ZONES = new ArrayList<>();
-    private static int budget;
-    private static final Vector3f SCRATCH = new Vector3f();
-    private static final BlockPos.MutableBlockPos MP = new BlockPos.MutableBlockPos();
+    private static final Long2ObjectOpenHashMap<WorldSection> WORLD = new Long2ObjectOpenHashMap<>();
+    private static final Voxels VOX = new Voxels();
+    private static byte[] damp = new byte[0], lvl = new byte[0], eng = new byte[0];
+    private static final int[][] QUEUE = new int[16][];
+    private static final int[] QN = new int[16];
+    private static boolean suspended;
+    /** Tests: how often the field was computed, and the last first-compute's fit to the engine (cells darker / brighter than it). */
+    public static volatile int updates, darker, brighter, maxDarker, maxBrighter, region;
+    public static volatile boolean stats;
+    public static volatile long totalNanos, maxNanos;
+
+    static {
+        Arrays.fill(SOLID, (byte) 15);
+        for (int i = 0; i < 16; i++) QUEUE[i] = new int[1024];
+    }
 
     private GroundShadow() {}
-
-    static boolean enabled() {
-        return on;
-    }
 
     static boolean pending() {
         return !ZONES.isEmpty();
     }
 
-    static void start(MeshFall f) {
-        if (!on || f.reach > MAX_REACH) return;
-        ZONES.add(new Zone(f));
+    /** Stops the zones at the next tick (a shader pack took over). */
+    static void suspend() {
+        if (!ZONES.isEmpty()) suspended = true;
+    }
+
+    static void start(ClientLevel level, MeshFall f, long ticks) {
+        if (!on || suspended || !level.dimensionType().hasSkyLight()) return;
+        long t0 = System.nanoTime();
+        Zone z = new Zone(f);
+        ZONES.add(z);
+        z.last = ticks;
+        if (z.compute(level, ticks)) LightHold.publish(level);
+        long dt = System.nanoTime() - t0;
+        totalNanos += dt;
+        maxNanos = Math.max(maxNanos, dt);
+        ClientFalls.spent += dt;
     }
 
     static void clear() {
         ZONES.clear();
+        WORLD.clear();
+        suspended = false;
+        LightHold.clear();
     }
 
-    /** Once per frame, after the falls were drawn: {@code dt} is the time since the last frame in ticks. */
-    static void frame(ClientLevel level, double dt, long tick) {
-        if (!level.dimensionType().hasSkyLight()) {
-            ZONES.clear();
-            return;
-        }
-        budget = GROUND_BUDGET;
-        float sky = Mth.clamp(1.0f - level.getSkyDarken() / 15.0f, 0.0f, 1.0f);
-        float decay = (float) (dt * DECAY_PER_TICK);
-        for (var it = ZONES.iterator(); it.hasNext();) {
-            Zone z = it.next();
-            z.update(level, sky, decay, tick);
-            if (z.fall.dead && z.sx0 > z.sx1) it.remove();
-        }
-    }
-
-    /** Darkens the ground this frame; {@code pose} maps world coordinates (the pass's camera is already subtracted). */
-    static void render(Matrix4f pose, VertexConsumer vc) {
-        float fade = LightHold.active() ? 1.0f - LightHold.weight() : 1.0f;
-        if (fade <= 0.003f) return;
+    /** Once per client tick, after the falls were ticked. */
+    static void tick(ClientLevel level, long ticks) {
+        if (ZONES.isEmpty()) return;
         long t0 = System.nanoTime();
-        float k = STRENGTH * fade;
-        for (Zone z : ZONES) z.render(pose, vc, k);
-        ClientFalls.spent += System.nanoTime() - t0;
-    }
-
-    /** The alpha of the shadow over a ground cell this frame (tests). */
-    public static float alphaAt(int x, int z) {
-        float fade = LightHold.active() ? 1.0f - LightHold.weight() : 1.0f;
-        float a = 0;
-        for (Zone zn : ZONES) {
-            int i = x - zn.ox, j = z - zn.oz;
-            if (i >= 1 && j >= 1 && i < zn.n && j < zn.n) a = Math.max(a, zn.corner(i, j, STRENGTH * fade));
+        boolean changed = false;
+        if (suspended || !on) {
+            ZONES.clear();
+            suspended = false;
+            changed = true;
         }
-        return a;
+        for (Iterator<Zone> it = ZONES.iterator(); it.hasNext();) {
+            Zone z = it.next();
+            if (!z.ending && z.fall.dead) {
+                z.ending = true;
+                z.endTick = ticks;
+            }
+            if (z.ending) {
+                float w = (float) Math.ceil(Math.max(0, Math.min(1, 1 - (ticks - z.endTick) / (double) FADE_TICKS)) * 4) / 4;
+                if (w != z.weight) {
+                    z.weight = w;
+                    changed = true;
+                }
+                if (w <= 0) {
+                    it.remove();
+                    changed = true;
+                }
+            } else if (ticks - z.last >= EVERY) {
+                z.last = ticks;
+                changed |= z.compute(level, ticks);
+            }
+        }
+        if (changed) LightHold.publish(level);
+        if (ZONES.isEmpty()) WORLD.clear();
+        long dt = System.nanoTime() - t0;
+        totalNanos += dt;
+        maxNanos = Math.max(maxNanos, dt);
+        ClientFalls.spent += dt;
     }
 
-    private static float curve(float level) {
-        float v = Mth.clamp(level, 0.0f, 15.0f) / 15.0f;
-        return v / (4.0f - 3.0f * v);
+    /** The sections the zones limit. */
+    static LongOpenHashSet nodes() {
+        LongOpenHashSet all = new LongOpenHashSet();
+        for (Zone z : ZONES) if (z.weight > 0) all.addAll(z.limits.keySet());
+        return all;
     }
 
+    /** Applies every zone's limits for {@code node} to {@code out}, an own copy of the engine's layer; false when none applies. */
+    static boolean limit(long node, DataLayer out) {
+        boolean any = false;
+        for (Zone z : ZONES) {
+            byte[] lim = z.limits.get(node);
+            if (lim == null || z.weight <= 0) continue;
+            any = true;
+            float w = z.weight;
+            byte[] d = out.getData();
+            for (int i = 0; i < 4096; i++) {
+                int l = lim[i];
+                if (l >= 15) continue;
+                int sh = (i & 1) << 2, p = i >> 1;
+                int cur = d[p] >> sh & 15;
+                if (l >= cur) continue;
+                int v = w >= 1 ? l : cur - Math.round((cur - l) * w);
+                d[p] = (byte) (d[p] & ~(15 << sh) | v << sh);
+            }
+        }
+        return any;
+    }
+
+    /** Light-blocking cells of one fall at one instant. */
+    static final class Voxels {
+        int[] x = new int[256], y = new int[256], z = new int[256];
+        byte[] d = new byte[256];
+        int n, x0, x1, y0, y1, z0, z1;
+
+        void clear() {
+            n = 0;
+            x0 = y0 = z0 = Integer.MAX_VALUE;
+            x1 = y1 = z1 = Integer.MIN_VALUE;
+        }
+
+        void add(int cx, int cy, int cz, int dampening) {
+            if (n == x.length) {
+                x = Arrays.copyOf(x, n * 2);
+                y = Arrays.copyOf(y, n * 2);
+                z = Arrays.copyOf(z, n * 2);
+                d = Arrays.copyOf(d, n * 2);
+            }
+            x[n] = cx;
+            y[n] = cy;
+            z[n] = cz;
+            d[n++] = (byte) dampening;
+            x0 = Math.min(x0, cx);
+            x1 = Math.max(x1, cx);
+            y0 = Math.min(y0, cy);
+            y1 = Math.max(y1, cy);
+            z0 = Math.min(z0, cz);
+            z1 = Math.max(z1, cz);
+        }
+    }
+
+    private record WorldSection(byte[] damp, long tick) {}
+
+    /** Dampening of the world's blocks in a section (null: none), cached for a second. */
+    private static byte[] worldDamp(ClientLevel level, int sx, int sy, int sz, long ticks) {
+        long key = SectionPos.asLong(sx, sy, sz);
+        WorldSection e = WORLD.get(key);
+        if (e != null && ticks - e.tick < REFRESH) return e.damp;
+        LevelChunk chunk = level.getChunkSource().getChunkNow(sx, sz);
+        byte[] out = null;
+        if (chunk == null) {
+            out = SOLID;
+        } else {
+            LevelChunkSection sec = chunk.getSection(chunk.getSectionIndexFromSectionY(sy));
+            if (!sec.hasOnlyAir() && sec.maybeHas(BLOCKS)) {
+                out = new byte[4096];
+                for (int y = 0; y < 16; y++) for (int z = 0; z < 16; z++) for (int x = 0; x < 16; x++) out[y << 8 | z << 4 | x] = (byte) sec.getBlockState(x, y, z).getLightDampening();
+            }
+        }
+        WORLD.put(key, new WorldSection(out, ticks));
+        return out;
+    }
+
+    private static void push(int level, int idx) {
+        int n = QN[level];
+        if (n == QUEUE[level].length) QUEUE[level] = Arrays.copyOf(QUEUE[level], n * 2);
+        QUEUE[level][n] = idx;
+        QN[level] = n + 1;
+    }
+
+    /** One fall's light field. */
     static final class Zone {
         final MeshFall fall;
-        final int ox, oz, n;
-        final float[] opac, g, str, ground;
-        final int[] stamp;
-        /** Grid box (inclusive) that holds this frame's opacity and the last frame's, and the cells with strength. */
-        private int bx0 = 1, bx1 = 0, bz0, bz1, px0 = 1, px1 = 0, pz0, pz1;
-        int sx0 = 1, sx1 = 0, sz0, sz1;
-        private final int top, bottom;
+        final int[] ox, oy, oz;
+        final BlockState[] os;
+        Long2ObjectOpenHashMap<byte[]> limits = new Long2ObjectOpenHashMap<>();
+        float weight = 1;
+        boolean ending;
+        long last, endTick;
 
         Zone(MeshFall f) {
             fall = f;
-            int half = (int) Math.ceil(f.reach) + RELAX + 2;
-            n = half * 2 + 1;
-            ox = Mth.floor(f.x) - half;
-            oz = Mth.floor(f.z) - half;
-            opac = new float[n * n];
-            g = new float[n * n];
-            str = new float[n * n];
-            ground = new float[n * n];
-            stamp = new int[n * n];
-            Arrays.fill(ground, Float.NaN);
-            top = Mth.floor(f.y0) + 10;
-            bottom = Mth.floor(f.y0) - 24;
-        }
-
-        /** One tree block this frame: (wx, wy, wz) is its centre, weight its sky-light opacity. */
-        void add(double wx, double wz, float weight) {
-            double fx = wx - 0.5, fz = wz - 0.5;
-            int x0 = Mth.floor(fx) - ox, z0 = Mth.floor(fz) - oz;
-            if (x0 < 0 || z0 < 0 || x0 + 1 >= n || z0 + 1 >= n) return;
-            float tx = (float) (fx - Math.floor(fx)), tz = (float) (fz - Math.floor(fz));
-            int i = x0 * n + z0;
-            opac[i] += weight * (1 - tx) * (1 - tz);
-            opac[i + n] += weight * tx * (1 - tz);
-            opac[i + 1] += weight * (1 - tx) * tz;
-            opac[i + n + 1] += weight * tx * tz;
-            if (bx0 > bx1) {
-                bx0 = x0;
-                bx1 = x0 + 1;
-                bz0 = z0;
-                bz1 = z0 + 1;
-            } else {
-                bx0 = Math.min(bx0, x0);
-                bx1 = Math.max(bx1, x0 + 1);
-                bz0 = Math.min(bz0, z0);
-                bz1 = Math.max(bz1, z0 + 1);
+            int n = f.msg.blocks();
+            int[] cells = f.msg.cells();
+            BlockPos o = f.msg.origin();
+            ox = new int[n];
+            oy = new int[n];
+            oz = new int[n];
+            os = new BlockState[n];
+            for (int i = 0; i < n; i++) {
+                ox[i] = o.getX() + cells[i * 4];
+                oy[i] = o.getY() + cells[i * 4 + 1];
+                oz[i] = o.getZ() + cells[i * 4 + 2];
+                os[i] = f.msg.palette().get(cells[i * 4 + 3] >> 1);
             }
         }
 
-        void update(ClientLevel level, float sky, float decay, long tick) {
-            for (int x = px0; x <= px1; x++) Arrays.fill(opac, x * n + pz0, x * n + pz1 + 1, 0);
-            bx0 = 1;
-            bx1 = 0;
-            if (!fall.dead) fall.shadowBlocks(this);
-            px0 = bx0;
-            px1 = bx1;
-            pz0 = bz0;
-            pz1 = bz1;
-            int rx0 = 1, rx1 = 0, rz0 = 0, rz1 = 0;
-            if (bx0 <= bx1) {
-                rx0 = Math.max(0, bx0 - RELAX);
-                rx1 = Math.min(n - 1, bx1 + RELAX);
-                rz0 = Math.max(0, bz0 - RELAX);
-                rz1 = Math.min(n - 1, bz1 + RELAX);
-                relax(rx0, rx1, rz0, rz1);
+        /** Recomputes the limits from the fall as it is now; true when they changed. */
+        boolean compute(ClientLevel level, long ticks) {
+            Voxels v = VOX;
+            v.clear();
+            fall.shadowCells(ticks, v);
+            if (v.n == 0) {
+                boolean had = !limits.isEmpty();
+                limits = new Long2ObjectOpenHashMap<>();
+                return had;
             }
-            int ux0 = rx0 > rx1 ? sx0 : sx0 > sx1 ? rx0 : Math.min(rx0, sx0), ux1 = rx0 > rx1 ? sx1 : sx0 > sx1 ? rx1 : Math.max(rx1, sx1);
-            int uz0 = rx0 > rx1 ? sz0 : sx0 > sx1 ? rz0 : Math.min(rz0, sz0), uz1 = rx0 > rx1 ? sz1 : sx0 > sx1 ? rz1 : Math.max(rz1, sz1);
-            float full = curve(15.0f);
-            int nx0 = 1, nx1 = 0, nz0 = 0, nz1 = 0;
-            for (int x = ux0; x <= ux1; x++) {
-                for (int z = uz0; z <= uz1; z++) {
-                    int i = x * n + z;
-                    float t = 0;
-                    if (x >= rx0 && x <= rx1 && z >= rz0 && z <= rz1 && g[i] < 14.95f) t = (1.0f - curve(g[i]) / full) * sky;
-                    float cur = str[i];
-                    if (t >= cur) cur = t;
-                    else cur = Math.max(t, cur - decay);
-                    if (cur < 0.003f) cur = 0;
-                    str[i] = cur;
-                    if (cur > 0) {
-                        if (nx0 > nx1) {
-                            nx0 = nx1 = x;
-                            nz0 = nz1 = z;
-                        } else {
-                            nx0 = Math.min(nx0, x);
-                            nx1 = Math.max(nx1, x);
-                            nz0 = Math.min(nz0, z);
-                            nz1 = Math.max(nz1, z);
+            int m = MARGIN;
+            int x0 = v.x0 - m, x1 = v.x1 + m, z0 = v.z0 - m, z1 = v.z1 + m;
+            int y0 = Math.max(level.getMinY(), v.y0 - m), y1 = Math.min(level.getMaxY(), v.y1 + 2);
+            int nx = x1 - x0 + 1, ny = y1 - y0 + 1, nz = z1 - z0 + 1;
+            if (ny < 3 || (long) nx * ny * nz > MAX_CELLS) return false;
+            int size = nx * ny * nz, nxz = nx * nz;
+            if (damp.length < size) {
+                damp = new byte[size];
+                lvl = new byte[size];
+                eng = new byte[size];
+            }
+            updates++;
+            region = size;
+            fill(level, ticks, x0, y0, z0, x1, y1, z1, nx, nz);
+            mask(level, x0, y0, z0, nx, ny, nz);
+            for (int i = 0; i < v.n; i++) {
+                if (v.y[i] < y0 || v.y[i] > y1) continue;
+                int idx = ((v.y[i] - y0) * nz + (v.z[i] - z0)) * nx + (v.x[i] - x0);
+                if (v.d[i] > damp[idx]) damp[idx] = v.d[i];
+            }
+            Arrays.fill(lvl, 0, size, (byte) 0);
+            Arrays.fill(QN, 0);
+            shell(nx, ny, nz);
+            for (int x = 1; x < nx - 1; x++) {
+                for (int z = 1; z < nz - 1; z++) {
+                    if (eng[((ny - 1) * nz + z) * nx + x] != 15) continue;
+                    for (int y = ny - 2; y >= 1; y--) {
+                        int idx = (y * nz + z) * nx + x;
+                        if (damp[idx] > 0) break;
+                        lvl[idx] = 15;
+                        push(15, idx);
+                    }
+                }
+            }
+            spread(nx, ny, nz, nxz);
+            for (int i = 0; i < v.n; i++) {
+                if (v.y[i] < y0 || v.y[i] > y1) continue;
+                int idx = ((v.y[i] - y0) * nz + (v.z[i] - z0)) * nx + (v.x[i] - x0);
+                lvl[idx] = 15;
+                eng[idx] = 15;
+            }
+            if (stats) fit(x0, y0, z0, nx, ny, nz, size);
+            return store(x0, y0, z0, x1, y1, z1, nx, nz);
+        }
+
+        /** The world's dampening and the engine's sky light for the box, section by section. */
+        private void fill(ClientLevel level, long ticks, int x0, int y0, int z0, int x1, int y1, int z1, int nx, int nz) {
+            for (int sy = y0 >> 4; sy <= y1 >> 4; sy++) {
+                for (int sz = z0 >> 4; sz <= z1 >> 4; sz++) {
+                    for (int sx = x0 >> 4; sx <= x1 >> 4; sx++) {
+                        long node = SectionPos.asLong(sx, sy, sz);
+                        byte[] wd = worldDamp(level, sx, sy, sz, ticks);
+                        DataLayer layer = LightHold.live(node);
+                        DataLayer above = layer == null ? LightHold.above(node) : null;
+                        int ax0 = Math.max(x0, sx << 4), ax1 = Math.min(x1, sx << 4 | 15);
+                        for (int y = Math.max(y0, sy << 4); y <= Math.min(y1, sy << 4 | 15); y++) {
+                            for (int z = Math.max(z0, sz << 4); z <= Math.min(z1, sz << 4 | 15); z++) {
+                                int row = ((y - y0) * nz + (z - z0)) * nx + (ax0 - x0), len = ax1 - ax0 + 1;
+                                int ly = y & 15, lz = z & 15, lx = ax0 & 15;
+                                if (wd == null) Arrays.fill(damp, row, row + len, (byte) 0);
+                                else System.arraycopy(wd, ly << 8 | lz << 4 | lx, damp, row, len);
+                                if (layer == null) {
+                                    for (int i = 0; i < len; i++) eng[row + i] = (byte) (above == null ? 15 : above.get(lx + i, 0, lz));
+                                } else if (layer.isDefinitelyHomogenous()) {
+                                    Arrays.fill(eng, row, row + len, (byte) layer.get(0, 0, 0));
+                                } else {
+                                    for (int i = 0; i < len; i++) eng[row + i] = (byte) layer.get(lx + i, ly, lz);
+                                }
+                            }
                         }
-                        if (budget > 0 && (stamp[i] == 0 || tick - stamp[i] > GROUND_REFRESH)) {
-                            budget--;
-                            ground[i] = groundTop(level, ox + x, oz + z);
-                            stamp[i] = (int) tick + 1;
+                    }
+                }
+            }
+        }
+
+        /** Cells every live fall's blocks stood in are the world's now, not what the cache saw while they stood. */
+        private void mask(ClientLevel level, int x0, int y0, int z0, int nx, int ny, int nz) {
+            BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
+            for (Zone z : ZONES) {
+                for (int i = 0; i < z.ox.length; i++) {
+                    int x = z.ox[i] - x0, y = z.oy[i] - y0, zz = z.oz[i] - z0;
+                    if (x < 0 || y < 0 || zz < 0 || x >= nx || y >= ny || zz >= nz) continue;
+                    BlockState s = level.getBlockState(mp.set(z.ox[i], z.oy[i], z.oz[i]));
+                    damp[(y * nz + zz) * nx + x] = (byte) (s == z.os[i] ? 0 : s.getLightDampening());
+                }
+            }
+        }
+
+        /** The box's rim keeps the engine's values and is marked 16 in {@link #damp} so nothing spreads into it. */
+        private void shell(int nx, int ny, int nz) {
+            for (int y = 0; y < ny; y++) {
+                for (int z = 0; z < nz; z++) {
+                    boolean whole = y == 0 || y == ny - 1 || z == 0 || z == nz - 1;
+                    int row = (y * nz + z) * nx;
+                    for (int x = 0; x < nx; x += whole || x == nx - 1 ? 1 : nx - 1) {
+                        int idx = row + x;
+                        damp[idx] = 16;
+                        lvl[idx] = eng[idx];
+                        if (eng[idx] >= 2) push(eng[idx], idx);
+                    }
+                }
+            }
+        }
+
+        private static void spread(int nx, int ny, int nz, int nxz) {
+            for (int l = 15; l >= 2; l--) {
+                int[] q = QUEUE[l];
+                for (int qi = 0; qi < QN[l]; qi++) {
+                    int c = q[qi];
+                    if (lvl[c] != l) continue;
+                    if (damp[c] == 16) {
+                        int x = c % nx, z = c / nx % nz, y = c / nxz;
+                        if (x > 0) relax(c - 1, l);
+                        if (x < nx - 1) relax(c + 1, l);
+                        if (z > 0) relax(c - nx, l);
+                        if (z < nz - 1) relax(c + nx, l);
+                        if (y > 0) relax(c - nxz, l);
+                        if (y < ny - 1) relax(c + nxz, l);
+                    } else {
+                        relax(c - 1, l);
+                        relax(c + 1, l);
+                        relax(c - nx, l);
+                        relax(c + nx, l);
+                        relax(c - nxz, l);
+                        relax(c + nxz, l);
+                    }
+                }
+                QN[l] = 0;
+            }
+        }
+
+        private static void relax(int n, int from) {
+            int d = damp[n];
+            int nl = from - (d < 1 ? 1 : d);
+            if (nl > lvl[n]) {
+                lvl[n] = (byte) nl;
+                if (nl >= 2) push(nl, n);
+            }
+        }
+
+        private void fit(int rx0, int ry0, int rz0, int nx, int ny, int nz, int size) {
+            int dumped = 0;
+            int dk = 0, br = 0, mdk = 0, mbr = 0;
+            for (int y = 1; y < ny - 1; y++) {
+                for (int z = 1; z < nz - 1; z++) {
+                    for (int x = 1; x < nx - 1; x++) {
+                        int idx = (y * nz + z) * nx + x;
+                        if (damp[idx] >= 15) continue;
+                        int d = lvl[idx] - eng[idx];
+                        if (Math.abs(d) >= 4 && dumped++ < 12) TimberClient.LOG.info("[fit] cell {} {} {} (rel {} {} {}) field {} engine {} damp {}", rx0 + x, ry0 + y, rz0 + z, x, y, z, lvl[idx], eng[idx], damp[idx]);
+                        if (d < 0) {
+                            dk++;
+                            mdk = Math.max(mdk, -d);
+                        } else if (d > 0) {
+                            br++;
+                            mbr = Math.max(mbr, d);
                         }
                     }
                 }
             }
-            sx0 = nx0;
-            sx1 = nx1;
-            sz0 = nz0;
-            sz1 = nz1;
+            darker = dk;
+            brighter = br;
+            maxDarker = mdk;
+            maxBrighter = mbr;
+            stats = false;
         }
 
-        /** Engine-like sky light (0..15) per column inside the box: down through the opacity, flooded sideways. */
-        private void relax(int x0, int x1, int z0, int z1) {
-            for (int x = x0; x <= x1; x++) {
-                for (int z = z0; z <= z1; z++) {
-                    float o = opac[x * n + z];
-                    g[x * n + z] = o > 0 ? Math.max(0.0f, 15.0f - Math.min(15.0f, o)) : 15.0f;
-                }
-            }
-            for (int pass = 0; pass < RELAX; pass++) {
-                for (int x = x0; x <= x1; x++) {
-                    for (int z = z0; z <= z1; z++) {
-                        int i = x * n + z;
-                        float v = g[i];
-                        if (x > x0) v = Math.max(v, g[i - n] - 1.0f);
-                        if (z > z0) v = Math.max(v, g[i - 1] - 1.0f);
-                        g[i] = v;
+        /** Writes the computed levels as per-section limits (15: free); true when they differ from the last ones. */
+        private boolean store(int x0, int y0, int z0, int x1, int y1, int z1, int nx, int nz) {
+            Long2ObjectOpenHashMap<byte[]> next = new Long2ObjectOpenHashMap<>();
+            for (int sy = y0 >> 4; sy <= y1 >> 4; sy++) {
+                for (int sz = z0 >> 4; sz <= z1 >> 4; sz++) {
+                    for (int sx = x0 >> 4; sx <= x1 >> 4; sx++) {
+                        byte[] lim = null;
+                        for (int y = Math.max(y0, sy << 4); y <= Math.min(y1, sy << 4 | 15); y++) {
+                            for (int z = Math.max(z0, sz << 4); z <= Math.min(z1, sz << 4 | 15); z++) {
+                                int row = ((y - y0) * nz + (z - z0)) * nx - x0;
+                                for (int x = Math.max(x0, sx << 4); x <= Math.min(x1, sx << 4 | 15); x++) {
+                                    int idx = row + x;
+                                    if (lvl[idx] >= 15 || damp[idx] >= 15) continue;
+                                    if (lim == null) {
+                                        lim = new byte[4096];
+                                        Arrays.fill(lim, (byte) 15);
+                                    }
+                                    lim[(y & 15) << 8 | (z & 15) << 4 | (x & 15)] = lvl[idx];
+                                }
+                            }
+                        }
+                        if (lim != null) next.put(SectionPos.asLong(sx, sy, sz), lim);
                     }
                 }
-                for (int x = x1; x >= x0; x--) {
-                    for (int z = z1; z >= z0; z--) {
-                        int i = x * n + z;
-                        float v = g[i];
-                        if (x < x1) v = Math.max(v, g[i + n] - 1.0f);
-                        if (z < z1) v = Math.max(v, g[i + 1] - 1.0f);
-                        g[i] = v;
+            }
+            boolean differs = next.size() != limits.size();
+            if (!differs) {
+                for (var e : next.long2ObjectEntrySet()) {
+                    byte[] old = limits.get(e.getLongKey());
+                    if (old == null || !Arrays.equals(old, e.getValue())) {
+                        differs = true;
+                        break;
                     }
                 }
             }
+            limits = next;
+            return differs;
         }
-
-        /** Top of the ground in a column, or NaN: leaves, logs and blocks without collision (plants, water) are looked through, and only a full-block top takes a quad, as vanilla's entity shadows do. */
-        private float groundTop(ClientLevel level, int x, int z) {
-            int lo = Math.max(level.getMinY(), bottom);
-            for (int y = top; y >= lo; y--) {
-                MP.set(x, y, z);
-                BlockState s = level.getBlockState(MP);
-                if (s.isAir() || s.is(BlockTags.LEAVES) || s.is(BlockTags.LOGS)) continue;
-                if (s.getCollisionShape(level, MP).isEmpty()) continue;
-                return s.isCollisionShapeFullBlock(level, MP) ? y + 1.0f : Float.NaN;
-            }
-            return Float.NaN;
-        }
-
-        private float corner(int x, int z, float k) {
-            float s = at(x - 1, z - 1) + at(x, z - 1) + at(x - 1, z) + at(x, z);
-            return Math.min(MAX_ALPHA, s * 0.25f * k);
-        }
-
-        private float at(int x, int z) {
-            return x < 0 || z < 0 || x >= n || z >= n ? 0 : str[x * n + z];
-        }
-
-        void render(Matrix4f pose, VertexConsumer vc, float k) {
-            if (sx0 > sx1) return;
-            for (int x = sx0 - 1; x <= sx1 + 1; x++) {
-                for (int z = sz0 - 1; z <= sz1 + 1; z++) {
-                    if (x < 0 || z < 0 || x >= n || z >= n) continue;
-                    float c00 = corner(x, z, k), c10 = corner(x + 1, z, k), c01 = corner(x, z + 1, k), c11 = corner(x + 1, z + 1, k);
-                    if (c00 + c10 + c01 + c11 < 0.004f) continue;
-                    float gy = ground[x * n + z];
-                    if (Float.isNaN(gy)) continue;
-                    int wx = ox + x, wz = oz + z;
-                    vertex(pose, vc, wx, gy, wz, c00);
-                    vertex(pose, vc, wx, gy, wz + 1, c01);
-                    vertex(pose, vc, wx + 1, gy, wz + 1, c11);
-                    vertex(pose, vc, wx + 1, gy, wz, c10);
-                }
-            }
-        }
-    }
-
-    private static void vertex(Matrix4f pose, VertexConsumer vc, float x, float y, float z, float alpha) {
-        pose.transformPosition(x, y, z, SCRATCH);
-        vc.addVertex(SCRATCH.x(), SCRATCH.y(), SCRATCH.z(), (Mth.clamp(Math.round(alpha * 255.0f), 0, 255) << 24 | 0xFFFFFF), 0.5f, 0.5f, 0, 15728880, 0.0f, 1.0f, 0.0f);
     }
 }

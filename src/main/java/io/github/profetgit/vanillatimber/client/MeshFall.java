@@ -46,10 +46,11 @@ final class MeshFall {
     final boolean[] leaf;
     final BlockState[] states;
     final int blocks;
-    /** Farthest a block centre is from the pivot (sizes the ground shadow's grid). */
+    /** Farthest a block centre is from the pivot. */
     final float reach;
     private Matrix4f[] shadowMats;
     private byte[] shadowSeen;
+    private final Timeline.Sample shadowSample = new Timeline.Sample();
     /**
      * Ticks from a server frame's packets arriving to that frame's pose fully drawn by a vanilla client, on average. A
      * display starts toward an update on the first client tick run after the frame that handled it and gets there one
@@ -262,10 +263,13 @@ final class MeshFall {
         return n;
     }
 
-    /** Feeds the ground shadow with the blocks as drawn in the last frame: a leaf stops 1 of the sky's 15, a log all of it. */
-    void shadowBlocks(GroundShadow.Zone zone) {
-        DrawnPose d = drawn;
-        if (dead || d.tau >= tl.end - 1) return;
+    /** Feeds the sky-light field with the cells the tree's light-blocking blocks are in at client tick {@code ticks}. */
+    void shadowCells(long ticks, GroundShadow.Voxels out) {
+        if (dead) return;
+        double t = Math.max(0, tau(ticks));
+        if (t >= tl.end - 1) return;
+        Timeline.Sample s = tl.sample(t, shadowSample);
+        origins(s);
         int rings = kt - kn + 1;
         if (shadowMats == null) {
             shadowMats = new Matrix4f[rings * 2];
@@ -275,16 +279,18 @@ final class MeshFall {
         }
         Vector3f w = new Vector3f();
         for (int i = 0; i < blocks; i++) {
+            int d = states[i].getLightDampening();
+            if (d <= 0) continue;
             int gi = (ring[i] - kn) * 2 + (leaf[i] ? 1 : 0);
             if (shadowSeen[gi] == 0) {
-                float[] p = leaf[i] ? null : d.pop(ring[i], pop);
-                boolean shown = leaf[i] ? d.leaves : p == null || p[0] != 0 || p[1] != 0;
+                float[] p = leaf[i] ? null : tl.pop(ring[i], t, pop);
+                boolean shown = leaf[i] ? s.leaves : p == null || p[0] != 0 || p[1] != 0;
                 shadowSeen[gi] = (byte) (shown ? 1 : 2);
-                if (shown) shadowMats[gi] = pose(shadowMats[gi] == null ? new Matrix4f() : shadowMats[gi], ring[i], leaf[i], d, 0, 0, 0);
+                if (shown) shadowMats[gi] = pose(shadowMats[gi] == null ? new Matrix4f() : shadowMats[gi], ring[i], leaf[i], s, 0, 0, 0);
             }
             if (shadowSeen[gi] == 2) continue;
             shadowMats[gi].transformPosition(cx[i], cy[i], cz[i], w);
-            zone.add(w.x, w.z, leaf[i] ? 1 : 15);
+            out.add(Mth.floor(w.x), Mth.floor(w.y), Mth.floor(w.z), d);
         }
     }
 
