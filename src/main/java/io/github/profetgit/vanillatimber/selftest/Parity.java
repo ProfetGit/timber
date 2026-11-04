@@ -592,8 +592,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks")).toList()) {
-            if (!((groups.equals("all") && !g.equals("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense")).toList()) {
+            if (!((groups.equals("all") && !g.startsWith("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
@@ -633,7 +633,8 @@ final class Parity {
                     case "swamps" -> leafWalk("swamp_oak", 12);
                     case "jungles" -> leafWalk("jungle_tree", 16);
                     case "m3sheet" -> m3sheet();
-                    case "looks" -> looks();
+                    case "looks" -> looks(false);
+                    case "looksdense" -> looks(true);
                     case "azshapes" -> azaleaShapes();
                     case "multibreak" -> multibreak();
                     case "claims" -> claims();
@@ -2233,12 +2234,12 @@ final class Parity {
      * M6 render sheet stills: daylight, no lantern box, three trees; stills at the chop, mid-fall, the slam and just after.
      * Run once per render set (addon); files frames/looks_<tree>_t<tick>/f000.png.
      */
-    static void looks() {
+    static void looks(boolean dense) {
         cmd("time set 6000");
         cmd("weather clear");
         cmd("gamerule advance_time false");
         Viewers.test = 0;
-        String[][] trees = {{"oak", "oak_c", "15"}, {"birch", "birch_a", "15"}, {"spruce", "spruce_b", "22"}};
+        String[][] trees = dense ? new String[][] {{"spruce", "spruce_b", "22"}} : new String[][] {{"oak", "oak_c", "15"}, {"birch", "birch_a", "15"}, {"spruce", "spruce_b", "22"}};
         for (String[] t : trees) {
             plot();
             fixture(t[1]);
@@ -2268,6 +2269,10 @@ final class Parity {
             int slam = 0;
             while (slam < f.tl.end && f.tl.p[slam] < f.tl.spec.hit() - 0.5) slam++;
             int[] at = {1, Math.max(2, slam / 2), slam, slam + 8};
+            if (dense) {
+                at = new int[18];
+                for (int i = 0; i < at.length; i++) at[i] = slam - 4 + 2 * i;
+            }
             int done = 0;
             for (int a : at) {
                 tick(a - done);
