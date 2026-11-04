@@ -122,6 +122,9 @@ public final class TimberCommand {
         boolRow(src, Key.ANIMATION, "Falling animation", "Off: the tree vanishes at once and drops at the stump");
         boolRow(src, Key.PROTECT, "Protect placed logs", "Logs placed by players are never felled");
         boolRow(src, Key.FEEDBACK, "Refusal message", "Say on the action bar why a tree was not felled");
+        boolRow(src, Key.REPLANT, "Auto-replant", "A free sapling is planted at the stump when the tree has fallen");
+        boolRow(src, Key.KNOCKBACK, "Trunk knockback", "The falling trunk knocks back mobs in its way (never players)");
+        numRow(src, Key.TRUNK_DAMAGE, "Trunk damage", "Half hearts the trunk deals to hostile mobs it hits (0 = push only)", 0, 2, 4, 8);
         boolRow(src, Key.HIDE_LEAVES, "Hide inner leaves", "Leaves shut in on all sides get no display: cheaper, but the crown looks hollow when it falls");
         boolRow(src, Key.WELCOME, "Join hint", "Explain Timber to each player once");
         line(src, Component.literal(" ").append(Players.button("[Reset to defaults]", ChatFormatting.YELLOW, "Restore every setting to its default", "/timber menu reset")));

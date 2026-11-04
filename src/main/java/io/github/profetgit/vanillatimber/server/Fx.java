@@ -165,6 +165,13 @@ final class Fx {
         return points;
     }
 
+    /** The trunk bonks a mob: a wooden thunk, a knock on a door, and a few crits. */
+    static void bonk(ServerLevel level, Vec3 at) {
+        sound(level, at, SoundEvents.WOOD_HIT, 1f, 0.7f);
+        sound(level, at, SoundEvents.ZOMBIE_ATTACK_WOODEN_DOOR, 0.3f, 1.5f);
+        particle(level, ParticleTypes.CRIT, at, 0.25, 0.3, 0.25, 0.4, 6);
+    }
+
     /** A log ring pops ({@code ring_pop}): chips, a puff, a crack and a pop, pitch rising up the trunk. */
     static void ringPop(ServerLevel level, Fall f, Vec3 at, float pp) {
         particle(level, block(f.tree.log()), at, 0.35, 0.35, 0.35, 0.12, 22);

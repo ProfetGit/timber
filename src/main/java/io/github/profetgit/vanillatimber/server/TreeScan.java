@@ -145,12 +145,13 @@ public final class TreeScan {
             spread(nodes, index, label, mine, IntArrayList.of(0));
         }
         List<BlockPos> ours = new ArrayList<>();
-        BitSet oursHeart = new BitSet();
+        BitSet oursHeart = new BitSet(), oursGround = new BitSet();
         int owned = 0;
         for (int i = 0; i < n; i++) {
             if (label[i] != tree) continue;
             if (heart.get(i)) oursHeart.set(ours.size());
             else if (i > 0) owned++;
+            if (ground.get(i)) oursGround.set(ours.size());
             ours.add(nodes.get(i));
         }
         if (owned == 0) return no("owned by another tree");
@@ -182,10 +183,12 @@ public final class TreeScan {
         int oy = origin.getY();
         List<BlockPos> logs = new ArrayList<>();
         List<BlockPos> kept = new ArrayList<>();
+        List<BlockPos> roots = new ArrayList<>();
         for (int j = 0; j < ours.size(); j++) {
             BlockPos p = ours.get(j);
             if (p.getY() < oy) continue;
             kept.add(p);
+            if (oursGround.get(j) && !oursHeart.get(j)) roots.add(p);
             if (!oursHeart.get(j) && !p.equals(origin)) logs.add(p);
         }
         ours = kept;
@@ -286,7 +289,7 @@ public final class TreeScan {
         FallSpec spec = FallSpec.derive(h, best / 100.0, gap, hang, dr, km, rs);
         BlockState leaf = take.lastLeaf == null ? null : level.getBlockState(take.lastLeaf);
         return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), take.leafCount, hw,
-            Math.min(cw, 4000), chopped, leaf);
+            Math.min(cw, 4000), chopped, leaf, roots);
     }
 
     /** 1.3.6 {@code leaves/hide} ({@code #timber:shell}): a leaf with leaves, logs or a creaking heart on all six sides gets no display. */

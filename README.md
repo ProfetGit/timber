@@ -24,6 +24,8 @@ Timber 2.0 is a mod for **Minecraft Java 26.3 on Fabric**. Put it on the server 
 - **One tree at a time.** In a crowded forest, neighbouring trees keep their own logs and leaves.
 - **Never fells builds.** Logs you placed are left alone, and so is anything without a leafy crown.
 - **Falls where it makes sense:** away from you, or into open space when something is in the way.
+- **The forest grows back.** A free sapling is planted in the stump when the tree has fallen. Giant 2×2 trees get four.
+- **Mind the trunk.** The falling tree knocks back mobs in its way, and hostile ones take a little damage. Players are never touched.
 - **Everything attached comes along,** such as vines, cocoa, hanging moss and snow.
 - **Safe for servers.** Land claims and other protections are asked about every block before a tree falls. If the server crashes mid-fall, the loot is waiting at the stump on the next start. A multi-break mod fells one tree, not twenty.
 - **Fair durability.** The axe pays for the whole tree, Unbreaking included. A tree that would break your axe isn't felled. Drops are the normal block drops for your axe, Fortune and Silk Touch included.
@@ -40,7 +42,7 @@ Sneak to take a single log instead. Creative mode never fells trees, so building
 
 Settings live in `config/timber.json` on the server. The file is re-read while the game runs, so edits apply without a restart. Operators can also use `/timber config` to list the settings, `/timber config <setting> <value>` to change one, `/timber reload` to re-read the file, and `/timber menu` for a clickable menu.
 
-You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed, durability use, the animation (off makes the tree vanish and drop at the stump), placed-log protection and the action bar messages.
+You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed, durability use, the animation (off makes the tree vanish and drop at the stump), placed-log protection, auto-replant (`replant`), trunk knockback (`knockback`) and its damage to hostile mobs (`trunk_damage`), and the action bar messages.
 
 ![Add-ons](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-add-ons.webp)
 

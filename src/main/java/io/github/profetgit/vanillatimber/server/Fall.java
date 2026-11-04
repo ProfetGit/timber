@@ -70,6 +70,7 @@ public final class Fall {
     private double sentRes, lastY = Double.NaN;
     private float lastRot = Float.NaN;
     private boolean spawned;
+    private final Knock knock;
     private Pending.Entry owed;
     private int held = -1;
     private final Set<UUID> sentTo = new HashSet<>();
@@ -130,6 +131,7 @@ public final class Fall {
         oy = new double[kt - kn + 1];
         oz = new double[kt - kn + 1];
         sent[0] = Double.NaN;
+        knock = new Knock(this);
     }
 
     /** Frame 1, the blocks are gone: the loot not yet dropped is written down, so a crash can give it back (PRD 8). */
@@ -186,6 +188,7 @@ public final class Fall {
         for (Timeline.Event e : tl.eventsAt(n)) fire(e, at, pitch);
         move(at, pitch);
         pose(pitch);
+        knock.step(n);
         boolean done = n >= tl.end;
         if (done) finish(at);
         var pr = probe;
@@ -208,6 +211,7 @@ public final class Fall {
         }
         for (ItemStack s : leafDrops) drop(s, p, false);
         leafDrops.clear();
+        Replant.plant(this);
         n = tl.end;
     }
 
@@ -411,6 +415,7 @@ public final class Fall {
             owed.close();
             owed = null;
         }
+        Replant.plant(this);
         unhold();
     }
 
@@ -435,6 +440,19 @@ public final class Fall {
 
     public float yaw() {
         return yaw;
+    }
+
+    /** Mean and worst server time of one knockback frame in ms, and how many frames ran, when timed (tests). */
+    public double knockMs() {
+        return knock.meanMs();
+    }
+
+    public double knockMaxMs() {
+        return knock.maxMs();
+    }
+
+    public int knockFrames() {
+        return knock.frames();
     }
 
     /** The timeline's true pitch at the current frame (tests). */

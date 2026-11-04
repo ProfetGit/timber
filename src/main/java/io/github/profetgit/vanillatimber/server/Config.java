@@ -27,6 +27,9 @@ public final class Config {
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),
         FEEDBACK("feedback", 1, 0, 1, "1: action bar message when a tree is not felled, and why"),
         WELCOME("welcome", 0, 0, 1, "1: explain Timber to each player once, on their first join"),
+        REPLANT("replant", 1, 0, 1, "1: a free sapling of the tree's kind is planted in each stump cell when the fall ends (giants get four)"),
+        KNOCKBACK("knockback", 1, 0, 1, "1: the falling trunk knocks back every mob it sweeps through (never players)"),
+        TRUNK_DAMAGE("trunk_damage", 4, 0, 20, "Damage the trunk deals to a hostile mob without a name tag that it hits (half hearts); other mobs are only pushed"),
         HIDE_LEAVES("hide_leaves", 0, 0, 1, "1: leaves shut in on all sides get no display (cheaper, but the crown looks hollow when it falls)"),
         DISPLAY_CAP("display_cap", 1200, 100, 4000, "Most displays one fall may spawn"),
         SLICE_MS("slice_ms", 2, 1, 20, "Server milliseconds a fall may spend per tick when work is time-sliced");

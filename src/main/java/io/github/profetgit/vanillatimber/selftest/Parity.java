@@ -37,6 +37,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.LeavesBlock;
@@ -565,7 +566,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks", "replant", "knock"};
 
     /** World rules and defaults every group assumes; run again after the world is reopened. */
     static void setup() {
@@ -592,8 +593,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
-            if (!((groups.equals("all") && !g.startsWith("looks")) || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
+            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
@@ -633,6 +634,9 @@ final class Parity {
                     case "swamps" -> leafWalk("swamp_oak", 12);
                     case "jungles" -> leafWalk("jungle_tree", 16);
                     case "m3sheet" -> m3sheet();
+                    case "replant" -> replant();
+                    case "knock" -> knock();
+                    case "m8sheet" -> m8sheet();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
                     case "looksdensebefore" -> {
@@ -3056,5 +3060,363 @@ final class Parity {
         }
         info("azshapes: " + total + " trees, 1.3.6 rule " + up + ", B1 " + b1 + ", B2 " + b2 + ", 1.3.6 or B1 " + any);
         check("azshapes: measured", total >= 48, total + " trees");
+    }
+
+    // ---- M8 additions: auto-replant and trunk knockback ----
+
+    private static String sapAt(int dx, int dy, int dz) {
+        return blockId(p(dx, dy, dz)).replace("minecraft:", "");
+    }
+
+    /** Plants a custom oak-like tree, chops its base, waits for the fall to end. Returns the fall. */
+    private static Fall fellCustom(String log, String leaves) {
+        plot();
+        customTree(0, 0, 6, 2, log, leaves);
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        Fall fall = cur;
+        finish(200);
+        tick(2);
+        return fall;
+    }
+
+    /** Fells a vanilla feature tree whose trunk starts at the origin column; null when nothing grew. */
+    private static Fall fellFeature(String feature, String floor) {
+        for (int roll = 0; roll < 5; roll++) {
+            plot();
+            if (floor != null) cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " " + floor);
+            feature(feature, 0, 0);
+            tick(40);
+            BlockPos base = trunkAt(8);
+            if (base == null) continue;
+            hold("minecraft:netherite_axe");
+            stand(-2, 0, -90);
+            destroy(base);
+            tick(2);
+            Fall fall = cur;
+            finish(220);
+            tick(2);
+            return fall;
+        }
+        return null;
+    }
+
+    static void replant() {
+        try {
+            cfg("replant", 1);
+            for (String kind : List.of("oak", "birch", "cherry")) {
+                Fall f = fellCustom(kind + "_log", kind + "_leaves");
+                check("replant: " + kind + " plants its sapling at the stump", sapAt(0, 0, 0).equals(kind + "_sapling"), "stump cell " + sapAt(0, 0, 0));
+                if (kind.equals("oak")) {
+                    int saplings = itemsOf("minecraft:oak_sapling", 24);
+                    check("replant: the loot is untouched (dropped == rolled, no extra sapling)", f != null && f.dropped == f.rolled && f.rolled > 0
+                        && saplings == f.loot.getOrDefault("minecraft:oak_sapling", 0), f == null ? "no fall" : f.dropped + " of " + f.rolled + ", saplings " + saplings + " vs " + f.loot);
+                }
+            }
+            Fall dark = fellFeature("dark_oak", null);
+            int darkSaplings = blocks("minecraft:dark_oak_sapling", 14);
+            check("replant: dark oak plants four saplings", dark != null && darkSaplings == 4, darkSaplings + " saplings");
+            plot();
+            fixture("spruce_b");
+            tick(5);
+            int trunkRoots = on(() -> {
+                int n = 0;
+                for (BlockPos q : BlockPos.betweenClosed(cx - 3, Y, cz - 3, cx + 3, Y, cz + 3)) if (level.getBlockState(q).is(BlockTags.LOGS)) n++;
+                return n;
+            });
+            hold("minecraft:netherite_axe");
+            stand(-2, 0, -90);
+            chop(0, 0, 0);
+            finish(260);
+            tick(2);
+            int spruce = blocks("minecraft:spruce_sapling", 14);
+            check("replant: the giant spruce plants four saplings", trunkRoots == 4 && spruce == 4, spruce + " saplings for " + trunkRoots + " ground logs");
+            Fall az = fellFeature("azalea_tree", null);
+            int azalea = blocks("minecraft:azalea", 14) + blocks("minecraft:flowering_azalea", 14);
+            check("replant: an azalea tree plants azalea or flowering azalea", az != null && azalea >= 1 && blocks("minecraft:oak_sapling", 14) == 0,
+                azalea + " azaleas, " + blocks("minecraft:oak_sapling", 14) + " oak saplings");
+            Fall crimson = null;
+            for (int roll = 0; roll < 5 && crimson == null; roll++) {
+                plot();
+                cmd("fill " + at(-6, -1, -6) + " " + at(6, -1, 6) + " minecraft:crimson_nylium");
+                feature("crimson_fungus", 0, 0);
+                tick(20);
+                if (!blockId(p(0, 0, 0)).equals("minecraft:crimson_stem")) continue;
+                hold("minecraft:netherite_axe");
+                stand(-2, 0, -90);
+                destroy(p(0, 0, 0));
+                tick(2);
+                crimson = cur;
+                finish(220);
+                tick(2);
+            }
+            check("replant: a crimson fungus on nylium plants a crimson fungus", crimson != null && sapAt(0, 0, 0).equals("crimson_fungus"), "stump cell " + sapAt(0, 0, 0));
+            int propagules = 0, tried = 0;
+            String where = "";
+            for (int k = 0; k < 4; k++) {
+                Fall m = fellFeature(k % 2 == 0 ? "mangrove" : "tall_mangrove", null);
+                if (m == null) continue;
+                tried++;
+                propagules += blocks("minecraft:mangrove_propagule", 14);
+                where = sapAt(0, 0, 0);
+            }
+            check("replant: a mangrove plants a propagule or skips without an error", tried >= 2 && controllers() == 0, tried + " mangroves felled, " + propagules + " propagules, last stump cell " + where);
+            cfg("replant", 0);
+            fellCustom("oak_log", "oak_leaves");
+            check("replant 0: the stump stays air", sapAt(0, 0, 0).equals("air"), "stump cell " + sapAt(0, 0, 0));
+            cfg("replant", 1);
+            cfg("animation", 0);
+            plot();
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(40);
+            hold("minecraft:iron_axe");
+            stand(-2, 0, -90);
+            chop(0, 0, 0);
+            check("animation 0: the sapling is planted at once", sapAt(0, 0, 0).equals("oak_sapling") && count(Parity::isLog, 6) == 0, "stump cell " + sapAt(0, 0, 0));
+            cfg("animation", 1);
+            plot();
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(40);
+            hold("minecraft:iron_axe");
+            stand(-2, 0, -90);
+            chop(0, 0, 0);
+            tick(6);
+            on(() -> {
+                level.setBlock(p(0, 0, 0), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+                return null;
+            });
+            finish(200);
+            tick(2);
+            check("replant: a block placed in the stump cell mid-fall is kept", sapAt(0, 0, 0).equals("stone"), "stump cell " + sapAt(0, 0, 0));
+        } finally {
+            cfg("replant", 1);
+            cfg("animation", 1);
+        }
+    }
+
+    // ---- knock ----
+
+    /** One mob in a knock scene: where it stood (along the fall, lateral to it), and what happened to it. */
+    private static final class Subject {
+        final String name;
+        final double along, lateral;
+        Mob mob;
+        Vec3 start;
+        double moved, drift, health, max;
+
+        Subject(String name, double along, double lateral) {
+            this.name = name;
+            this.along = along;
+            this.lateral = lateral;
+        }
+    }
+
+    private static Vec3 fallDir(Fall f) {
+        double yaw = Math.toRadians(f.yaw());
+        return new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+    }
+
+    private static Vec3 spot(Fall f, double along, double lateral) {
+        Vec3 d = fallDir(f), pv = f.pivot();
+        return new Vec3(pv.x + d.x * along - d.z * lateral, Y, pv.z + d.z * along + d.x * lateral);
+    }
+
+    /** A mob that stays where it is unless pushed: speed 0, so the trunk's push is the only thing that moves it. */
+    private static Mob summon(String type, Vec3 at, String customName) {
+        return on(() -> {
+            Mob m = (Mob) BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.parse("minecraft:" + type)).create(level, net.minecraft.world.entity.EntitySpawnReason.MOB_SUMMONED);
+            m.setPos(at.x, at.y, at.z);
+            m.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).setBaseValue(0);
+            m.setPersistenceRequired();
+            if (customName != null) m.setCustomName(Component.literal(customName));
+            level.addFreshEntity(m);
+            return m;
+        });
+    }
+
+    private static void measure(Subject s, Fall f) {
+        Vec3 d = fallDir(f);
+        on(() -> {
+            Vec3 now = s.mob.position();
+            s.moved = (now.x - s.start.x) * d.x + (now.z - s.start.z) * d.z;
+            s.drift = now.distanceTo(s.start);
+            s.health = s.mob.getHealth();
+            s.max = s.mob.getMaxHealth();
+            return null;
+        });
+    }
+
+    /** An oak falls toward +x; the subjects stand along its fall (spawned right after the chop, they are first swept ~20 ticks later). */
+    private static Fall knockScene(Subject... subjects) {
+        plot();
+        cmd("kill @e[type=minecraft:zombie]");
+        cmd("kill @e[type=minecraft:cow]");
+        customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-2, 0, -90);
+        chop(0, 0, 0);
+        Fall f = cur;
+        for (Subject s : subjects) {
+            Vec3 at = spot(f, s.along, s.lateral);
+            s.mob = summon(s.name.startsWith("cow") ? "cow" : "zombie", at, s.name.contains("named") ? "Bob" : null);
+            s.start = at;
+        }
+        finish(200);
+        tick(20);
+        for (Subject s : subjects) measure(s, f);
+        return f;
+    }
+
+    static void knock() {
+        String difficulty = on(() -> level.getDifficulty().getSerializedName());
+        cmd("time set 18000");
+        cmd("difficulty easy");
+        try {
+            cfg("knockback", 1);
+            cfg("trunk_damage", 4);
+            Subject zombie = new Subject("zombie", 2.2, 0), cow = new Subject("cow", 4.6, -1.8), named = new Subject("named zombie", 4.6, 1.8),
+                behind = new Subject("zombie behind", -5, 0);
+            Fall f = knockScene(zombie, cow, named, behind);
+            String where = String.format(java.util.Locale.ROOT, "zombie moved %.2f (drift %.2f), hp %.1f/%.1f", zombie.moved, zombie.drift, zombie.health, zombie.max);
+            // a zombie's base armor 2 takes 1.6% off a 4-point hit (3.936): the damage is an ordinary hit, armor counts
+            double taken = zombie.max - zombie.health;
+            check("knock: a zombie in the fall path is pushed along the fall by more than 0.5, trunk damage 4 less its armor", zombie.moved > 0.5 && taken >= 3.9 && taken <= 4.0, where);
+            check("knock: each mob is hurt at most once (one hit of about 4, not two)", taken >= 3.9 && taken <= 4.0, String.format(java.util.Locale.ROOT, "took %.3f of %.1f", taken, zombie.max));
+            check("knock: a cow in the path is pushed at full health", cow.moved > 0.5 && cow.health == cow.max,
+                String.format(java.util.Locale.ROOT, "cow moved %.2f, hp %.1f/%.1f", cow.moved, cow.health, cow.max));
+            check("knock: a name-tagged zombie is pushed at full health", named.moved > 0.5 && named.health == named.max,
+                String.format(java.util.Locale.ROOT, "named zombie moved %.2f, hp %.1f/%.1f", named.moved, named.health, named.max));
+            check("knock: a zombie behind the chopper is untouched", behind.drift < 0.05 && behind.health == behind.max,
+                String.format(java.util.Locale.ROOT, "drift %.3f, hp %.1f/%.1f", behind.drift, behind.health, behind.max));
+            check("knock: the oak's fall still finished and dropped its loot", f != null && f.dropped == f.rolled, f == null ? "no fall" : f.dropped + " of " + f.rolled);
+
+            // the chopper stands in the path after the chop: no push, no damage
+            plot();
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            tick(40);
+            hold("minecraft:iron_axe");
+            stand(-2, 0, -90);
+            chop(0, 0, 0);
+            Fall pf = cur;
+            Vec3 spotP = spot(pf, 3.5, 0);
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f", spotP.x, spotP.y, spotP.z));
+            tick(2);
+            Vec3 before = on(() -> player.position());
+            float hp = on(() -> player.getHealth());
+            finish(200);
+            tick(10);
+            Vec3 after = on(() -> player.position());
+            float hp2 = on(() -> player.getHealth());
+            check("knock: a player standing in the path keeps the same position and health", before.distanceTo(after) < 0.01 && hp == hp2,
+                String.format(java.util.Locale.ROOT, "moved %.4f, hp %.1f -> %.1f", before.distanceTo(after), hp, hp2));
+
+            cfg("knockback", 0);
+            Subject off = new Subject("zombie", 2.2, 0);
+            knockScene(off);
+            check("knockback 0: the zombie is untouched", off.drift < 0.05 && off.health == off.max,
+                String.format(java.util.Locale.ROOT, "drift %.3f, hp %.1f/%.1f", off.drift, off.health, off.max));
+            cfg("knockback", 1);
+
+            // cost: the giant spruce with a field of sleeping cows under it, warm fall
+            List<Double> means = new ArrayList<>();
+            List<Double> worst = new ArrayList<>();
+            int frames = 0, hits = 0;
+            for (int k = 0; k < 4; k++) {
+                plot();
+                cmd("kill @e[type=minecraft:cow]");
+                fixture("spruce_b");
+                tick(5);
+                hold("minecraft:netherite_axe");
+                stand(-2, 0, -90);
+                chop(0, 0, 0);
+                Fall sf = cur;
+                List<Mob> herd = new ArrayList<>();
+                for (int i = 0; i < 12; i++) herd.add(summon("cow", spot(sf, 3 + i * 2, (i % 3 - 1) * 2.5), null));
+                finish(260);
+                tick(4);
+                int moved = on(() -> {
+                    int n = 0;
+                    for (Mob m : herd) if (m.isAlive()) n++;
+                    return n;
+                });
+                if (sf == null) continue;
+                frames = sf.knockFrames();
+                info(String.format(java.util.Locale.ROOT, "  knock cost spruce %d%s: mean %.4f ms, worst %.4f ms over %d frames, %d cows", k, k == 0 ? " (warm-up)" : "", sf.knockMs(), sf.knockMaxMs(), frames, moved));
+                if (k > 0) {
+                    means.add(sf.knockMs());
+                    worst.add(sf.knockMaxMs());
+                }
+            }
+            double med = median(means);
+            check("knock: per-frame cost on the giant spruce <= 0.05 ms (warm median of 3)", frames > 5 && med <= 0.05,
+                String.format(java.util.Locale.ROOT, "mean per frame %s ms, worst frame %s ms, %d frames", means, worst, frames));
+        } finally {
+            cfg("knockback", 1);
+            cfg("trunk_damage", 4);
+            cmd("time set 6000");
+            cmd("difficulty " + difficulty);
+            cmd("kill @e[type=minecraft:zombie]");
+            cmd("kill @e[type=minecraft:cow]");
+        }
+    }
+
+    /** M8 review stills: an oak knocks a zombie and a cow, then the sapling puff at the stump. Frames: m8_t<tick>. */
+    static void m8sheet() {
+        String difficulty = on(() -> level.getDifficulty().getSerializedName());
+        cmd("difficulty easy");
+        cmd("kill @e[type=minecraft:zombie]");
+        cmd("kill @e[type=minecraft:cow]");
+        plot();
+        customTree(0, 0, 7, 2, "oak_log", "oak_leaves");
+        tick(40);
+        hold("minecraft:iron_axe");
+        client(MpHost::hideHud);
+        on(() -> {
+            float yaw = player.getYRot();
+            player.setYRot(-90);
+            destroy(p(0, 0, 0));
+            player.setYRot(yaw);
+            return null;
+        });
+        Fall f = cur;
+        // the plot pit gets no sky light: invisible light blocks, placed after the chop so the sweep never saw them
+        on(() -> {
+            for (int dx = -6; dx <= 16; dx += 3) for (int dz = -9; dz <= 9; dz += 3) for (int dy : new int[] {1, 5}) {
+                BlockPos q = p(dx, dy, dz);
+                if (level.getBlockState(q).isAir()) level.setBlock(q, net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState(), 2);
+            }
+            return null;
+        });
+        Vec3 pv = f.pivot(), d = fallDir(f);
+        Vec3 zs = spot(f, 2.6, 0.4), cs = spot(f, 4.8, -0.9);
+        Mob zombie = summon("zombie", zs, null), cow = summon("cow", cs, null);
+        on(() -> {
+            zombie.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new ItemStack(net.minecraft.world.item.Items.LEATHER_HELMET));
+            zombie.setYRot(f.yaw() + 90);
+            cow.setYRot(f.yaw() + 90);
+            return null;
+        });
+        Vec3 mid = spot(f, 3.0, 0);
+        Vec3 cam = new Vec3(mid.x + d.z * 9, Y + 3.5, mid.z - d.x * 9);
+        cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", cam.x, cam.y, cam.z, mid.x, Y + 1.2, mid.z));
+        tick(1);
+        int t = 2;
+        int end = f.tl.end;
+        for (int a = 10; a <= end + 6; a++) {
+            boolean knockWindow = a >= 14 && a <= 34;
+            if (!(knockWindow && a % 2 == 0) && !(a >= end - 1)) continue;
+            tick(a - t);
+            t = a;
+            String shot = String.format(java.util.Locale.ROOT, "m8_t%02d", a);
+            client(mc -> SelfTest.startCapture(shot, 1));
+        }
+        finish(200);
+        tick(10);
+        cmd("kill @e[type=minecraft:zombie]");
+        cmd("kill @e[type=minecraft:cow]");
+        cmd("difficulty " + difficulty);
     }
 }

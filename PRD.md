@@ -28,12 +28,14 @@ port follows; `dev/gen.py` there holds the curve formulas.
 | Versions on day one | 26.3/26.2 + 1.21.1 + 1.20.1 (the modpack versions) | 2026-11-03 |
 | Data pack zip and Paper plugin | Retired at 2.0; they stay on 1.3.6, no more updates | 2026-11-03 |
 | Why 2.0 at all | Modpack reach: the 70M-class tree mods live in modpacks; 1.3.6 can't get in (vanilla logs only, no 1.20.1, no config) | 2026-11-03 |
+| 2.0 scope | 26.3 Fabric only; other loaders and versions are a backport phase after the release | 2026-11-03 |
+| Auto-replant and trunk knockback | In 2.0 (§5.11, §5.12). Sapling always free; hostile mobs take a bonk, other mobs only pushed; players never touched | 2026-11-04 |
 
 My calls, open to veto:
 - Mod id `vanilla_timber` and CurseForge project 1709833 are kept, so modpacks update in place.
 - New Gradle project in `mods/Timber/` with its own git; `packs/Timber` stays as the 1.3.6 record.
 - No new registry entries (blocks, items, entity types, sounds, particles), so vanilla clients can always join.
-- Auto-replant, effort mode, trunk knockback and lying logs wait for 2.1 (§15).
+- Effort mode and lying logs wait for 2.1 (§15). Auto-replant and knockback moved into 2.0 (user, 2026-11-04).
 - A tree over the display cap still falls. Vanilla viewers see its logs fall with a leaf burst; modded viewers see
   the whole tree.
 - Creative mode doesn't fell trees (as in 1.3.x): instant break is a building tool.
@@ -161,7 +163,7 @@ My calls, open to veto:
 - Server config `config/timber.json`:
   - the 1.3.x keys: max_logs, max_blocks, radius, require_axe, sneak, durability, animation, drops, protect, feedback,
     welcome;
-  - new keys: display_cap (1200), slice_ms (2);
+  - new keys: display_cap (1200), slice_ms (2), replant (1), knockback (1), trunk_damage (4);
   - `anim.*` tunables (lean degrees, fall duration terms, spring k/c/m, bounce scale, ripple gaps).
 - The server re-reads the file when its mtime changes (SnappyBlocks `Config.java` pattern), clamps every value, writes
   comments, and syncs it to modded clients (HarvestSweep `ConfigPayload`).
@@ -186,6 +188,43 @@ My calls, open to veto:
   add-on (the add-on's own text if it set one).
 - The join hint stays off by default (1.3.4 rule).
 - No other UI: a player learns Timber by chopping a tree.
+
+### 5.11 Auto-replant (added to 2.0, user 2026-11-04)
+- `replant` 1 (default): when a fall finishes (FINISH frame, after every ring has popped and every drop is out), a
+  sapling of the tree's kind is planted in each of the tree's ground log cells (the trunk cells the scan found standing
+  on ground). A 2x2 giant gets four, so dark oak, mega spruce and big jungle regrow as giants.
+- The sapling is free (user's pick): the loot is not touched and nothing comes from the inventory.
+- Which sapling, first match wins:
+  1. a sapling item in this tree's rolled loot (`#minecraft:saplings`), its block;
+  2. the crown block's id: `_leaves` → `_sapling` (modded trees follow this convention);
+  3. the trunk block's id: `_log`, `_wood`, `_stem` → `_sapling`;
+  4. vanilla exceptions: mangrove → `mangrove_propagule`, azalea leaves → `azalea`, flowering azalea leaves →
+     `flowering_azalea`, crimson/warped stem → crimson/warped fungus, red/brown mushroom block → red/brown mushroom;
+  5. nothing found: no replant.
+  The block must exist and be in `#minecraft:saplings` or be one of the step-4 blocks.
+- A cell is planted only if it is air now and the sapling `canSurvive` there (a huge mushroom in daylight on grass,
+  a propagule over removed roots: skipped, nothing else happens). Never overwrites a block someone placed mid-fall.
+- Planting looks like bonemeal: the sapling's place sound and a few `happy_villager` particles. Vanilla clients see
+  it (plain block set and vanilla particles).
+- `animation` 0 plants at once; an aborted fall (server stop, chunk unload) plants in its finish. A crash mid-fall
+  plants nothing (the pending loot still comes back).
+
+### 5.12 Trunk knockback (added to 2.0, user 2026-11-04)
+- `knockback` 1 (default): from the frame the blocks go (frame 1) to the slam (IMPACT), the falling tree knocks back
+  every living mob it sweeps through, once per mob per fall.
+- Hit test per frame, in the fall's frame (pivot, fall direction by yaw, side axis): a mob is hit when its angle from
+  the pivot lies inside the pitch swept since the last frame (with a margin for the mob's own size), its distance
+  from the pivot is within the tree's height plus crown, and its side offset is within the trunk half-width (crown
+  half-width where the crown is), plus the mob's half-width.
+- Knockback along the fall direction with a small lift, strength scaled by how fast the tree moves at that distance,
+  clamped (guess: 0.4..1.6, tune by feel). Vanilla `knockback`, so knockback resistance (iron golems, ravagers) counts.
+- Damage (user's pick): only hostile mobs (`Enemy`) without a name tag take `trunk_damage` (default 4 = 2 hearts,
+  0..20), from a vanilla damage type with the chopper as the cause (so drops and XP count as a player kill). Pets,
+  villagers, animals and named mobs are only pushed.
+- Players are never touched: no push, no damage (user, hard rule). Armor stands and spectators are skipped.
+- A wooden bonk sound and a few crit particles at each hit. Server only, so vanilla and modded viewers see the same.
+- Budget: one entity query per moving frame around the tree's reach; ≤ 0.05 ms per frame on a giant spruce (measured
+  in the `knock` scene).
 
 ## 6. Controls
 | Input | Context | Action |
@@ -322,8 +361,8 @@ then with `draw: server`. Is the jank the user saw in the 1.20.1 data pack gone?
 - Enchanted Timber's page gets a line: it works with Timber 2.0.
 
 ## 15. Roadmap
-- 2.1: auto-replant (opt-in); effort mode (bigger trees take more chops, each chop cracks the trunk; off by default);
-  the falling trunk knocks mobs back; lying logs you chop up; Jade/WTHIT tooltips.
+- 2.1: effort mode (bigger trees take more chops, each chop cracks the trunk; off by default); lying logs you chop
+  up; Jade/WTHIT tooltips.
 - Later, on demand: 1.21.4, 1.21.8, 1.21.11 builds.
 
 ## 16. Cut

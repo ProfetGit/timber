@@ -11,6 +11,8 @@ Timber is now a mod. It replaces the data pack, keeps the same fall, and runs on
 - **Crash safety.** The loot of a fall in progress is saved, and a crash or a stopped server returns it at the stump on the next start. A fall keeps its chunks loaded until it finishes.
 - **One fell per player per tick**, so a multi-break mod fells one tree instead of twenty.
 - **Shader and render mod support.** The mesh casts a shadow and keeps its materials under Iris with Complementary; tested with Sodium, Entity Culling, Continuity, Seamless Displays and Snappy Blocks, and a Flashback replay shows the fall.
+- **Auto-replant.** When the tree has fallen, a free sapling of its kind goes into the stump, so the forest grows back. A giant 2x2 tree gets four saplings and regrows as a giant. Your inventory and the drops are untouched. Turn it off with `replant` 0.
+- **Trunk knockback.** The falling trunk and crown knock back every mob they sweep through, along the fall, once each. Hostile mobs without a name tag also take 2 hearts (`trunk_damage`, 0 to 20 half hearts); animals, villagers, pets and named mobs are only pushed. Players are never pushed or hurt. Turn it off with `knockback` 0.
 - **Conflict warning.** If FallingTree or HT's TreeChop is installed too, operators are told once and the log says so.
 - **`/timber`** for operators: `config`, `reload` and `menu`.
 - **Config file** `config/timber.json`, re-read while the game runs, with limits checked and the last good values kept if the file is broken.
