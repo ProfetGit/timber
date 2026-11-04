@@ -2,7 +2,7 @@
 
 **Chop one log and the whole tree comes down, cartoon style.**
 
-Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fabric, Quilt, NeoForge and Forge**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.6.
+Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fabric, Quilt, NeoForge and Forge**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.x.
 
 | ![An oak: one chop and the whole tree comes down](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak.webp) | ![A tall birch felled with one chop](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_birch.webp) |
 | --- | --- |

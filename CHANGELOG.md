@@ -28,9 +28,9 @@ Timber is now a mod. It replaces the data pack and keeps the same fall. It runs 
 ### Notes for 1.3.x users
 - Remove the 1.3.x data pack or jar when you add 2.0. Don't run both.
 - The first time a 1.3.x world loads, Timber imports the placed-log protection, your settings (only values the new config file doesn't set) and each player's on/off choice, gives back drops that were mid-fall, removes the old scoreboard entries, and turns off the old data pack. Operators get one chat message.
-- The tree falls the same way as in 1.3.6: in tests the 2.0 pose matches 1.3.6 on every tree measured.
+- The tree falls the same way as in 1.3.x: in tests the 2.0 pose matches 1.3.x on every tree measured.
 - A tree bigger than the limit is left alone, and only the chopped log breaks (the action bar says so).
 - Creative mode never fells trees, as before.
 - Adventure mode needs an axe that may break logs.
-- The 1.3.x data pack zip and server plugin stay on 1.3.6 and get no more updates.
+- The 1.3.x data pack zip and server plugin stay on 1.3.5 and get no more updates.
 - On 1.20.1 the data pack cancel hook `#timber:api/cancel` doesn't run (1.20.1 commands can't call it); the Java hook works. Players without the mod see a steppier fall there than on newer versions.
