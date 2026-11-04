@@ -2,7 +2,7 @@
 
 ## 2.0.0 (unreleased)
 
-Timber is now a mod. It replaces the data pack, keeps the same fall, and runs on Minecraft **26.3 with Fabric** (needs Fabric API). Minecraft 26.2 and older stay on 1.3.6; other loaders and versions come later.
+Timber is now a mod. It replaces the data pack and keeps the same fall. It runs on Minecraft **26.3, 26.2, 1.21.1 and 1.20.1**, with **Fabric** (needs Fabric API), **Quilt**, **NeoForge** and **Forge**. On 1.20.1 one jar serves Forge and NeoForge.
 
 ### Added
 - **Any tree.** Modded trees that use ordinary logs and leaves fall like vanilla ones, and nether fungi (crimson, warped) and huge mushrooms (red, brown) fall too. A data pack can add more kinds of tree (`data/<namespace>/timber/tree_type/*.json`).
@@ -11,7 +11,7 @@ Timber is now a mod. It replaces the data pack, keeps the same fall, and runs on
 - **Crash safety.** The loot of a fall in progress is saved, and a crash or a stopped server returns it at the stump on the next start. A fall keeps its chunks loaded until it finishes.
 - **One fell per player per tick**, so a multi-break mod fells one tree instead of twenty.
 - **Shader and render mod support.** The mesh casts a shadow and keeps its materials under Iris with Complementary; tested with Sodium, Entity Culling, Continuity, Seamless Displays and Snappy Blocks, and a Flashback replay shows the fall.
-- **Auto-replant.** When the tree has fallen, a free sapling of its kind goes into the stump, so the forest grows back. A giant 2x2 tree gets four saplings and regrows as a giant. Your inventory and the drops are untouched. Turn it off with `replant` 0.
+- **Auto-replant (optional, off by default).** Turn it on with `replant` 1: when the tree has fallen, a free sapling of its kind goes into the stump, so the forest grows back. A giant 2x2 tree gets four saplings and regrows as a giant. Your inventory and the drops are untouched.
 - **Trunk knockback.** The falling trunk and crown knock back every mob they sweep through, along the fall, once each. Hostile mobs without a name tag also take 2 hearts (`trunk_damage`, 0 to 20 half hearts); animals, villagers, pets and named mobs are only pushed. Players are never pushed or hurt. Turn it off with `knockback` 0.
 - **Conflict warning.** If FallingTree or HT's TreeChop is installed too, operators are told once and the log says so.
 - **`/timber`** for operators: `config`, `reload` and `menu`.
@@ -31,3 +31,4 @@ Timber is now a mod. It replaces the data pack, keeps the same fall, and runs on
 - Creative mode never fells trees, as before.
 - Adventure mode needs an axe that may break logs.
 - The 1.3.x data pack zip and server plugin stay on 1.3.6 and get no more updates.
+- On 1.20.1 the data pack cancel hook `#timber:api/cancel` doesn't run (1.20.1 commands can't call it); the Java hook works. Players without the mod see a steppier fall there than on newer versions.

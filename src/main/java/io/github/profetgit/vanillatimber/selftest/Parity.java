@@ -3208,7 +3208,7 @@ final class Parity {
             tick(2);
             check("replant: a block placed in the stump cell mid-fall is kept", sapAt(0, 0, 0).equals("stone"), "stump cell " + sapAt(0, 0, 0));
         } finally {
-            cfg("replant", 1);
+            cfg("replant", 0);
             cfg("animation", 1);
         }
     }

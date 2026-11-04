@@ -30,6 +30,7 @@ port follows; `dev/gen.py` there holds the curve formulas.
 | Why 2.0 at all | Modpack reach: the 70M-class tree mods live in modpacks; 1.3.6 can't get in (vanilla logs only, no 1.20.1, no config) | 2026-11-03 |
 | 2.0 scope | 26.3 Fabric only; other loaders and versions are a backport phase after the release | 2026-11-03 |
 | Auto-replant and trunk knockback | In 2.0 (§5.11, §5.12). Sapling always free; hostile mobs take a bonk, other mobs only pushed; players never touched | 2026-11-04 |
+| Auto-replant default | Optional, off by default (`replant` 0); knockback stays on | 2026-11-04 |
 
 My calls, open to veto:
 - Mod id `vanilla_timber` and CurseForge project 1709833 are kept, so modpacks update in place.
@@ -163,7 +164,7 @@ My calls, open to veto:
 - Server config `config/timber.json`:
   - the 1.3.x keys: max_logs, max_blocks, radius, require_axe, sneak, durability, animation, drops, protect, feedback,
     welcome;
-  - new keys: display_cap (1200), slice_ms (2), replant (1), knockback (1), trunk_damage (4);
+  - new keys: display_cap (1200), slice_ms (2), replant (0), knockback (1), trunk_damage (4);
   - `anim.*` tunables (lean degrees, fall duration terms, spring k/c/m, bounce scale, ripple gaps).
 - The server re-reads the file when its mtime changes (SnappyBlocks `Config.java` pattern), clamps every value, writes
   comments, and syncs it to modded clients (HarvestSweep `ConfigPayload`).
@@ -190,7 +191,7 @@ My calls, open to veto:
 - No other UI: a player learns Timber by chopping a tree.
 
 ### 5.11 Auto-replant (added to 2.0, user 2026-11-04)
-- `replant` 1 (default): when a fall finishes (FINISH frame, after every ring has popped and every drop is out), a
+- Optional, off by default (user 2026-11-04): `replant` 0. With `replant` 1, when a fall finishes (FINISH frame, after every ring has popped and every drop is out), a
   sapling of the tree's kind is planted in each of the tree's ground log cells (the trunk cells the scan found standing
   on ground). A 2x2 giant gets four, so dark oak, mega spruce and big jungle regrow as giants.
 - The sapling is free (user's pick): the loot is not touched and nothing comes from the inventory.
