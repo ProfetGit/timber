@@ -54,6 +54,7 @@ public final class Hooks {
     }
 
     public static void levelTickStart(ServerLevel level) {
+        Chops.tick(level);
         Falls.tick(level);
     }
 
@@ -64,6 +65,7 @@ public final class Hooks {
         }
         Migrate.tick(server);
         Players.tick(server);
+        if (server.getTickCount() % 20 == 0) Chops.sync(server);
         Consumer<MinecraftServer> t = testTick;
         if (t != null) t.accept(server);
     }
@@ -72,6 +74,7 @@ public final class Hooks {
         Migrate.join(server, player);
         Players.join(player);
         Conflicts.tell(player);
+        Chops.sendSettings(player);
     }
 
     public static void leave(ServerPlayer player) {
@@ -90,7 +93,10 @@ public final class Hooks {
 
     /** A modded client's {@link io.github.profetgit.vanillatimber.net.Hello}, on the server thread. */
     public static void hello(ServerPlayer player, int version) {
-        if (version == io.github.profetgit.vanillatimber.net.Hello.VERSION) Viewers.hello(player);
+        if (version != io.github.profetgit.vanillatimber.net.Hello.VERSION) return;
+        Viewers.hello(player);
+        Chops.sendSettings(player);
+        Chops.sendCells(player);
     }
 
     public static void commands(CommandDispatcher<CommandSourceStack> dispatcher) {

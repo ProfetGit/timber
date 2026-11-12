@@ -18,6 +18,9 @@
     ],
     "client": [
       "io.github.profetgit.vanillatimber.platform.fabric.FabricClientEntry"
+    ],
+    "modmenu": [
+      "io.github.profetgit.vanillatimber.platform.fabric.ModMenuEntry"
     ]
   },
   "mixins": [

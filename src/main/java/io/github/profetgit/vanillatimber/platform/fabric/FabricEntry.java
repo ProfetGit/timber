@@ -2,7 +2,9 @@ package io.github.profetgit.vanillatimber.platform.fabric;
 
 //? fabric {
 import io.github.profetgit.vanillatimber.Timber;
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.selftest.TestBlocks;
@@ -47,9 +49,12 @@ public final class FabricEntry implements ModInitializer, Platform {
 //? if >=26.1 {
         PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(TreeFall.TYPE, TreeFall.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(Settings.TYPE, Settings.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(ChopCells.TYPE, ChopCells.CODEC);
 //?} else if >=1.20.5 {
 /*        PayloadTypeRegistry.playC2S().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.playS2C().register(TreeFall.TYPE, TreeFall.CODEC);
+        PayloadTypeRegistry.playS2C().register(Settings.TYPE, Settings.CODEC);
 *///?}
 //? if >=1.20.5 {
         ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE, (msg, ctx) -> ctx.server().execute(() -> Hooks.hello(ctx.player(), msg.version())));

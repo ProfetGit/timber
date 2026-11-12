@@ -1,0 +1,15 @@
+package io.github.profetgit.vanillatimber.platform.fabric;
+
+//? if fabric && >=26.3 {
+import com.terraformersmc.modmenu.api.ConfigScreenFactory;
+import com.terraformersmc.modmenu.api.ModMenuApi;
+import io.github.profetgit.vanillatimber.client.TimberScreen;
+
+/** Mod Menu's settings button (only loaded when Mod Menu is installed; compiled against it, never shipped with it). */
+public final class ModMenuEntry implements ModMenuApi {
+    @Override
+    public ConfigScreenFactory<?> getModConfigScreenFactory() {
+        return TimberScreen::new;
+    }
+}
+//?}

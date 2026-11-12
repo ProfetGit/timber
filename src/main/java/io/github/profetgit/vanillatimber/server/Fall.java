@@ -86,7 +86,7 @@ public final class Fall {
     public static volatile java.util.function.Consumer<Fall> probe;
 
     @SuppressWarnings("unchecked")
-    Fall(int id, ServerLevel level, Tree tree, ServerPlayer cutter, boolean drops) {
+    Fall(int id, ServerLevel level, Tree tree, ServerPlayer cutter, ItemStack tool, boolean drops) {
         this.id = id;
         this.level = level;
         this.tree = tree;
@@ -113,7 +113,6 @@ public final class Fall {
         ls = new float[shown.length];
         lit = new int[shown.length];
         int lo = 0, hi = 0;
-        ItemStack tool = cutter.getMainHandItem();
         for (Tree.Part part : tree.parts()) {
             lo = Math.min(lo, part.k());
             hi = Math.max(hi, part.k());

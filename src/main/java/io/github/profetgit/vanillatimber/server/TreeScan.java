@@ -65,6 +65,16 @@ public final class TreeScan {
 
     /** The tree the chop at {@code origin} (already broken; it was {@code chopped}) would fell, or null. */
     public static Tree scan(ServerLevel level, BlockPos origin, BlockState chopped, float playerYaw) {
+        return scan(level, origin, chopped, playerYaw, null);
+    }
+
+    /**
+     * As {@link #scan(ServerLevel, BlockPos, BlockState, float)}, for chop mode's final chop through a layer ({@code cut},
+     * packed cells, the origin among them; null for a classic chop): the layer's cells are gone with the origin, the
+     * footprint is the layer, and the tree hangs when the layer was all of its trunk at that height.
+     */
+    public static Tree scan(ServerLevel level, BlockPos origin, BlockState chopped, float playerYaw, long[] cutCells) {
+        LongOpenHashSet cut = cutCells == null ? null : new LongOpenHashSet(cutCells);
         Block log = chopped.getBlock();
         tooBig = false;
         TreeType type = TreeTypes.forTrunk(chopped);
@@ -180,6 +190,16 @@ public final class TreeScan {
             if (crown) break;
         }
         if (!crown) return no("build: no crown over or around the top");
+        BlockPos base = null, lowest = null;
+        int total = 1;
+        for (int j = 0; j < ours.size(); j++) {
+            BlockPos p = ours.get(j);
+            if (oursHeart.get(j)) continue;
+            if (!p.equals(origin)) total++;
+            if (lowest == null || lower(p, lowest)) lowest = p;
+            if (oursGround.get(j) && (base == null || lower(p, base))) base = p;
+        }
+        if (base == null) base = lowest;
         int oy = origin.getY();
         List<BlockPos> logs = new ArrayList<>();
         List<BlockPos> kept = new ArrayList<>();
@@ -189,18 +209,19 @@ public final class TreeScan {
             if (p.getY() < oy) continue;
             kept.add(p);
             if (oursGround.get(j) && !oursHeart.get(j)) roots.add(p);
-            if (!oursHeart.get(j) && !p.equals(origin)) logs.add(p);
+            if (!oursHeart.get(j) && !p.equals(origin) && (cut == null || !cut.contains(p.asLong()))) logs.add(p);
         }
         ours = kept;
         if (logs.isEmpty()) return no("nothing above the cut");
 
         // footprint: our cells at the cut level next to the chop; gap: open cells under it
         int fx0 = Integer.MAX_VALUE, fx1 = Integer.MIN_VALUE, fz0 = Integer.MAX_VALUE, fz1 = Integer.MIN_VALUE, by = oy;
-        int gap = 99, low = 0;
+        int gap = 99, low = 0, cutLow = 0;
         for (BlockPos p : ours) {
             if (p.getY() != oy) continue;
             low++;
-            if (Math.abs(p.getX() - origin.getX()) > 1 || Math.abs(p.getZ() - origin.getZ()) > 1) continue;
+            if (cut != null ? !cut.contains(p.asLong()) : Math.abs(p.getX() - origin.getX()) > 1 || Math.abs(p.getZ() - origin.getZ()) > 1) continue;
+            cutLow++;
             fx0 = Math.min(fx0, p.getX());
             fx1 = Math.max(fx1, p.getX());
             fz0 = Math.min(fz0, p.getZ());
@@ -226,6 +247,7 @@ public final class TreeScan {
         List<BlockPos> leaves = take.crown;
         LongOpenHashSet treeLogs = new LongOpenHashSet();
         for (BlockPos p : logs) treeLogs.add(p.asLong());
+        if (cut != null) treeLogs.addAll(cut);
         // decor and the crown are the tree's own cells for the sweep (vanilla leaves are open anyway; a fungus hat,
         // a mushroom cap or a data type's crown is not)
         for (BlockPos p : leaves) treeLogs.add(p.asLong());
@@ -265,7 +287,8 @@ public final class TreeScan {
 
         int bin = byaw / 1125;
         int px = Layout.pivotX(fcx, hw, bin), pz = Layout.pivotZ(fcz, hw, bin);
-        boolean hang = low == 1 && lymin > oy;
+        // 1.3.6: one log at the cut level; a chop-mode layer cut hangs when it took the whole trunk there (a 2x2's four)
+        boolean hang = (cut == null ? low == 1 : low == cutLow) && lymin > oy;
         int py = py0 + gap * 1000 + (hang ? 1000 : 0);
         BlockPos anchorCell = BlockPos.containing(px / 1000.0, py / 1000.0, pz / 1000.0);
         BlockPos anchor = null;
@@ -289,7 +312,13 @@ public final class TreeScan {
         FallSpec spec = FallSpec.derive(h, best / 100.0, gap, hang, dr, km, rs);
         BlockState leaf = take.lastLeaf == null ? null : level.getBlockState(take.lastLeaf);
         return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), take.leafCount, hw,
-            Math.min(cw, 4000), chopped, leaf, roots);
+            Math.min(cw, 4000), chopped, leaf, roots, base.immutable(), total);
+    }
+
+    private static boolean lower(BlockPos a, BlockPos b) {
+        if (a.getY() != b.getY()) return a.getY() < b.getY();
+        if (a.getX() != b.getX()) return a.getX() < b.getX();
+        return a.getZ() < b.getZ();
     }
 
     /** 1.3.6 {@code leaves/hide} ({@code #timber:shell}): a leaf with leaves, logs or a creaking heart on all six sides gets no display. */

@@ -1,7 +1,10 @@
 package io.github.profetgit.vanillatimber.platform.fabric;
 
 //? fabric {
+import io.github.profetgit.vanillatimber.client.ChopModels;
 import io.github.profetgit.vanillatimber.client.TimberClient;
+import io.github.profetgit.vanillatimber.net.ChopCells;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import net.fabricmc.api.ClientModInitializer;
@@ -15,10 +18,20 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
     @Override
     public void onInitializeClient() {
         TimberClient.init(this);
+//? if >=26.3
+        ChopModels.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> TimberClient.joined());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TimberClient.left());
 //? if >=1.20.5 {
         ClientPlayNetworking.registerGlobalReceiver(TreeFall.TYPE, (payload, ctx) -> {
+            if (ctx.client().isSameThread()) TimberClient.received(payload);
+            else ctx.client().execute(() -> TimberClient.received(payload));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(Settings.TYPE, (payload, ctx) -> {
+            if (ctx.client().isSameThread()) TimberClient.received(payload);
+            else ctx.client().execute(() -> TimberClient.received(payload));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(ChopCells.TYPE, (payload, ctx) -> {
             if (ctx.client().isSameThread()) TimberClient.received(payload);
             else ctx.client().execute(() -> TimberClient.received(payload));
         });

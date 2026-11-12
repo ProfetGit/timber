@@ -1,6 +1,8 @@
 package io.github.profetgit.vanillatimber.client;
 
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -27,11 +29,14 @@ public final class TimberClient {
 
     public static void joined() {
         ClientFalls.clear();
+        ChoppedCells.clear();
         if (DRAW_LOCAL && net.canSendToServer(Hello.TYPE)) net.sendToServer(new Hello(Hello.VERSION));
     }
 
     public static void left() {
         ClientFalls.clear();
+        ChopClient.reset();
+        ChoppedCells.clear();
     }
 
     /** A {@link TreeFall} from the server, on the client thread. */
@@ -39,7 +44,18 @@ public final class TimberClient {
         ClientFalls.onPayload(fall);
     }
 
+    /** The server's chop-mode {@link Settings}, on the client thread. */
+    public static void received(Settings settings) {
+        ChopClient.set(settings);
+    }
+
+    /** The server's narrowed logs ({@link ChopCells}), on the client thread. */
+    public static void received(ChopCells cells) {
+        ChoppedCells.apply(cells);
+    }
+
     public static void levelTick(ClientLevel level) {
+        ChoppedCells.tick(level);
         ClientFalls.tick(level);
     }
 }

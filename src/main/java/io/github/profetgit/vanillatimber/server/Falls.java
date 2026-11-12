@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
@@ -51,21 +52,28 @@ public final class Falls {
         Hold.clear();
         FELLED.clear();
         Viewers.clear();
+        Chops.stopping();
     }
 
     static void leave(ServerPlayer player) {
         FELLED.remove(player.getUUID());
+        Chops.leave(player);
     }
 
-    static final TagKey<Item> C_AXES = TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", "tools/axe"));
+    public static final TagKey<Item> C_AXES = TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", "tools/axe"));
 
-    /** PRD 5.1 gates 1 to 4, in order: the player's toggle, game mode, sneak mode, the axe. */
-    static boolean mayFell(ServerPlayer player) {
+    /** PRD 5.1 gates 1 to 3, in order: the player's toggle, game mode, sneak mode. */
+    static boolean gates(ServerPlayer player) {
         if (!Players.enabled(player.level().getServer(), player.getUUID())) return false;
         GameType mode = player.gameMode.getGameModeForPlayer();
         if (mode != GameType.SURVIVAL && mode != GameType.ADVENTURE) return false;
         int sneak = Config.get(Config.Key.SNEAK);
-        if (sneak == 0 && player.isShiftKeyDown() || sneak == 1 && !player.isShiftKeyDown()) return false;
+        return !(sneak == 0 && player.isShiftKeyDown() || sneak == 1 && !player.isShiftKeyDown());
+    }
+
+    /** PRD 5.1 gates 1 to 4, in order: the player's toggle, game mode, sneak mode, the axe. */
+    static boolean mayFell(ServerPlayer player) {
+        if (!gates(player)) return false;
         ItemStack tool = player.getMainHandItem();
         return !Config.on(Config.Key.REQUIRE_AXE) || tool.is(ItemTags.AXES) || tool.is(C_AXES);
     }
@@ -74,7 +82,15 @@ public final class Falls {
         if (Migrate.inert) return;
         long t0 = System.nanoTime();
         boolean placed = Placed.remove(level, pos);
-        if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || !mayFell(player) || busy(level, pos)) return;
+        // chop mode (PRD 5.13): a break fells only as the final chop Chops let through, with the tool it had, through its layer
+        boolean chops = Config.on(Config.Key.CHOPS);
+        ItemStack tool = player.getMainHandItem().copy();
+        Chops.Final fin = null;
+        if (chops) {
+            if ((fin = Chops.takeFinal(level, player, pos)) == null) return;
+            tool = fin.tool();
+        }
+        if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || !chops && !mayFell(player) || busy(level, pos)) return;
         // PRD 5.1: one fell per player per tick, so a multi-break mod breaking 20 logs fells one tree
         int now = level.getServer().getTickCount();
         Integer before = FELLED.put(player.getUUID(), now);
@@ -85,7 +101,7 @@ public final class Falls {
             if (!why.getString().isEmpty()) refuse(player, why);
             return;
         }
-        Tree tree = TreeScan.scan(level, pos, state, player.getYRot());
+        Tree tree = TreeScan.scan(level, pos, state, player.getYRot(), fin == null ? null : fin.cut());
         if (tree == null) {
             if (TreeScan.tooBig) refuse(player, "toobig", "Timber: this tree is too big to fell");
             FELLED.put(player.getUUID(), before == null ? -1 : before);
@@ -96,11 +112,12 @@ public final class Falls {
             refuse(player, "protected", "Timber: part of this tree is protected");
             return;
         }
-        if (!wear(level, player, tree.logs())) return;
+        if (!chops) wear(level, player, tree.logs());
+        else Chops.breakCut(level, player, fin);
 //? if >=1.21.11 {
-        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().get(GameRules.BLOCK_DROPS));
+        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().get(GameRules.BLOCK_DROPS));
 //?} else {
-/*        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, level.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS));
+/*        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS));
 *///?}
         lastFall = fall;
         if (!Config.on(Config.Key.ANIMATION)) {
@@ -129,17 +146,17 @@ public final class Falls {
     }
 
     /** PRD 5.10: a refusal says so on the action bar, with {@code feedback} on. */
-    private static void refuse(ServerPlayer player, String key, String fallback) {
+    static void refuse(ServerPlayer player, String key, String fallback) {
         if (!Config.on(Config.Key.FEEDBACK)) return;
         refuse(player, Component.translatableWithFallback("vanilla_timber.msg." + key, fallback));
     }
 
-    private static void refuse(ServerPlayer player, Component text) {
+    static void refuse(ServerPlayer player, Component text) {
         if (!Config.on(Config.Key.FEEDBACK)) return;
         Say.bar(player, Component.literal("🪓 ").append(text).withStyle(ChatFormatting.RED));
     }
 
-    private static boolean busy(ServerLevel level, BlockPos pos) {
+    static boolean busy(ServerLevel level, BlockPos pos) {
         List<Fall> falls = ACTIVE.get(level);
         if (falls == null) return false;
         for (Fall f : falls) if (f.holds(pos)) return true;
@@ -148,11 +165,11 @@ public final class Falls {
 
     /**
      * The axe pays one damage per felled log, Unbreaking rolled per log ({@code tool/check}); a tree that would break it
-     * isn't felled. Unbreakable and non-damageable tools pay nothing.
+     * still falls and the axe breaks the vanilla way (2.1; 2.0 refused it). Unbreakable and non-damageable tools pay nothing.
      */
-    private static boolean wear(ServerLevel level, ServerPlayer player, int logs) {
+    private static void wear(ServerLevel level, ServerPlayer player, int logs) {
         ItemStack tool = player.getMainHandItem();
-        if (!Config.on(Config.Key.DURABILITY) || !tool.isDamageableItem() || logs <= 0) return true;
+        if (!Config.on(Config.Key.DURABILITY) || !tool.isDamageableItem() || logs <= 0) return;
 //? if >=1.21 {
         int dmg = EnchantmentHelper.processDurabilityChange(level, tool, logs);
 //?} else {
@@ -163,11 +180,10 @@ public final class Falls {
 *///?}
         int left = tool.getMaxDamage() - tool.getDamageValue() - 1;
         if (dmg > left) {
-            refuse(player, "worn", "Timber: your axe is too worn to fell this tree");
-            return false;
-        }
-        if (dmg > 0) tool.setDamageValue(tool.getDamageValue() + dmg);
-        return true;
+            ItemStack broken = tool.copy();
+            tool.shrink(1);
+            player.onEquippedItemBroken(broken, EquipmentSlot.MAINHAND);
+        } else if (dmg > 0) tool.setDamageValue(tool.getDamageValue() + dmg);
     }
 
     static void tick(ServerLevel level) {

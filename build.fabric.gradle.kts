@@ -9,10 +9,19 @@ version = "${property("mod.version")}+$mc-fabric"
 group = property("mod.group") as String
 base.archivesName = modId
 
+repositories {
+    maven("https://maven.terraformersmc.com/") {
+        name = "TerraformersMC"
+        content { includeGroup("com.terraformersmc") }
+    }
+}
+
 dependencies {
     minecraft("com.mojang:minecraft:$mc")
     implementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
     implementation("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
+    // optional: Mod Menu's settings button; compile only, not shipped or required
+    findProperty("deps.modmenu")?.let { compileOnly("com.terraformersmc:modmenu:$it") { isTransitive = false } }
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")

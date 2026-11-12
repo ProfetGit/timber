@@ -21,7 +21,9 @@ public final class Config {
         RADIUS("radius", 12, 4, 32, "How far, in blocks sideways, a tree may reach from the cut"),
         REQUIRE_AXE("require_axe", 1, 0, 1, "1: only fell trees when chopping with an axe (#minecraft:axes or #c:tools/axe)"),
         SNEAK("sneak", 0, 0, 2, "0: sneaking takes a single log; 1: only fell while sneaking; 2: always fell"),
-        DURABILITY("durability", 1, 0, 1, "1: each log costs axe durability (Unbreaking applies); a tree that would break the axe is not felled"),
+        DURABILITY("durability", 1, 0, 1, "1: each log costs axe durability (Unbreaking applies); a tree that would break the axe still falls and the axe breaks; chop mode pays per chop instead"),
+        CHOPS("chops", 0, 0, 1, "1: chop mode: each break of a trunk log is a chop that wears the axe and cracks the log; the tree falls on the last chop (chop_curve)"),
+        CHOP_CURVE("chop_curve", 10, 1, 100, "Chop mode: chops a tree takes = 1 + a * ln(1 + (logs - 1) / a) with a = this value; smaller is fewer chops"),
         ANIMATION("animation", 1, 0, 1, "0: the tree vanishes at once and drops at the stump"),
         DROPS("drops", 0, 0, 1, "0: each log hops out where it lands, leaf drops burst from the crown; 1: everything drops at the player"),
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),
@@ -36,7 +38,7 @@ public final class Config {
 
         public final String json;
         public final int def, min, max;
-        final String comment;
+        public final String comment;
 
         Key(String json, int def, int min, int max, String comment) {
             this.json = json;

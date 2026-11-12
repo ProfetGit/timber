@@ -1,0 +1,29 @@
+# chop_hold: a modded client holds attack on an oak in chop mode (PRD 5.13)
+world new flat mode=survival
+cmd gamerule spawn_mobs false
+cmd gamerule advance_time false
+cmd time set 6000
+cmd timber config chops 1
+cmd timber config chop_curve 10
+cmd fill ~1 ~ ~-3 ~6 ~7 ~3 air
+cmd fill ~1 ~2 ~-2 ~5 ~5 ~2 oak_leaves
+cmd fill ~3 ~ ~ ~3 ~4 ~ oak_log
+cmd give @s minecraft:iron_axe
+slot 1
+wait 40
+lookat ~3 ~0.5 ~ over=10
+wait 20
+assert aimed hand=iron_axe target=oak_log
+expect logs_before blocks ~3 ~ ~ ~3 ~4 ~ ~3 ~ ~ all
+clip chop 240
+hold attack 40
+log after_40_ticks
+cmd tellraw @s "t40"
+assert still_aimed target=oak_log
+expect_not tree_stands_gone items entity @s weapon.mainhand *[minecraft:damage=4]
+hold attack 80
+log after_120_ticks
+expect fell_logs_gone_or_not items entity @s weapon.mainhand *[minecraft:damage=4]
+wait 120
+shot end
+end

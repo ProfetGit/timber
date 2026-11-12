@@ -31,6 +31,7 @@ port follows; `dev/gen.py` there holds the curve formulas.
 | 2.0 scope | 26.3 Fabric only; other loaders and versions are a backport phase after the release | 2026-11-03 |
 | Auto-replant and trunk knockback | In 2.0 (§5.11, §5.12). Sapling always free; hostile mobs take a bonk, other mobs only pushed; players never touched | 2026-11-04 |
 | Auto-replant default | Optional, off by default (`replant` 0); knockback stays on | 2026-11-04 |
+| Chop mode (HT's TreeChop style, §5.13) | In 2.1, off by default (`chops` 0); a worn axe no longer refuses in classic mode | 2026-11-12 |
 
 My calls, open to veto:
 - Mod id `vanilla_timber` and CurseForge project 1709833 are kept, so modpacks update in place.
@@ -141,8 +142,8 @@ My calls, open to veto:
   vanilla client. This is the escape hatch for any render conflict and for Flashback recording.
 
 ### 5.6 Durability and loot
-- The axe pays one damage per log, and Unbreaking rolls per log. A tree that would break the axe isn't felled; the
-  actionbar says so and only the chopped log breaks. Unbreakable axes pay nothing.
+- The axe pays one damage per log, and Unbreaking rolls per log. A tree that would break the axe is still felled and
+  the axe breaks (2.1; 2.0 refused it). Unbreakable axes pay nothing. Chop mode pays per chop instead (§5.13).
 - Loot is vanilla, rolled with the axe at the chop (`Block.getDrops` with the tool), so Fortune, Silk Touch and
   modded loot modifiers apply. The `doTileDrops`/`block_drops` game rule is respected.
 - `drops` 0: each log hops out of its own spot as its ring pops, and leaf and decor drops burst from the crown at the
@@ -227,6 +228,51 @@ My calls, open to veto:
 - A wooden bonk sound and a few crit particles at each hit. Server only, so vanilla and modded viewers see the same.
 - Budget: one entity query per moving frame around the tree's reach; ≤ 0.05 ms per frame on a giant spruce (measured
   in the `knock` scene).
+
+### 5.13 Chop mode (2.1, user 2026-11-12: "Yes, off by default")
+Asked for by players who like HT's TreeChop (54M, newest file 1.21.4, no 26.x): "you just keep hacking down the tree
+til the axe can't take it anymore". Timber adds its fall to that.
+- `chops` 0 (default): one break fells, as in 2.0. `chops` 1: chop mode. `chop_curve` (default 10, 1..100) shapes the
+  count: needed = max(1, min(logs, round(1 + a·ln(1 + (logs − 1)/a)))) — HT's default curve: 5 logs 4 chops, 30 logs 15,
+  100 logs 25. Smaller `a` = fewer chops.
+- A chop is a normal survival break of any trunk log of a natural tree (break time, Efficiency, Haste as vanilla).
+  The server cancels the break, the log stays, its cut's count goes up. A cut is a layer (2x2 bullet below); chops at
+  another height start their own cut, and each cut takes the tree's count.
+  The chop that reaches the count is let through and the 2.0 fall starts from that log.
+- Gates as §5.1 (toggle, game mode, sneak, add-on cancel, claims on every block of the tree, placed logs). With
+  `require_axe` 1 an axe or an empty hand chops (the hand slowly); other items break one log normally. `require_axe` 0:
+  anything chops.
+- Durability: one damage per chop (vanilla `mineBlock`, Unbreaking applies), never refused. An axe that breaks keeps
+  the tree's progress; finish with a new axe or by hand.
+- Only the block the player is mining counts (`ServerPlayerGameMode`'s destroy target). Other breaks of tree logs
+  (multi-break mods, `/setblock`) are single-log breaks and never fell in chop mode. A server-side rate limit counts a
+  chop only after the log's break time has passed since the last one (vanilla's 0.7 tolerance), so a spamming client
+  gets no faster.
+- Progress is saved per dimension, one entry per cut: the tree's lowest root cell, the layer's cells, chops so far and
+  the cell last chopped. It never decays. Cells that are no longer logs leave their cut, a cut with none left goes, and
+  all of a tree's cuts go when it falls. Entries saved before the layers read as a cut at their last cell's height.
+- Seen by every client (server-only works):
+  - the block-breaking crack on every cell of the cut, stage = progress × 10, re-sent every 10 s to players near it
+    (vanilla clients drop a crack after 20 s), its own id per cell;
+  - wood chips and the log's break sound on each chop, a few biome-tinted leaves from the crown;
+  - Timber's creak on the chop before the last.
+- Vanilla clients predict the break and remove the log locally until the server's answer (one round trip). A block
+  display of the log at 0.994× inside the cell, with the cell's light as its brightness, is spawned when a vanilla
+  player starts mining a choppable log, so the blink shows the copy; it goes when the player stops for 3 s or the
+  fall starts. Modded clients get the mode in a settings payload and don't predict the removal.
+- Loot, drops, knockback and replant as §5.4-5.12, rolled with the tool of the last chop.
+- Shrinking cut (user 2026-11-12): clients with the mod draw the chopped trunk narrowed with the stripped log's texture;
+  vanilla clients see the crack only; the world block never changes.
+- 2x2 and wider trunks (user 2026-11-12, "Build both"): the cut is a layer. Chops on any of this tree's trunk cells in
+  that layer (horizontally connected, at most 3x3) count for it; chopping another height starts its own cut. The layer
+  shrinks as one footprint around the trunk's centre (only outside faces move in; 1x1 16 -> 4 px, 2x2 32 -> 8 px), every
+  cell cracks. The last chop breaks every cell of the layer with drops; the tree hangs, drops one block onto the
+  stump and tips about its full-width base. Classic mode keeps 2.0's giant fall.
+- Settings screen (user 2026-11-12, "Build both"): Mod Menu on Fabric/Quilt, the mod list on NeoForge/Forge; vanilla
+  widgets only; sections Felling, Fall, Axe, Server with hover help. Singleplayer edits the config; on a server ops
+  change values through `/timber config`, others see them read-only.
+- Classic mode (`chops` 0) fix, same release: a worn axe no longer refuses. The tree falls and the axe breaks (what
+  breaking the logs one by one with it, then by hand, would give).
 
 ## 6. Controls
 | Input | Context | Action |
@@ -363,8 +409,7 @@ then with `draw: server`. Is the jank the user saw in the 1.20.1 data pack gone?
 - Enchanted Timber's page gets a line: it works with Timber 2.0.
 
 ## 15. Roadmap
-- 2.1: effort mode (bigger trees take more chops, each chop cracks the trunk; off by default); lying logs you chop
-  up; Jade/WTHIT tooltips.
+- 2.1: chop mode (§5.13). Later: lying logs you chop up; Jade/WTHIT tooltips; a notch in the trunk on modded clients.
 - Later, on demand: 1.21.4, 1.21.8, 1.21.11 builds.
 
 ## 16. Cut

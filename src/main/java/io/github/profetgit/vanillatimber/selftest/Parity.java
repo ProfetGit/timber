@@ -2,8 +2,10 @@ package io.github.profetgit.vanillatimber.selftest;
 
 import com.mojang.math.Transformation;
 import io.github.profetgit.vanillatimber.core.Rig;
+import io.github.profetgit.vanillatimber.server.Chops;
 import io.github.profetgit.vanillatimber.server.Config;
 import io.github.profetgit.vanillatimber.server.Conflicts;
+import io.github.profetgit.vanillatimber.server.Displays;
 import io.github.profetgit.vanillatimber.server.Fall;
 import io.github.profetgit.vanillatimber.server.Migrate;
 import io.github.profetgit.vanillatimber.server.Falls;
@@ -30,6 +32,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -572,7 +575,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks", "replant", "knock"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks", "replant", "knock", "chops", "layer", "screen"};
 
     /** World rules and defaults every group assumes; run again after the world is reopened. */
     static void setup() {
@@ -599,8 +602,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
-            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
+            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
@@ -642,7 +645,12 @@ final class Parity {
                     case "m3sheet" -> m3sheet();
                     case "replant" -> replant();
                     case "knock" -> knock();
+                    case "chops" -> chops();
                     case "m8sheet" -> m8sheet();
+                    case "chopsheet" -> chopsheet();
+                    case "layer" -> layer();
+                    case "layersheet" -> layersheet();
+                    case "screen" -> screen();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
                     case "looksdensebefore" -> {
@@ -953,8 +961,10 @@ final class Parity {
         chat();
         chop(0, 0, 0);
         List<String> bar = chat();
-        check("worn axe: tree not felled, warning shown", count(Parity::isLog, 6) == 7 && bar.toString().contains("too worn"), count(Parity::isLog, 6) + " logs, chat " + bar);
-        check("worn axe: survives with the vanilla single-block wear", damage() == 246, "damage " + damage());
+        check("worn axe: the tree falls and the axe breaks the vanilla way", count(Parity::isLog, 6) == 0 && on(() -> player.getMainHandItem().isEmpty()) && !bar.toString().contains("too worn"),
+            count(Parity::isLog, 6) + " logs, hand empty " + on(() -> player.getMainHandItem().isEmpty()) + ", chat " + bar);
+        check("worn axe: the break counts in the statistics", on(() -> player.getStats().getValue(net.minecraft.stats.Stats.ITEM_BROKEN.get(net.minecraft.world.item.Items.IRON_AXE))) >= 1, "");
+        finish(120);
 
         plot();
         feature("mega_spruce", 0, 0);
@@ -1018,7 +1028,7 @@ final class Parity {
         List<String> menu = cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
         for (String m : shown) info("menu| " + m);
-        check("settings menu renders", shown.size() == 13 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
+        check("settings menu renders", shown.size() == 17 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
         cmd("timber config max_logs 99999");
         check("max_logs clamped", Config.get(Config.Key.MAX_LOGS) == 1024 && cmd("timber config max_logs").toString().contains("1024"), "");
         cfg("max_logs", 256);
@@ -2623,7 +2633,7 @@ final class Parity {
         }
         cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
-        check("hooks: menu shows add-on requirement", shown.size() == 14 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
+        check("hooks: menu shows add-on requirement", shown.size() == 18 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
 
         cmd("datapack disable \"file/hookpack\"");
         tick(5);
@@ -3435,5 +3445,775 @@ final class Parity {
         cmd("kill @e[type=minecraft:zombie]");
         cmd("kill @e[type=minecraft:cow]");
         cmd("difficulty " + difficulty);
+    }
+
+    // ---- chop mode (PRD 5.13) ----
+
+    /** Stills of an oak log at 0, 1, 2 and 3 chops from the front and from three quarters (chop mode's shrinking log). */
+    static void chopsheet() {
+        cfg("chops", 1);
+        cfg("chop_curve", 10);
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        try {
+            chopTree(5);
+            cmd("time set 6000");
+            client(MpHost::hideHud);
+            on(() -> {
+                for (int dx = -6; dx <= 6; dx += 3) for (int dz = -6; dz <= 6; dz += 3) for (int dy : new int[] {1, 5}) {
+                    BlockPos q = p(dx, dy, dz);
+                    if (level.getBlockState(q).isAir()) level.setBlock(q, net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState(), 2);
+                }
+                return null;
+            });
+            for (int n = 0; n <= 3; n++) {
+                if (n > 0) mine(0, 1, 0);
+                tick(10);
+                for (String view : new String[] {"front", "angle"}) {
+                    double ox = view.equals("front") ? 0 : 2.4, oz = view.equals("front") ? -3.4 : -2.4;
+                    String where = String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", cx + 0.5 + ox, Y + 2.0, cz + 0.5 + oz, cx + 0.5, Y + 1.6, cz + 0.5);
+                    cmd("tp " + who() + " " + where);
+                    tick(12);
+                    String shot = "chop_" + n + "_" + view;
+                    client(mc -> SelfTest.startCapture(shot, 1));
+                    tick(6);
+                }
+            }
+        } finally {
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+            cfg("chops", 0);
+        }
+    }
+
+    // ---- chop mode on a 2x2 trunk: the cut is a layer (PRD 5.13) ----
+
+    /** A 2x2 dark oak on a fresh plot, the trunk at (0..1, 0..1): a vanilla feature ({@code natural}, retried until its trunk is a plain 2x2 at height 1) or a fixed one. */
+    static List<BlockPos> darkOak(boolean natural) {
+        List<BlockPos> got = List.of();
+        for (int attempt = 0; attempt < (natural ? 8 : 1); attempt++) {
+            got = darkOakOnce(natural);
+            if (got.size() == 4) return got;
+        }
+        return got;
+    }
+
+    static List<BlockPos> darkOak() {
+        return darkOak(false);
+    }
+
+    private static List<BlockPos> darkOakOnce(boolean natural) {
+        plot();
+        on(() -> {
+            Chops.clear(level);
+            return null;
+        });
+        if (natural) feature("dark_oak", 0, 0);
+        else {
+            for (int ly = 4; ly <= 7; ly++) {
+                int rr = ly >= 6 ? 2 : 3;
+                cmd("fill " + at(-rr, ly, -rr) + " " + at(1 + rr, ly, 1 + rr) + " minecraft:dark_oak_leaves keep");
+            }
+            cmd("fill " + at(0, 0, 0) + " " + at(1, 6, 1) + " minecraft:dark_oak_log");
+        }
+        tick(40);
+        hold("minecraft:iron_axe");
+        return on(() -> {
+            List<BlockPos> cells = new ArrayList<>();
+            for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+                BlockPos q = p(dx, 1, dz);
+                if (level.getBlockState(q).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)) cells.add(q);
+            }
+            cells.sort(java.util.Comparator.comparingLong(BlockPos::asLong));
+            return cells;
+        });
+    }
+
+    /** The chop curve value that makes this tree take {@code want} chops (1..100), or 1. */
+    static int curveFor(BlockPos at, int want) {
+        int total = on(() -> {
+            io.github.profetgit.vanillatimber.server.Tree t = io.github.profetgit.vanillatimber.server.TreeScan.scan(level, at, level.getBlockState(at), 0f);
+            return t == null ? 0 : t.total();
+        });
+        for (int a = 1; a <= 100; a++) if (Chops.needed(total, a) == want) return a;
+        return 1;
+    }
+
+    static void layer() {
+        try {
+            layerRun();
+        } finally {
+            cfg("chops", 0);
+            cfg("chop_curve", 10);
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+        }
+    }
+
+    static void layerRun() {
+        cfg("chops", 1);
+        List<BlockPos> trunk = darkOak();
+        if (!trunk.isEmpty()) cfg("chop_curve", curveFor(trunk.getFirst(), 5));
+        int x0 = trunk.isEmpty() ? 0 : trunk.getFirst().getX(), z0 = trunk.isEmpty() ? 0 : trunk.getFirst().getZ();
+        boolean square = trunk.size() == 4 && trunk.stream().allMatch(q -> q.getX() - x0 <= 1 && q.getZ() - z0 <= 1 && q.getX() >= x0 && q.getZ() >= z0);
+        check("layer: the dark oak grew a 2x2 trunk", square, "trunk at height 1: " + trunk);
+        if (!square) return;
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        BlockPos a = trunk.get(0), d = trunk.get(3);
+        Fall before = on(() -> Falls.lastFall);
+        int cracks0 = Chops.cracks;
+        mine(a, false);
+        long[] cut = on(() -> Chops.cutAt(level, a));
+        int needed = cut == null ? 0 : (int) cut[1];
+        boolean four = cut != null && cut.length == 6 && trunk.stream().allMatch(q -> on(() -> Chops.cutAt(level, q)) != null);
+        check("layer: one chop cuts all four cells of the 2x2's layer, each cracks", four && cut[0] == 1 && Chops.cracks - cracks0 == 4 && count(Parity::isLog, 8) > 0 && !felled(before),
+            "cut " + java.util.Arrays.toString(cut) + ", cracks " + (Chops.cracks - cracks0));
+        int step1 = io.github.profetgit.vanillatimber.core.Cut.step(1, needed);
+        boolean footprint = true;
+        StringBuilder boxes = new StringBuilder();
+        for (BlockPos q : trunk) {
+            int b = on(() -> Chops.cellBox(level, q));
+            footprint &= b == io.github.profetgit.vanillatimber.core.Cut.upright(x0, x0 + 1, z0, z0 + 1, q.getX(), q.getZ(), step1);
+            boxes.append(boxText(b)).append(' ');
+        }
+        check("layer: the four shrink as one footprint (outside faces only, " + (32 - 4 * step1) + " of 32 px wide)", footprint, boxes.toString().trim());
+        mine(d, false);
+        long[] shared = on(() -> Chops.cutAt(level, a));
+        check("layer: a chop on the diagonal cell counts for the same cut", shared != null && shared[0] == 2 && chopEntries() == 1 && !felled(before),
+            "cut " + java.util.Arrays.toString(shared) + ", entries " + chopEntries());
+        BlockPos up = a.above();
+        mine(up, false);
+        long[] upper = on(() -> Chops.cutAt(level, up));
+        check("layer: another height gets its own cut, the first keeps its chops", chopEntries() == 2 && upper != null && upper[0] == 1 && upper.length == 6
+            && on(() -> Chops.cutAt(level, a))[0] == 2, "entries " + chopEntries() + ", upper " + java.util.Arrays.toString(upper));
+        if (on(() -> Viewers.local(player))) {
+            Map<Long, Integer> seen = clientBoxes();
+            boolean got = true;
+            for (BlockPos q : trunk) got &= seen.containsKey(q.asLong()) && seen.get(q.asLong()).equals(on(() -> Chops.cellBox(level, q)));
+            check("layer: a modded viewer gets every cell's box", got && seen.size() == 8, "client " + seen.size() + " cells");
+        } else info("layer: the test client never said Hello, box payload check skipped");
+        int n = 2;
+        while (n < needed - 1) {
+            mine(trunk.get(n % 4), false);
+            n++;
+        }
+        check("layer: the tree still stands one chop before the count", !felled(before) && on(() -> Chops.cutAt(level, a))[0] == needed - 1, "chops " + on(() -> Chops.cutAt(level, a))[0]);
+        on(() -> {
+            for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, new AABB(p(0, 0, 0)).inflate(12))) e.discard();
+            return null;
+        });
+        mine(trunk.get(1), false);
+        boolean gone = on(() -> trunk.stream().allMatch(q -> level.getBlockState(q).isAir()));
+        int dropped = itemsNear(a, 3).getOrDefault("minecraft:dark_oak_log", 0);
+        check("layer: the last chop breaks all four cells with drops, every cut of the tree goes", felled(before) && gone && dropped == 4 && chopEntries() == 0,
+            "felled " + felled(before) + ", cells gone " + gone + ", dark oak logs dropped " + dropped + ", entries " + chopEntries());
+        Fall f = on(() -> Falls.lastFall);
+        int tip = 0;
+        double low = 0;
+        while (tip < f.tl.end && f.tl.p[tip] < 300) low = Math.min(low, f.tl.dy[tip++]);
+        boolean stump = on(() -> trunk.stream().allMatch(q -> level.getBlockState(q.below()).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)));
+        check("layer: the tree hangs, drops one block onto the stump, then tips about its full 2-wide base",
+            f.tree.hang() && Math.abs(low + 1) < 0.01 && tip < f.tl.end && f.tree.hw() == 990 && stump && Math.floorDiv(f.tree.py(), 1000) == a.getY() + 1,
+            "hang " + f.tree.hang() + ", lowest before the tip " + low + " at tick " + tip + ", hw " + f.tree.hw() + ", stump " + stump + ", pivot y " + f.tree.py());
+        finish(200);
+
+        // classic mode keeps 2.0's fall of a 2x2: no hang, it tips on the three cells left
+        cfg("chops", 0);
+        List<BlockPos> plain = darkOak();
+        if (plain.size() != 4) {
+            check("layer: classic mode fells a 2x2 as 2.0", false, "trunk " + plain);
+            return;
+        }
+        BlockPos pa = plain.getFirst();
+        Fall before2 = on(() -> Falls.lastFall);
+        chop(pa.getX() - cx, 1, pa.getZ() - cz);
+        Fall classic = on(() -> Falls.lastFall);
+        check("layer: classic mode fells a 2x2 as 2.0 (no hang, three cells fall with it)", classic != before2 && !classic.tree.hang()
+            && classic.tree.parts().stream().filter(pt -> !pt.leaf() && pt.pos().getY() == pa.getY()).count() == 3,
+            classic == before2 ? "no fall" : "hang " + classic.tree.hang());
+        finish(200);
+    }
+
+    /** Stills of a 2x2 dark oak cut at 0, 1, 2 and 3 of 4 chops, then mid-drop and mid-tip from the side. */
+    static void layersheet() {
+        cfg("chops", 1);
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        try {
+            List<BlockPos> trunk = darkOak(true);
+            if (trunk.size() != 4) {
+                check("layersheet: the dark oak grew a 2x2 trunk", false, "trunk " + trunk);
+                return;
+            }
+            cfg("chop_curve", 1);
+            cmd("time set 6000");
+            client(MpHost::hideHud);
+            on(() -> {
+                for (int dx = -9; dx <= 9; dx += 3) for (int dz = -9; dz <= 12; dz += 3) for (int dy : new int[] {1, 5, 9}) {
+                    BlockPos q = p(dx, dy, dz);
+                    if (level.getBlockState(q).isAir()) level.setBlock(q, net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState(), 2);
+                }
+                return null;
+            });
+            double tx = trunk.getFirst().getX() + 1.0, tz = trunk.getFirst().getZ() + 1.0;
+            int needed = 4, done = 0;
+            for (int n = 0; n <= 3; n++) {
+                // stills at 0, 1 and 2 chops and at the chop before the last (the thinnest core)
+                int want = n == 3 ? needed - 1 : n;
+                while (done < want) {
+                    cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx, Y + 0.0, tz - 3.0, tx, Y + 1.5, tz));
+                    tick(3);
+                    mine(trunk.get(++done % 4), false);
+                    long[] cutNow = on(() -> Chops.cutAt(level, trunk.getFirst()));
+                    if (cutNow != null) needed = (int) cutNow[1];
+                }
+                if (n == 3) info("layersheet: needed " + needed + ", last still at " + done + " chops");
+                // the chop's wood chips settle first
+                tick(40);
+                for (String view : new String[] {"front", "angle"}) {
+                    double ox = view.equals("front") ? 0 : 3.2, oz = view.equals("front") ? -4.4 : -3.2;
+                    String where = String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx + ox, Y + 2.2, tz + oz, tx, Y + 1.5, tz);
+                    cmd("tp " + who() + " " + where);
+                    tick(12);
+                    String shot = "layer_" + n + "_" + view;
+                    client(mc -> SelfTest.startCapture(shot, 1));
+                    tick(6);
+                }
+            }
+            // the last chop from the three-quarter view (the drop is shot from there), then the camera to the fall's side
+            double ax = tx + 3.2, az = tz - 3.2;
+            BlockPos near = trunk.stream().min(java.util.Comparator.comparingDouble(q -> Math.hypot(q.getX() + 0.5 - ax, q.getZ() + 0.5 - az))).get();
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", ax, Y + 0.0, az, tx, Y + 1.5, tz));
+            tick(12);
+            Fall before = on(() -> Falls.lastFall);
+            mine(near, false);
+            Fall f = on(() -> Falls.lastFall);
+            if (f == before) {
+                check("layersheet: the fourth chop fells", false, "no fall");
+                return;
+            }
+            int drop = 0, tipT = 0;
+            while (drop < f.tl.end && f.tl.dy[drop] > -0.1) drop++;
+            while (tipT < f.tl.end && f.tl.p[tipT] < 4500) tipT++;
+            int t = on(() -> f.n);
+            Vec3 dir = fallDir(f);
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx - dir.z * 7.5, Y + 0.5, tz + dir.x * 7.5, tx, Y + 2.2, tz));
+            // every frame from the hang through the landing (flicker check); the mid-drop still is picked from it
+            client(mc -> SelfTest.startCapture("layer_4_fall", 45));
+            info("layersheet: layer_4_fall burst from fall tick " + on(() -> f.n) + ", plunge frame " + drop + " (dy " + f.tl.dy[drop] + ")");
+            for (int w = 0; w < 200 && SelfTest.capturing(); w++) sleep(10);
+            double mx = tx + dir.x * 3, mz = tz + dir.z * 3;
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", mx - dir.z * 14, Y + 3.0, mz + dir.x * 14, mx, Y + 3.5, mz));
+            while (on(() -> f.n) < tipT - 1 && on(() -> f.n) < f.tl.end) tick(1);
+            client(mc -> SelfTest.startCapture("layer_5_tip", 1));
+            info("layersheet: layer_5_tip at fall tick " + on(() -> f.n) + " (pitch " + f.tl.p[Math.min(tipT, f.tl.end)] / 100 + ")");
+            info("layersheet: fall started at tick " + t + ", drop frame " + drop + ", tip frame " + tipT);
+            finish(220);
+        } finally {
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+            cfg("chops", 0);
+            cfg("chop_curve", 10);
+        }
+    }
+
+    // ---- the settings screen ----
+
+    /** The settings screen pauses the integrated server, so waits here are wall-clock, not ticks. */
+    static void screen() {
+        cfg("chops", 0);
+        cfg("replant", 0);
+        client(MpHost::hideHud);
+        try {
+            io.github.profetgit.vanillatimber.client.TimberScreen[] made = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
+            CompletableFuture<Void> opened = new CompletableFuture<>();
+            client(mc -> {
+                io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
+                made[0] = new io.github.profetgit.vanillatimber.client.TimberScreen(null);
+                mc.gui.setScreen(made[0]);
+                opened.complete(null);
+            });
+            await(opened);
+            sleep(800);
+            io.github.profetgit.vanillatimber.client.TimberScreen sc = made[0];
+            check("screen: singleplayer edits the config file", sc.mode == io.github.profetgit.vanillatimber.client.TimberScreen.Mode.LOCAL, "mode " + sc.mode);
+            check("screen: sections Felling, Fall, Axe, Server", sc.headers.equals(List.of("Felling", "Fall", "Axe", "Server")), "headers " + sc.headers);
+            List<String> missing = new ArrayList<>();
+            for (Config.Key k : Config.Key.values()) if (!sc.widgets.containsKey(k)) missing.add(k.json);
+            check("screen: every setting has a widget", missing.isEmpty(), "missing " + missing);
+            List<String> bare = new ArrayList<>();
+            for (Config.Key k : sc.widgets.keySet()) if (!sc.helpText.containsKey(k)) bare.add(k.json);
+            check("screen: every widget has hover help", bare.isEmpty() && !sc.helpText.isEmpty(), "no help: " + bare);
+            String chopsHelp = sc.helpText.getOrDefault(Config.Key.CHOPS, Component.empty()).getString();
+            check("screen: hover help is the config file's comment, without the file's value keys", chopsHelp.startsWith("Chop mode: each break of a trunk log") && !chopsHelp.contains("1:")
+                && !sc.helpText.get(Config.Key.REQUIRE_AXE).getString().contains("#"), chopsHelp + " | " + sc.helpText.get(Config.Key.REQUIRE_AXE).getString());
+            check("screen: the chop count is greyed out while chop mode is off", !sc.widgets.get(Config.Key.CHOP_CURVE).active, "active " + sc.widgets.get(Config.Key.CHOP_CURVE).active);
+            List<String> doubled = new ArrayList<>(), labels = new ArrayList<>();
+            for (net.minecraft.client.gui.components.AbstractWidget w : sc.widgets.values()) {
+                String m = w.getMessage().getString();
+                labels.add(m);
+                int c = m.indexOf(':');
+                if (c > 0 && m.indexOf(m.substring(0, c + 1), c + 1) >= 0) doubled.add(m);
+            }
+            check("screen: each button says its name once", doubled.isEmpty(), doubled.isEmpty() ? labels.toString() : doubled.toString());
+            String shotName = "screen_local";
+            client(mc -> SelfTest.startCapture(shotName, 1));
+            sleep(600);
+            CompletableFuture<Void> pressed = new CompletableFuture<>();
+            client(mc -> {
+                ((net.minecraft.client.gui.components.CycleButton<?>) sc.widgets.get(Config.Key.CHOPS)).onPress(new net.minecraft.client.input.KeyEvent(257, 0, 0));
+                pressed.complete(null);
+            });
+            await(pressed);
+            sleep(400);
+            check("screen: switching chop mode on sets the config and wakes the chop count", on(() -> Config.get(Config.Key.CHOPS)) == 1 && sc.applied.contains("chops=1")
+                && sc.widgets.get(Config.Key.CHOP_CURVE).active,
+                "chops " + on(() -> Config.get(Config.Key.CHOPS)) + ", applied " + sc.applied);
+            CompletableFuture<Void> ro = new CompletableFuture<>();
+            io.github.profetgit.vanillatimber.client.TimberScreen[] view = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
+            client(mc -> {
+                io.github.profetgit.vanillatimber.client.TimberScreen.forced = io.github.profetgit.vanillatimber.client.TimberScreen.Mode.READ_ONLY;
+                view[0] = new io.github.profetgit.vanillatimber.client.TimberScreen(null);
+                io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
+                mc.gui.setScreen(view[0]);
+                ro.complete(null);
+            });
+            await(ro);
+            sleep(800);
+            boolean locked = view[0].widgets.values().stream().noneMatch(w -> w.active);
+            check("screen: a non-operator on a server sees every value read-only", locked && view[0].widgets.size() == Config.Key.values().length
+                && view[0].helpText.getOrDefault(Config.Key.CHOPS, Component.empty()).getString().contains("operators"),
+                "active " + view[0].widgets.values().stream().filter(w -> w.active).count());
+            CompletableFuture<Void> scrolled = new CompletableFuture<>();
+            client(mc -> {
+                view[0].widgets.get(Config.Key.SLICE_MS).setFocused(false);
+                if (view[0].children().stream().filter(c -> c instanceof net.minecraft.client.gui.components.AbstractSelectionList<?>).findFirst().orElse(null)
+                    instanceof net.minecraft.client.gui.components.AbstractSelectionList<?> l) l.setScrollAmount(l.maxScrollAmount());
+                scrolled.complete(null);
+            });
+            await(scrolled);
+            sleep(500);
+            String roName = "screen_readonly";
+            client(mc -> SelfTest.startCapture(roName, 1));
+            sleep(600);
+        } finally {
+            CompletableFuture<Void> closed = new CompletableFuture<>();
+            client(mc -> {
+                io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
+                mc.gui.setScreen(null);
+                closed.complete(null);
+            });
+            await(closed);
+            cfg("chops", 0);
+        }
+    }
+
+    static int mineSeq;
+
+    static void mineAction(BlockPos pos, ServerboundPlayerActionPacket.Action action, boolean sneak) {
+        on(() -> {
+            player.setShiftKeyDown(sneak);
+            try {
+                player.gameMode.handleBlockBreakAction(pos, action, Direction.UP, 320, ++mineSeq);
+            } finally {
+                player.setShiftKeyDown(false);
+            }
+            return null;
+        });
+    }
+
+    static int breakTicks(BlockPos pos) {
+        return on(() -> {
+            float progress = level.getBlockState(pos).getDestroyProgress(player, level, pos);
+            return progress <= 0 ? 1 : (int) Math.ceil(1 / progress);
+        });
+    }
+
+    /** Mines a block the way a client does: START_DESTROY_BLOCK, its break time in ticks, STOP_DESTROY_BLOCK. */
+    static void mine(BlockPos pos, boolean sneak) {
+        Fall before = Falls.lastFall;
+        mineAction(pos, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, sneak);
+        tick(breakTicks(pos));
+        mineAction(pos, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, sneak);
+        tick(1);
+        noteFall(before);
+    }
+
+    static void mine(int dx, int dy, int dz) {
+        mine(p(dx, dy, dz), false);
+    }
+
+    static void noteFall(Fall before) {
+        on(() -> {
+            Fall now = Falls.lastFall;
+            if (now != null && now != before) {
+                cur = now;
+                plotFalls.add(now);
+            }
+            return null;
+        });
+    }
+
+    static boolean felled(Fall before) {
+        return on(() -> Falls.lastFall != before);
+    }
+
+    static int chopCount() {
+        long[] pr = on(() -> Chops.progress(level));
+        return pr == null ? 0 : (int) pr[0];
+    }
+
+    static int chopEntries() {
+        return on(() -> Chops.entries(level));
+    }
+
+    static boolean handEmpty() {
+        return on(() -> player.getMainHandItem().isEmpty());
+    }
+
+    /** A fresh plot with a trunk of {@code h} oak logs and the iron axe in hand. */
+    static void chopTree(int h) {
+        plot();
+        on(() -> {
+            Chops.clear(level);
+            return null;
+        });
+        customTree(0, 0, h, 2, "oak_log", "oak_leaves");
+        tick(30);
+        hold("minecraft:iron_axe");
+    }
+
+    static String boxText(int b) {
+        StringBuilder t = new StringBuilder("[");
+        for (int i = 0; i < 6; i++) t.append(i == 0 ? "" : i % 2 == 0 ? " " : "-").append(io.github.profetgit.vanillatimber.core.Cut.bound(b, i));
+        return t.append("]").toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<Long, Integer> clientBoxes() {
+        CompletableFuture<Void> got = new CompletableFuture<>();
+        Map<Long, Integer>[] seen = new Map[1];
+        client(mc -> {
+            seen[0] = io.github.profetgit.vanillatimber.client.ChoppedCells.snapshot();
+            got.complete(null);
+        });
+        await(got);
+        return seen[0];
+    }
+
+    static void chops() {
+        try {
+            chopsRun();
+        } finally {
+            denyBox = null;
+            cfg("chops", 0);
+            cfg("chop_curve", 10);
+            cfg("sneak", 0);
+            cfg("require_axe", 1);
+            cmd("effect clear " + who());
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+        }
+    }
+
+    static void chopsRun() {
+        // chops 0: the 2.0 behaviour, one mined break fells
+        cfg("chops", 0);
+        chopTree(5);
+        Fall before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        tick(2);
+        check("chops 0: one mined break fells the tree as in 2.0, 1 + 4 damage", felled(before) && count(Parity::isLog, 6) == 0 && chopEntries() == 0 && damage() == 5,
+            "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries() + ", damage " + damage());
+        finish(120);
+
+        // an oak of 5 logs takes 4 chops: the tree stands after 3, cracked, then falls
+        cfg("chops", 1);
+        check("curve: 5 logs 4 chops, 30 logs 15, 100 logs 25, 1 log 1", Chops.needed(5, 10) == 4 && Chops.needed(30, 10) == 15 && Chops.needed(100, 10) == 25 && Chops.needed(1, 10) == 1,
+            Chops.needed(5, 10) + " " + Chops.needed(30, 10) + " " + Chops.needed(100, 10) + " " + Chops.needed(1, 10));
+        chopTree(5);
+        before = on(() -> Falls.lastFall);
+        int cracks0 = Chops.cracks, creaks0 = Chops.creaks;
+        mine(0, 0, 0);
+        check("chop 1: the log stays, progress 1 of 4, one damage", count(Parity::isLog, 6) == 5 && chopCount() == 1 && damage() == 1 && !felled(before),
+            "logs " + count(Parity::isLog, 6) + ", chops " + chopCount() + ", damage " + damage());
+        mine(0, 0, 0);
+        mine(0, 0, 0);
+        long[] pr = on(() -> Chops.progress(level));
+        check("chops 2 and 3: the tree stands with 3 of 4, 3 damage, the crack at stage 7 on the log",
+            count(Parity::isLog, 6) == 5 && pr != null && pr[0] == 3 && pr[1] == 4 && damage() == 3 && !felled(before) && Chops.lastStage == 7 && p(0, 0, 0).equals(Chops.lastCrack) && Chops.cracks - cracks0 == 3,
+            "logs " + count(Parity::isLog, 6) + ", progress " + java.util.Arrays.toString(pr) + ", damage " + damage() + ", stage " + Chops.lastStage + " at " + Chops.lastCrack + ", cracks " + (Chops.cracks - cracks0));
+        check("the creak plays on the chop before the last", Chops.creaks - creaks0 == 1, "creaks " + (Chops.creaks - creaks0));
+        check("a vanilla viewer's mining has the mask over the log", on(() -> Chops.maskOf(player)) != null, "no mask");
+        mine(0, 0, 0);
+        tick(2);
+        check("chop 4: the tree falls, 4 damage, progress and crack cleared, mask gone",
+            felled(before) && count(Parity::isLog, 6) == 0 && damage() == 4 && chopEntries() == 0 && Chops.lastStage == -1 && on(() -> Chops.maskOf(player)) == null,
+            "logs " + count(Parity::isLog, 6) + ", damage " + damage() + ", entries " + chopEntries() + ", stage " + Chops.lastStage);
+        Map<String, Integer> chopLoot = new TreeMap<>(on(() -> Falls.lastFall).loot);
+        finish(160);
+        int chopped = itemsOf("minecraft:oak_log", 8);
+
+        // loot after the final chop is the classic fell's
+        cfg("chops", 0);
+        chopTree(5);
+        chop(0, 0, 0);
+        Map<String, Integer> classicLoot = new TreeMap<>(on(() -> Falls.lastFall).loot);
+        finish(160);
+        int classic = itemsOf("minecraft:oak_log", 8);
+        check("loot: the logs after a chop-mode fell equal the classic fell's", classic == chopped && classic == 5 && chopLoot.getOrDefault("minecraft:oak_log", 0).equals(classicLoot.getOrDefault("minecraft:oak_log", 0)),
+            "classic " + classic + " " + classicLoot + ", chops " + chopped + " " + chopLoot);
+        cfg("chops", 1);
+
+        // an axe with 1 durability breaks on the first chop; the progress stays and an empty hand finishes
+        cfg("chop_curve", 1);
+        chopTree(4);
+        holdCmd("minecraft:iron_axe[minecraft:damage=249]");
+        before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        check("an axe with 1 durability breaks on chop 1 and the progress is kept", handEmpty() && chopCount() == 1 && count(Parity::isLog, 6) == 4 && !felled(before),
+            "hand empty " + handEmpty() + ", chops " + chopCount() + ", logs " + count(Parity::isLog, 6));
+        cmd("effect give " + who() + " minecraft:haste 1000 40 true");
+        mine(0, 0, 0);
+        tick(2);
+        check("an empty hand finishes the tree", felled(before) && count(Parity::isLog, 6) == 0 && chopEntries() == 0, "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        cmd("effect clear " + who());
+        finish(160);
+        cfg("chop_curve", 10);
+
+        // gates: a pickaxe (require_axe 1), sneaking, a placed log: one log breaks, no progress, no fell
+        cmd("effect give " + who() + " minecraft:haste 1000 20 true");
+        chopTree(5);
+        hold("minecraft:iron_pickaxe");
+        before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        check("a pickaxe with require_axe 1: one log breaks, no progress, no fell", count(Parity::isLog, 6) == 4 && chopEntries() == 0 && !felled(before), "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        cfg("require_axe", 0);
+        chopTree(5);
+        hold("minecraft:iron_pickaxe");
+        mine(0, 0, 0);
+        check("a pickaxe with require_axe 0: it chops", count(Parity::isLog, 6) == 5 && chopCount() == 1, "logs " + count(Parity::isLog, 6) + ", chops " + chopCount());
+        cfg("require_axe", 1);
+        chopTree(5);
+        before = on(() -> Falls.lastFall);
+        mine(p(0, 0, 0), true);
+        check("sneaking: one log breaks, no progress, no fell", count(Parity::isLog, 6) == 4 && chopEntries() == 0 && !felled(before), "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        chopTree(5);
+        on(() -> {
+            Placed.add(level, p(0, 0, 0));
+            return null;
+        });
+        before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        check("a placed log: one log breaks, no progress, no fell", count(Parity::isLog, 6) == 4 && chopEntries() == 0 && !felled(before), "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        chopTree(5);
+        before = on(() -> Falls.lastFall);
+        boolean broke = destroy(p(0, 0, 0));
+        tick(2);
+        check("a destroyBlock that isn't the player's mining: one log breaks, no progress, no fell", broke && count(Parity::isLog, 6) == 4 && chopEntries() == 0 && !felled(before),
+            "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        chopTree(6);
+        before = on(() -> Falls.lastFall);
+        denyBox = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx - 3, Y + 3, cz - 3, cx + 3, Y + 7, cz + 3);
+        mine(0, 0, 0);
+        denyBox = null;
+        check("a claim over part of the tree: one log breaks, no progress, no fell", count(Parity::isLog, 6) == 5 && chopEntries() == 0 && !felled(before), "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        cmd("effect clear " + who());
+
+        // the rate limit: a STOP that comes before the log's break time has passed again is cancelled and not counted
+        chopTree(5);
+        mine(0, 0, 0);
+        BlockPos log = p(0, 0, 0);
+        mineAction(log, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, false);
+        int a = chopCount();
+        tick(2);
+        mineAction(log, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, false);
+        int b = chopCount();
+        tick(7);
+        mineAction(log, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, false);
+        int c = chopCount();
+        check("a too-fast second STOP is not counted, one after the break time is", a == 1 && b == 1 && c == 2 && count(Parity::isLog, 6) == 5, "chops " + a + " " + b + " " + c);
+
+        // each height is its own cut: chops at three heights make three cuts of one chop each; the cut that reaches the
+        // count fells from its height and every cut of the tree goes with it
+        cfg("chop_curve", 5);
+        chopTree(6);
+        before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        mine(0, 1, 0);
+        mine(0, 2, 0);
+        long[] c0 = on(() -> Chops.cutAt(level, p(0, 0, 0))), c2 = on(() -> Chops.cutAt(level, p(0, 2, 0)));
+        check("another height starts its own cut: 3 cuts of 1 chop, the crack on the last", chopEntries() == 3 && c0 != null && c0[0] == 1 && c2 != null && c2[0] == 1
+            && p(0, 2, 0).equals(Chops.lastCrack) && !felled(before), "entries " + chopEntries() + ", y0 " + java.util.Arrays.toString(c0) + ", y2 " + java.util.Arrays.toString(c2) + ", crack " + Chops.lastCrack);
+        int need = c0 == null ? 0 : (int) c0[1];
+        for (int k = 1; k < need - 1; k++) mine(0, 1, 0);
+        long[] c1 = on(() -> Chops.cutAt(level, p(0, 1, 0)));
+        check("chops at one height add up, the other cuts keep theirs", c1 != null && c1[0] == need - 1 && on(() -> Chops.cutAt(level, p(0, 0, 0)))[0] == 1 && !felled(before),
+            "y1 " + java.util.Arrays.toString(c1) + ", needed " + need);
+        mine(0, 1, 0);
+        tick(2);
+        check("the cut that reaches the count fells from its height, every cut of the tree goes", felled(before) && count(Parity::isLog, 6) == 1 && chopEntries() == 0,
+            "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        finish(160);
+        cfg("chop_curve", 10);
+
+        // the crack is sent again every 200 ticks; an entry whose log is gone drops
+        chopTree(5);
+        mine(0, 0, 0);
+        mine(0, 0, 0);
+        int sent = Chops.cracks;
+        tick(210);
+        check("the crack is re-sent every 200 ticks", Chops.cracks > sent, "cracks " + sent + " -> " + Chops.cracks);
+        cmd("setblock " + at(0, 0, 0) + " minecraft:stone");
+        tick(205);
+        check("an entry whose last log is gone drops with its crack", chopEntries() == 0 && Chops.lastStage == -1, "entries " + chopEntries() + ", stage " + Chops.lastStage);
+
+        // progress survives a world close
+        chopTree(5);
+        mine(0, 0, 0);
+        mine(0, 0, 0);
+        reopen(false);
+        hold("minecraft:iron_axe");
+        long[] saved = on(() -> Chops.progress(level));
+        check("progress survives reopening the world", saved != null && saved[0] == 2 && saved[1] == 4 && saved[2] == p(0, 0, 0).asLong(), "progress " + java.util.Arrays.toString(saved));
+        before = on(() -> Falls.lastFall);
+        mine(0, 0, 0);
+        mine(0, 0, 0);
+        tick(2);
+        check("after the reopen two more chops fell the tree", felled(before) && count(Parity::isLog, 6) == 0 && chopEntries() == 0, "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        finish(160);
+
+        // a giant spruce takes the curve's count
+        plot();
+        on(() -> {
+            Chops.clear(level);
+            return null;
+        });
+        feature("mega_spruce", 0, 0);
+        tick(40);
+        hold("minecraft:iron_axe");
+        int giant = count(Parity::isLog, 10);
+        before = on(() -> Falls.lastFall);
+        int n = 0;
+        while (n < 80 && !felled(before)) {
+            mine(0, 0, 0);
+            n++;
+        }
+        check("a giant spruce of " + giant + " logs takes " + Chops.needed(giant, 10) + " chops", n == Chops.needed(giant, 10), n + " chops");
+        finish(200);
+
+        // a vanilla viewer's mask: one per player, the log at 0.994 inside the cell, gone after 60 idle ticks
+        chopTree(5);
+        BlockPos first = p(0, 1, 0), second = p(0, 2, 0);
+        mineAction(first, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
+        tick(2);
+        Display.BlockDisplay mask = on(() -> Chops.maskOf(player));
+        boolean shaped = mask != null && mask.getBlockState().is(net.minecraft.world.level.block.Blocks.OAK_LOG) && Math.abs(xf(mask).scale().x() - 0.994) < 0.001
+            && mask.getX() == first.getX() && mask.getY() == first.getY() && mask.getZ() == first.getZ() && Displays.ours(mask);
+        check("mining a log in chop mode as a vanilla viewer spawns the mask at 0.994 in its cell", shaped, mask == null ? "no mask" : mask.getBlockState() + " scale " + xf(mask).scale() + " at " + mask.position());
+        mineAction(second, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
+        tick(2);
+        Display.BlockDisplay moved = on(() -> Chops.maskOf(player));
+        int shown = on(() -> level.getEntitiesOfClass(Display.BlockDisplay.class, new AABB(p(0, 0, 0)).inflate(8), Displays::ours).size());
+        check("one mask per player: starting another log moves it", moved != null && moved != mask && mask.isRemoved() && moved.getY() == second.getY() && shown == 1, "masks " + shown);
+        mineAction(second, ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK, false);
+        tick(70);
+        check("the mask goes 60 ticks after the player stops", on(() -> Chops.maskOf(player)) == null, "still there");
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        mineAction(first, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
+        tick(2);
+        if (on(() -> Viewers.local(player))) check("a modded viewer gets no mask", on(() -> Chops.maskOf(player)) == null, "mask spawned");
+        else info("chops: the test client never said Hello, modded-viewer mask check skipped");
+        mineAction(first, ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK, false);
+        on(() -> {
+            Viewers.test = Viewers.VANILLA;
+            return null;
+        });
+
+        // the modded client learns the mode and keeps the log it would have predicted away
+        chopTree(5);
+        BlockPos at = p(0, 0, 0);
+        tick(30);
+        boolean[] keeps = new boolean[2];
+        CompletableFuture<Void> got = new CompletableFuture<>();
+        client(mc -> {
+            keeps[0] = io.github.profetgit.vanillatimber.client.ChopClient.keeps(at);
+            got.complete(null);
+        });
+        await(got);
+        hold("minecraft:iron_pickaxe");
+        tick(10);
+        CompletableFuture<Void> got2 = new CompletableFuture<>();
+        client(mc -> {
+            keeps[1] = io.github.profetgit.vanillatimber.client.ChopClient.keeps(at);
+            got2.complete(null);
+        });
+        await(got2);
+        check("the modded client keeps an axe-chopped log and not a pickaxe-broken one", keeps[0] && !keeps[1], "axe " + keeps[0] + ", pickaxe " + keeps[1]);
+        cfg("chops", 0);
+        tick(30);
+        CompletableFuture<Void> got3 = new CompletableFuture<>();
+        client(mc -> {
+            keeps[0] = io.github.profetgit.vanillatimber.client.ChopClient.keeps(at);
+            got3.complete(null);
+        });
+        await(got3);
+        check("with chops 0 the modded client predicts as vanilla", !keeps[0], "kept " + keeps[0]);
+
+        // the log a player chops shrinks: one box per cut, the old save format, the payload to a modded viewer
+        cfg("chops", 1);
+        chopTree(6);
+        mine(0, 1, 0);
+        mine(0, 1, 0);
+        mine(0, 2, 0);
+        int needed = on(() -> (int) Chops.cutAt(level, p(0, 1, 0))[1]);
+        int b1 = on(() -> Chops.cellBox(level, p(0, 1, 0))), b2 = on(() -> Chops.cellBox(level, p(0, 2, 0))), b0 = on(() -> Chops.cellBox(level, p(0, 0, 0)));
+        int s1 = io.github.profetgit.vanillatimber.core.Cut.step(2, needed), s2 = io.github.profetgit.vanillatimber.core.Cut.step(1, needed);
+        boolean boxed = b1 == io.github.profetgit.vanillatimber.core.Cut.pack(s1, 16 - s1, 0, 16, s1, 16 - s1) && b2 == io.github.profetgit.vanillatimber.core.Cut.pack(s2, 16 - s2, 0, 16, s2, 16 - s2)
+            && b0 == io.github.profetgit.vanillatimber.core.Cut.WHOLE;
+        check("a 1x1 cut shrinks around the log's centre: 16 - 2 x round(6 n / (needed - 1)) per height", boxed,
+            "boxes " + boxText(b1) + " " + boxText(b2) + " " + boxText(b0) + ", steps " + s1 + " " + s2 + ", needed " + needed);
+        java.util.List<long[]> old = io.github.profetgit.vanillatimber.server.ChopData.selfTestOldFormat(
+            "{\"trees\":[{\"base\":1,\"last\":" + p(0, 2, 0).asLong() + ",\"chops\":3,\"needed\":9,\"cells\":[{\"pos\":" + p(0, 1, 0).asLong() + ",\"n\":2},{\"pos\":"
+                + p(0, 2, 0).asLong() + ",\"n\":1}]},{\"base\":2,\"last\":5,\"chops\":4,\"needed\":9}]}");
+        check("entries saved before the layers read as a cut at the last cell's height", old.size() == 2 && old.get(0).length == 2 && old.get(0)[0] == 3 && old.get(0)[1] == p(0, 2, 0).asLong()
+            && old.get(1).length == 2 && old.get(1)[0] == 4 && old.get(1)[1] == 5, old.stream().map(java.util.Arrays::toString).toList().toString());
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        if (on(() -> Viewers.local(player))) {
+            int before2 = Chops.cellMessages;
+            mine(0, 3, 0);
+            tick(5);
+            Map<Long, Integer> seen = clientBoxes();
+            check("a modded viewer receives the new cut's box at once", Chops.cellMessages > before2 && seen.get(p(0, 3, 0).asLong()) != null,
+                "messages " + before2 + " -> " + Chops.cellMessages + ", client " + seen);
+            tick(205);
+            Map<Long, Integer> healed = clientBoxes();
+            check("the 200-tick resend gives it every cut of the level", healed.size() == 3 && b1 == healed.getOrDefault(p(0, 1, 0).asLong(), 0), "client " + healed);
+        } else info("chops: the test client never said Hello, cut-cell payload check skipped");
+        on(() -> {
+            Viewers.test = Viewers.VANILLA;
+            return null;
+        });
     }
 }

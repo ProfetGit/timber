@@ -118,7 +118,8 @@ public final class TimberCommand {
         choiceRow(src, Key.DROPS, "Drops", new String[] {"Where it lands", "At player"},
             new String[] {"Each log hops out where it lands, leaf drops burst from the crown", "Drops appear at your feet as the tree breaks apart"});
         boolRow(src, Key.REQUIRE_AXE, "Require an axe", "Only fell trees when chopping with an axe");
-        boolRow(src, Key.DURABILITY, "Use axe durability", "Each log costs durability (Unbreaking applies); a tree that would break the axe is not felled");
+        boolRow(src, Key.DURABILITY, "Use axe durability", "Each log costs durability (Unbreaking applies); a worn axe still fells the tree and breaks");
+        boolRow(src, Key.CHOPS, "Chop mode", "Bigger trees take more chops (HT's TreeChop style); each chop costs one durability and cracks the log");
         boolRow(src, Key.ANIMATION, "Falling animation", "Off: the tree vanishes at once and drops at the stump");
         boolRow(src, Key.PROTECT, "Protect placed logs", "Logs placed by players are never felled");
         boolRow(src, Key.FEEDBACK, "Refusal message", "Say on the action bar why a tree was not felled");
