@@ -64,11 +64,17 @@
         },
         {
           "mc": [
-            "26.3",
-            "1.21.1"
+            "26.3"
           ],
           "loader": "quilt",
           "scenes": "smoke"
+        },
+        {
+          "mc": [
+            "1.21.1"
+          ],
+          "loader": "quilt",
+          "scenes": "smoke,fall,mesh"
         }
       ],
       "mp": [
@@ -151,11 +157,17 @@
         },
         {
           "mc": [
-            "26.3",
-            "1.21.1"
+            "26.3"
           ],
           "loader": "quilt",
           "scenes": "smoke"
+        },
+        {
+          "mc": [
+            "1.21.1"
+          ],
+          "loader": "quilt",
+          "scenes": "smoke,fall,mesh"
         }
       ],
       "mp": [
