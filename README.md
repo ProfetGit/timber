@@ -10,7 +10,7 @@
 Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fabric, Quilt, NeoForge and Forge**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.x.
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak_chops.webp" alt="Chop mode: every chop cuts the oak deeper, the last one fells it" width="49%">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak_chops.webp" alt="An oak in chop mode" width="49%">
 <img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_birch.webp" alt="A tall birch felled with one chop" width="49%">
 <img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_cherry.webp" alt="A cherry tree felled with one chop" width="49%">
 <img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_spruce.webp" alt="A giant 2x2 spruce felled with one chop" width="49%">

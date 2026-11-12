@@ -311,6 +311,12 @@ public final class Fall {
         }
     }
 
+    /** Whether the tree has log parts in ring {@code k}: with no displays (only modded viewers) there is nothing shown to ask. */
+    private boolean ringExists(int k) {
+        for (Tree.Part p : tree.parts()) if (!p.leaf() && p.k() == k) return true;
+        return false;
+    }
+
     private boolean ringShown(int k) {
         for (int i = 0; i < shown.length; i++) {
             Tree.Part p = tree.parts().get(i);
@@ -335,7 +341,7 @@ public final class Fall {
             case THUD -> Fx.thud(level, at, e.volume(), e.pitch());
             case RING -> {
                 Vec3 p = Fx.local(at, pitch, yaw, e.ring() + 0.5, lz);
-                if (ringShown(e.ring()) && popping[e.ring()]) Fx.ringPop(level, this, p, e.pitch());
+                if ((spawned ? ringShown(e.ring()) : ringExists(e.ring())) && popping[e.ring()]) Fx.ringPop(level, this, p, e.pitch());
                 for (ItemStack s : ringDrops[e.ring()]) drop(s, p, true);
                 ringDrops[e.ring()].clear();
             }

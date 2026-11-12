@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.2 — 2026-11-12
+
+### Fixed
+- The pop sound of the logs bursting apart at the end of a fall plays again for players who have the mod on their client (it only played for players without it). It rises in pitch up the trunk as before.
+
 ## 2.1.1 — 2026-11-12
 
 ### Fixed
