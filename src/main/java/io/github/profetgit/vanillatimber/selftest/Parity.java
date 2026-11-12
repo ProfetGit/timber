@@ -369,7 +369,7 @@ final class Parity {
     /** Holds a stack with components (damage, enchantments): the {@code item replace} command, as 1.3.6 did. */
     static void holdCmd(String item) {
 //? if <1.20.5 {
-        /*item = item.replace("[minecraft:damage=245]", "{Damage:245}").replace("[minecraft:unbreakable={}]", "{Unbreakable:1b}")
+        /*item = item.replace("[minecraft:damage=245]", "{Damage:245}").replace("[minecraft:damage=249]", "{Damage:249}").replace("[minecraft:unbreakable={}]", "{Unbreakable:1b}")
             .replace("[minecraft:enchantments={\"minecraft:unbreaking\":3}]", "{Enchantments:[{id:\"minecraft:unbreaking\",lvl:3s}]}");*/
 //?}
         cmd("item replace entity " + who() + " weapon.mainhand with " + item);
@@ -556,6 +556,11 @@ final class Parity {
     }
 
     // ---- display geometry (server side, from the entity data) ----
+
+    static double maskScale(Display d) {
+        Transformation t = xf(d);
+        return t.scale().x();
+    }
 
     static Transformation xf(Display d) {
         return io.github.profetgit.vanillatimber.mixin.DisplayAccess.timber$createTransformation(d.getEntityData());
@@ -2506,7 +2511,10 @@ final class Parity {
             m.clearLevel(new net.minecraft.client.gui.screens.GenericMessageScreen(Component.literal("self-test reopen")));
         });
 *///?}
-        for (int i = 0; i < 2400 && (old.isRunning() || mc.getSingleplayerServer() != null || mc.level != null); i++) sleep(50);
+        for (int i = 0; i < 2400 && (old.isRunning() || mc.getSingleplayerServer() != null || mc.level != null); i++) {
+            if (i == 100 && old.isRunning()) old.halt(false);
+            sleep(50);
+        }
         if (old.isRunning() || mc.getSingleplayerServer() != null) throw new IllegalStateException("world did not close");
         info("world closed, reopening " + id);
 //? if >=1.21 {
@@ -3732,6 +3740,7 @@ final class Parity {
 
     // ---- the settings screen ----
 
+//? if >=26.2 {
     /** The settings screen pauses the integrated server, so waits here are wall-clock, not ticks. */
     static void screen() {
         cfg("chops", 0);
@@ -3820,6 +3829,11 @@ final class Parity {
             cfg("chops", 0);
         }
     }
+//?} else {
+/*    static void screen() {
+        check("screen: no settings screen on this version", true, "");
+    }
+*///?}
 
     static int mineSeq;
 
@@ -4123,9 +4137,9 @@ final class Parity {
         mineAction(first, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
         tick(2);
         Display.BlockDisplay mask = on(() -> Chops.maskOf(player));
-        boolean shaped = mask != null && mask.getBlockState().is(net.minecraft.world.level.block.Blocks.OAK_LOG) && Math.abs(xf(mask).scale().x() - 0.994) < 0.001
+        boolean shaped = mask != null && ((io.github.profetgit.vanillatimber.mixin.BlockDisplayAccess) mask).timber$getBlockState().is(net.minecraft.world.level.block.Blocks.OAK_LOG) && Math.abs(maskScale(mask) - 0.994) < 0.001
             && mask.getX() == first.getX() && mask.getY() == first.getY() && mask.getZ() == first.getZ() && Displays.ours(mask);
-        check("mining a log in chop mode as a vanilla viewer spawns the mask at 0.994 in its cell", shaped, mask == null ? "no mask" : mask.getBlockState() + " scale " + xf(mask).scale() + " at " + mask.position());
+        check("mining a log in chop mode as a vanilla viewer spawns the mask at 0.994 in its cell", shaped, mask == null ? "no mask" : ((io.github.profetgit.vanillatimber.mixin.BlockDisplayAccess) mask).timber$getBlockState() + " scale " + maskScale(mask) + " at " + mask.position());
         mineAction(second, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
         tick(2);
         Display.BlockDisplay moved = on(() -> Chops.maskOf(player));

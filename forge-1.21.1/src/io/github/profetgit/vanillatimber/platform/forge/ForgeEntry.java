@@ -1,7 +1,9 @@
 package io.github.profetgit.vanillatimber.platform.forge;
 
 import io.github.profetgit.vanillatimber.Timber;
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.selftest.TestBlocks;
@@ -52,6 +54,10 @@ public final class ForgeEntry implements Platform {
             if (ctx.getSender() != null) Hooks.hello(ctx.getSender(), msg.version());
         }).add();
         channel.messageBuilder(TreeFall.class, NetworkDirection.PLAY_TO_CLIENT).codec(TreeFall.CODEC)
+            .consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
+        channel.messageBuilder(Settings.class, NetworkDirection.PLAY_TO_CLIENT).codec(Settings.CODEC)
+            .consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
+        channel.messageBuilder(ChopCells.class, NetworkDirection.PLAY_TO_CLIENT).codec(ChopCells.CODEC)
             .consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener((RegisterEvent e) -> {

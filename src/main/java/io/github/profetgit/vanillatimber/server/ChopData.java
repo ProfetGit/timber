@@ -8,10 +8,13 @@ import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+//? if >=1.21.5
 import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
@@ -70,13 +73,23 @@ public final class ChopData extends SavedData {
         Codec.INT.optionalFieldOf("format", FORMAT).forGetter(d -> FORMAT),
         ENTRY.listOf().optionalFieldOf("trees", List.of()).forGetter(ChopData::all)
     ).apply(i, (format, trees) -> new ChopData(trees)));
+//? if >=1.21.5 {
     private static final SavedDataType<ChopData> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "chops"),
         () -> new ChopData(List.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+//?} else {
+/*    private static final SavedData.Factory<ChopData> TYPE = new SavedData.Factory<>(() -> new ChopData(List.of()),
+        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new ChopData(List.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+
+    @Override
+    public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookup) {
+        return SavedCodec.save(CODEC, this, tag, lookup);
+    }
+*///?}
 
     /** Self-test: entries saved before the layers, decoded: {chops, cells...} of each. */
     public static List<long[]> selfTestOldFormat(String json) {
         List<long[]> out = new ArrayList<>();
-        for (Entry e : CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE, com.google.gson.JsonParser.parseString(json)).getOrThrow().all()) {
+        for (Entry e : CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE, com.google.gson.JsonParser.parseString(json)).result().orElseThrow().all()) {
             long[] row = new long[e.cells.size() + 1];
             row[0] = e.chops;
             int k = 1;
@@ -100,7 +113,11 @@ public final class ChopData extends SavedData {
     }
 
     static ChopData get(ServerLevel level) {
+//? if >=1.21.5 {
         return level.getDataStorage().computeIfAbsent(TYPE);
+//?} else {
+/*        return level.getDataStorage().computeIfAbsent(TYPE, "vanilla_timber_chops");
+*///?}
     }
 
     /** The cut of tree {@code base} that shares a cell with {@code layer}, or null. */

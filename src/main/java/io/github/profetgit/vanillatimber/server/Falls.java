@@ -182,7 +182,14 @@ public final class Falls {
         if (dmg > left) {
             ItemStack broken = tool.copy();
             tool.shrink(1);
+//? if >=26.3 {
             player.onEquippedItemBroken(broken, EquipmentSlot.MAINHAND);
+//?} else if >=1.20.5 {
+/*            player.onEquippedItemBroken(broken.getItem(), EquipmentSlot.MAINHAND);
+*///?} else {
+/*            player.broadcastBreakEvent(EquipmentSlot.MAINHAND);
+            player.awardStat(net.minecraft.stats.Stats.ITEM_BROKEN.get(broken.getItem()));
+*///?}
         } else if (dmg > 0) tool.setDamageValue(tool.getDamageValue() + dmg);
     }
 

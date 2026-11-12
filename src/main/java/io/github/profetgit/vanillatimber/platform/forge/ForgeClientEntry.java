@@ -2,12 +2,15 @@ package io.github.profetgit.vanillatimber.platform.forge;
 
 //? forge {
 /*import io.github.profetgit.vanillatimber.client.TimberClient;
+import io.github.profetgit.vanillatimber.client.ConfigHook;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.network.PacketDistributor;
 
@@ -18,6 +21,7 @@ final class ForgeClientEntry implements Platform.Client {
 
     static void register() {
         TimberClient.init(new ForgeClientEntry());
+        if (ConfigHook.AVAILABLE) ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () -> new ConfigScreenHandler.ConfigScreenFactory(screen -> ConfigHook.create(screen)));
         ClientPlayerNetworkEvent.LoggingIn.BUS.addListener(e -> TimberClient.joined());
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(e -> TimberClient.left());
         TickEvent.LevelTickEvent.Post.BUS.addListener(e -> {

@@ -1,7 +1,9 @@
 package io.github.profetgit.vanillatimber.platform.forge;
 
 import io.github.profetgit.vanillatimber.Timber;
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.net.legacy.CustomPacketPayload;
 import io.github.profetgit.vanillatimber.platform.Platform;
@@ -57,6 +59,10 @@ public final class ForgeEntry implements Platform {
             }).add();
         channel.messageBuilder(TreeFall.class, 1, NetworkDirection.PLAY_TO_CLIENT).encoder((m, buf) -> TreeFall.CODEC.encode(buf, m))
             .decoder(TreeFall.CODEC::decode).consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
+        channel.messageBuilder(Settings.class, 2, NetworkDirection.PLAY_TO_CLIENT).encoder((m, buf) -> Settings.CODEC.encode(buf, m))
+            .decoder(Settings.CODEC::decode).consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
+        channel.messageBuilder(ChopCells.class, 3, NetworkDirection.PLAY_TO_CLIENT).encoder((m, buf) -> ChopCells.CODEC.encode(buf, m))
+            .decoder(ChopCells.CODEC::decode).consumerMainThread((msg, ctx) -> ForgeClientEntry.received(msg)).add();
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener((RegisterEvent e) -> {
             if (e.getRegistryKey().equals(Registries.BLOCK) && TestBlocks.wanted()) {

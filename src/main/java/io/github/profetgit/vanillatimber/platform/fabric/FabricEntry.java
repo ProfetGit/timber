@@ -55,6 +55,7 @@ public final class FabricEntry implements ModInitializer, Platform {
 /*        PayloadTypeRegistry.playC2S().register(Hello.TYPE, Hello.CODEC);
         PayloadTypeRegistry.playS2C().register(TreeFall.TYPE, TreeFall.CODEC);
         PayloadTypeRegistry.playS2C().register(Settings.TYPE, Settings.CODEC);
+        PayloadTypeRegistry.playS2C().register(ChopCells.TYPE, ChopCells.CODEC);
 *///?}
 //? if >=1.20.5 {
         ServerPlayNetworking.registerGlobalReceiver(Hello.TYPE, (msg, ctx) -> ctx.server().execute(() -> Hooks.hello(ctx.player(), msg.version())));
@@ -156,12 +157,15 @@ public final class FabricEntry implements ModInitializer, Platform {
         return ServerPlayNetworking.canSend(player, type.id());
     }
 
-    // TreeFall is the only server-to-client payload
+    // TreeFall, Settings and ChopCells are the server-to-client payloads
     @Override
     public void send(ServerPlayer player, CustomPacketPayload payload) {
         net.minecraft.network.FriendlyByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
-        TreeFall.CODEC.encode(buf, (TreeFall) payload);
-        ServerPlayNetworking.send(player, TreeFall.TYPE.id(), buf);
+        if (payload instanceof TreeFall m) TreeFall.CODEC.encode(buf, m);
+        else if (payload instanceof Settings m) Settings.CODEC.encode(buf, m);
+        else if (payload instanceof ChopCells m) ChopCells.CODEC.encode(buf, m);
+        else return;
+        ServerPlayNetworking.send(player, payload.type().id(), buf);
     }
 *///?}
 }

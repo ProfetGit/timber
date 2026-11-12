@@ -64,7 +64,11 @@ tasks.processResources {
         "java" to javaVer.toString(),
     )
     inputs.properties(props)
-    filesMatching("fabric.mod.json") { expand(props) }
+    // the settings screen (and its Mod Menu entry) is 26.2+: an empty entrypoint list here
+    filesMatching("fabric.mod.json") {
+        filter { it.replace("\"io.github.profetgit.vanillatimber.platform.fabric.ModMenuEntry\"", "") }
+        expand(props)
+    }
     if (javaVer < 21) filesMatching("*.mixins.json") { filter { it.replace("JAVA_21", "JAVA_$javaVer") } }
     // before 1.21 data packs read tags from the plural folders
     inputs.property("pluralTags", mc.startsWith("1.20"))

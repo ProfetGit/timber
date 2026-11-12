@@ -3,7 +3,9 @@ package io.github.profetgit.vanillatimber.platform.neoforge;
 //? neoforge {
 /*import io.github.profetgit.vanillatimber.Timber;
 import io.github.profetgit.vanillatimber.client.TimberClient;
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.selftest.TestBlocks;
@@ -79,6 +81,8 @@ public final class NeoForgeEntry implements Platform {
             if (ctx.player() instanceof ServerPlayer p) Hooks.hello(p, msg.version());
         }));
         r.playToClient(TreeFall.TYPE, TreeFall.CODEC, (msg, ctx) -> ctx.enqueueWork(() -> TimberClient.received(msg)));
+        r.playToClient(Settings.TYPE, Settings.CODEC, (msg, ctx) -> ctx.enqueueWork(() -> TimberClient.received(msg)));
+        r.playToClient(ChopCells.TYPE, ChopCells.CODEC, (msg, ctx) -> ctx.enqueueWork(() -> TimberClient.received(msg)));
     }
 
     @Override

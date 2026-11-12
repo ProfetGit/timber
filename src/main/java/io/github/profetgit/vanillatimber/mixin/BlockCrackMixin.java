@@ -1,7 +1,7 @@
 package io.github.profetgit.vanillatimber.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
-//? if >=26.3 {
+//? if fabric && >=26.2 {
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;

@@ -18,7 +18,7 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
     @Override
     public void onInitializeClient() {
         TimberClient.init(this);
-//? if >=26.3
+//? if >=26.2
         ChopModels.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> TimberClient.joined());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TimberClient.left());
@@ -38,6 +38,14 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
 //?} else {
 /*        ClientPlayNetworking.registerGlobalReceiver(TreeFall.TYPE.id(), (client, handler, buf, sender) -> {
             TreeFall payload = TreeFall.CODEC.decode(buf);
+            client.execute(() -> TimberClient.received(payload));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(Settings.TYPE.id(), (client, handler, buf, sender) -> {
+            Settings payload = Settings.CODEC.decode(buf);
+            client.execute(() -> TimberClient.received(payload));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(ChopCells.TYPE.id(), (client, handler, buf, sender) -> {
+            ChopCells payload = ChopCells.CODEC.decode(buf);
             client.execute(() -> TimberClient.received(payload));
         });
 *///?}

@@ -1,6 +1,6 @@
 package io.github.profetgit.vanillatimber.client;
 
-//? if >=26.3 {
+//? if fabric && >=26.2 {
 import io.github.profetgit.vanillatimber.core.Cut;
 import java.util.ArrayList;
 import java.util.List;
@@ -155,8 +155,12 @@ public final class ChopModels {
     }
 
     private static BakedQuad.MaterialInfo withSprite(BakedQuad.MaterialInfo m, TextureAtlasSprite sprite, int tint) {
+//? if >=26.3 {
         return new BakedQuad.MaterialInfo(sprite, m.layer(), m.itemRenderType(), m.itemGlintRenderType(), m.itemGlintSpecialRenderType(), tint,
             m.shadeDirectionOverride(), m.lightEmission());
+//?} else {
+/*        return new BakedQuad.MaterialInfo(sprite, m.layer(), m.itemRenderType(), tint, m.shade(), m.lightEmission());
+*///?}
     }
 
     /** The same quad showing {@code sprite}'s whole texture where it showed its own sprite's. */

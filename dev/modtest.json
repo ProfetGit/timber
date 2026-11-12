@@ -118,6 +118,7 @@
             "scene": "parity",
             "groups": [
               "oak",
+              "chops",
               "replant",
               "knock",
               "claims",
@@ -140,6 +141,7 @@
             "scene": "parity",
             "groups": [
               "oak",
+              "chops",
               "replant",
               "knock",
               "claims",

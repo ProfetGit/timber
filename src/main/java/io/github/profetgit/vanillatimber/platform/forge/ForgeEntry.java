@@ -3,7 +3,9 @@ package io.github.profetgit.vanillatimber.platform.forge;
 //? forge {
 /*import io.github.profetgit.vanillatimber.Timber;
 import io.github.profetgit.vanillatimber.client.TimberClient;
+import io.github.profetgit.vanillatimber.net.ChopCells;
 import io.github.profetgit.vanillatimber.net.Hello;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.platform.Platform;
 import io.github.profetgit.vanillatimber.selftest.TestBlocks;
@@ -51,6 +53,8 @@ public final class ForgeEntry implements Platform {
             if (ctx.getSender() != null) Hooks.hello(ctx.getSender(), msg.version());
         });
         channel.play().clientbound().addMain(TreeFall.class, TreeFall.CODEC, (msg, ctx) -> TimberClient.received(msg));
+        channel.play().clientbound().addMain(Settings.class, Settings.CODEC, (msg, ctx) -> TimberClient.received(msg));
+        channel.play().clientbound().addMain(ChopCells.class, ChopCells.CODEC, (msg, ctx) -> TimberClient.received(msg));
         RegisterEvent.getBus(context.getModBusGroup()).addListener(e -> {
             if (e.getRegistryKey().equals(Registries.TICKET_TYPE)) Hold.register();
             if (e.getRegistryKey().equals(Registries.BLOCK) && TestBlocks.wanted()) TestBlocks.register();

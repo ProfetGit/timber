@@ -1,6 +1,6 @@
 package io.github.profetgit.vanillatimber.client;
 
-//? if >=26.3 {
+//? if >=26.2 {
 import com.mojang.serialization.Codec;
 import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.server.Config;

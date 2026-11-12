@@ -87,13 +87,31 @@ public final class Chops {
 
     // ---- the mining packet and the delayed break (bracketed by ChopMixin) ----
 
+    private static boolean canDestroy(ItemStack tool, BlockState state, ServerLevel level, BlockPos pos, ServerPlayer player) {
+//? if >=26.1 {
+        return tool.canDestroyBlock(state, level, pos, player);
+//?} else {
+/*        return tool.getItem().canAttackBlock(state, level, pos, player);
+*///?}
+    }
+
+    private static boolean inReach(ServerPlayer player, BlockPos pos) {
+//? if >=26.1 {
+        return player.isWithinBlockInteractionRange(pos, 1.0);
+//?} else if >=1.20.5 {
+/*        return player.canInteractWithBlock(pos, 1.0);
+*///?} else {
+/*        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) < 36.0;
+*///?}
+    }
+
     public static void actionIn(ServerPlayer player, ServerLevel level, BlockPos pos, ServerboundPlayerActionPacket.Action action) {
         ctxPlayer = player;
         ctxPos = pos;
         ctxAction = action;
         if (action != START || !Config.on(Config.Key.CHOPS) || Migrate.inert || Viewers.local(player)) return;
         BlockState state = level.getBlockState(pos);
-        if (TreeTypes.forTrunk(state) == null || !mayChop(player) || !player.isWithinBlockInteractionRange(pos, 1.0)) return;
+        if (TreeTypes.forTrunk(state) == null || !mayChop(player) || !inReach(player, pos)) return;
         if (Config.on(Config.Key.PROTECT) && Placed.has(level, pos)) return;
         mask(player, level, pos, state);
     }
@@ -131,7 +149,7 @@ public final class Chops {
         int start = miningStart(player, gm, pos);
         if (start < 0 || !mayChop(player)) return false;
         ItemStack tool = player.getMainHandItem();
-        if (!tool.canDestroyBlock(state, level, pos, player) || player.blockActionRestricted(level, pos, player.gameMode.getGameModeForPlayer())) return false;
+        if (!canDestroy(tool, state, level, pos, player) || player.blockActionRestricted(level, pos, player.gameMode.getGameModeForPlayer())) return false;
         if (Config.on(Config.Key.PROTECT) && Placed.has(level, pos) || Falls.busy(level, pos)) return false;
         // the rate limit comes before the add-on hook and the scan, so a client spamming STOP costs no scans
         int now = gm.timber$gameTicks();

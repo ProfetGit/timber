@@ -1,4 +1,4 @@
-package io.github.profetgit.vanillatimber.mixin;
+package io.github.profetgit.vanillatimber;
 
 import java.util.List;
 import java.util.Map;

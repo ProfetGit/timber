@@ -1,6 +1,8 @@
 package io.github.profetgit.vanillatimber.platform.forge;
 
 import io.github.profetgit.vanillatimber.client.TimberClient;
+import io.github.profetgit.vanillatimber.net.ChopCells;
+import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.net.TreeFall;
 import io.github.profetgit.vanillatimber.net.legacy.CustomPacketPayload;
 import io.github.profetgit.vanillatimber.platform.Platform;
@@ -26,6 +28,14 @@ final class ForgeClientEntry implements Platform.Client {
     }
 
     static void received(TreeFall msg) {
+        TimberClient.received(msg);
+    }
+
+    static void received(Settings msg) {
+        TimberClient.received(msg);
+    }
+
+    static void received(ChopCells msg) {
         TimberClient.received(msg);
     }
 
