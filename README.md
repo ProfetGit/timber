@@ -28,7 +28,8 @@ Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fa
 - **Mind the trunk.** The falling tree knocks back mobs in its way, and hostile ones take a little damage. Players are never touched.
 - **Everything attached comes along,** such as vines, cocoa, hanging moss and snow.
 - **Safe for servers.** Land claims and other protections are asked about every block before a tree falls. If the server crashes mid-fall, the loot is waiting at the stump on the next start. A multi-break mod fells one tree, not twenty.
-- **Fair durability.** The axe pays for the whole tree, Unbreaking included. A tree that would break your axe isn't felled. Drops are the normal block drops for your axe, Fortune and Silk Touch included.
+- **Fair durability.** The axe pays for the whole tree, Unbreaking included. If your axe is too worn for the whole tree, the tree still falls and the axe breaks. Drops are the normal block drops for your axe, Fortune and Silk Touch included.
+- **Chop mode, if you want work for your wood.** Turn on `chops` 1 and a tree takes several chops before it falls, like HT's TreeChop: the log cracks a little more each time and the progress is saved with the world. On giant trunks (2×2 and modded ones up to 5×5) a chop cuts the whole layer, and the tree drops onto the stump before it tips over. Off by default.
 - **Everyone chooses.** Any player can turn it off or on for themselves with `/trigger timber`.
 
 ![How to use](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-how-to-use.webp)
@@ -36,13 +37,13 @@ Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fa
 1. Hold an axe.
 2. Chop a log of a natural tree.
 
-Sneak to take a single log instead. Creative mode never fells trees, so building stays instant. When a tree isn't felled, the action bar tells you why: too big, your axe is too worn, or part of it is protected.
+Sneak to take a single log instead. Creative mode never fells trees, so building stays instant. When a tree isn't felled, the action bar tells you why: too big or part of it is protected.
 
 ![Settings](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-settings.webp)
 
-Settings live in `config/timber.json` on the server. The file is re-read while the game runs, so edits apply without a restart. Operators can also use `/timber config` to list the settings, `/timber config <setting> <value>` to change one, `/timber reload` to re-read the file, and `/timber menu` for a clickable menu.
+With Mod Menu installed, Timber has a settings screen with a short explanation on every option; on a server, operators can change the values there and everyone else can look. Settings live in `config/timber.json` on the server. The file is re-read while the game runs, so edits apply without a restart. Operators can also use `/timber config` to list the settings, `/timber config <setting> <value>` to change one, `/timber reload` to re-read the file, and `/timber menu` for a clickable menu.
 
-You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed, durability use, the animation (off makes the tree vanish and drop at the stump), placed-log protection, auto-replant (`replant`, off by default), trunk knockback (`knockback`) and its damage to hostile mobs (`trunk_damage`), and the action bar messages.
+You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed, durability use, the animation (off makes the tree vanish and drop at the stump), placed-log protection, chop mode (`chops`, `chop_curve`), auto-replant (`replant`, off by default), trunk knockback (`knockback`) and its damage to hostile mobs (`trunk_damage`), and the action bar messages.
 
 ![Add-ons](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-add-ons.webp)
 
