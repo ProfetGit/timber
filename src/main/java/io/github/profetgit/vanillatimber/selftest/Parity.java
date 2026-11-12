@@ -607,8 +607,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "widesheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
-            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet") && !g.equals("widesheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "widesheet", "ghosttrace", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
+            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet") && !g.equals("widesheet") && !g.equals("ghosttrace")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
@@ -656,6 +656,7 @@ final class Parity {
                     case "layer" -> layer();
                     case "layersheet" -> layersheet();
                     case "widesheet" -> widesheet();
+                    case "ghosttrace" -> ghostTrace();
                     case "screen" -> screen();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
@@ -3563,6 +3564,62 @@ final class Parity {
                 return null;
             });
         }
+    }
+
+    /** Measurement (no asserts): every entity and cell state around a 2x2's final chop, per tick, server and client (a ghost block seen at the break). */
+    static void ghostTrace() {
+        cfg("chops", 1);
+        List<BlockPos> trunk = darkOak();
+        if (trunk.size() != 4) {
+            check("ghost: a 2x2 grew", false, "trunk " + trunk);
+            return;
+        }
+        cfg("chop_curve", curveFor(trunk.getFirst(), 3));
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        BlockPos a = trunk.get(0);
+        mine(a, false);
+        long[] cut = on(() -> Chops.cutAt(level, a));
+        int needed = cut == null ? 0 : (int) cut[1];
+        for (int n = 1; n < needed - 1; n++) mine(trunk.get(n % 4), false);
+        info("TRACE needed " + needed + ", chops " + on(() -> Chops.cutAt(level, a))[0] + ", viewer local " + on(() -> Viewers.local(player)));
+        BlockPos last = trunk.get(1);
+        mineAction(last, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, false);
+        tick(breakTicks(last));
+        mineAction(last, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, false);
+        for (int k = 0; k < 14; k++) {
+            tick(1);
+            String srv = on(() -> {
+                StringBuilder sb = new StringBuilder();
+                for (BlockPos q : trunk) sb.append(level.getBlockState(q).isAir() ? "_" : "L");
+                sb.append(" boxes");
+                for (BlockPos q : trunk) sb.append(' ').append(Chops.cellBox(level, q));
+                for (net.minecraft.world.entity.Entity e : level.getEntities((net.minecraft.world.entity.Entity) null, new AABB(a).inflate(8), e -> !(e instanceof ServerPlayer))) {
+                    sb.append(" | ").append(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath())
+                        .append(String.format(" %.2f,%.2f,%.2f", e.getX(), e.getY(), e.getZ()));
+                    if (e instanceof ItemEntity ie) sb.append(" ").append(ie.getItem().getItem());
+                }
+                return sb.toString();
+            });
+            info("TRACE srv +" + (k + 1) + " " + srv);
+            CompletableFuture<String> got = new CompletableFuture<>();
+            client(mc -> {
+                StringBuilder sb = new StringBuilder();
+                for (BlockPos q : trunk) sb.append(mc.level.getBlockState(q).isAir() ? "_" : "L");
+                sb.append(" cells ").append(io.github.profetgit.vanillatimber.client.ChoppedCells.snapshot().size());
+                for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
+                    if (e == mc.player || e.distanceToSqr(a.getX(), a.getY(), a.getZ()) > 64) continue;
+                    sb.append(" | ").append(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath())
+                        .append(String.format(" %.2f,%.2f,%.2f", e.getX(), e.getY(), e.getZ()));
+                }
+                got.complete(sb.toString());
+            });
+            await(got);
+            info("TRACE cli +" + (k + 1) + " " + got.join());
+        }
+        finish(100);
     }
 
     static void layerRun() {

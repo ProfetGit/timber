@@ -222,20 +222,41 @@ public final class ChopModels {
 
     // ---- the cell's quads ----
 
-    /** What the neighbour in {@code d} shows toward the cell, moved onto the cell's boundary: the face the culling took away. */
-    private static List<BakedQuad> closing(BlockAndTintGetter level, BlockPos pos, Direction d) {
-        BlockState n = level.getBlockState(pos.relative(d));
+    /** The biome (or block) colour of {@code state}'s tint layer in the world, or -1 when it has none. */
+    private static int tintColor(BlockState state, BlockAndTintGetter level, BlockPos pos, int tint) {
+//? if >=26.1 {
+        java.util.List<net.minecraft.client.color.block.BlockTintSource> sources = Minecraft.getInstance().getBlockColors().getTintSources(state);
+        net.minecraft.client.color.block.BlockTintSource src = tint < sources.size() ? sources.get(tint) : null;
+        return src == null ? -1 : src.colorInWorld(state, level, pos);
+//?} else {
+/*        return Minecraft.getInstance().getBlockColors().getColor(state, level, pos, tint);
+*///?}
+    }
+
+    /**
+     * What the neighbour in {@code d} shows toward the cell, moved onto the cell's boundary: the face the culling took away.
+     * A tinted face (grass, foliage, water) keeps its biome colour as a vertex colour, because the log's model has no tint.
+     */
+    private static List<Cell> closing(BlockAndTintGetter level, BlockPos pos, Direction d) {
+        BlockPos np = pos.relative(d);
+        BlockState n = level.getBlockState(np);
         List<BlockStateModelPart> parts = new ArrayList<>();
         models().get(n).collectParts(RandomSource.create(42L), parts);
-        List<BakedQuad> out = new ArrayList<>();
-        for (BlockStateModelPart part : parts) for (BakedQuad q : part.getQuads(d.getOpposite())) out.add(moved(q, d));
+        List<Cell> out = new ArrayList<>();
+        for (BlockStateModelPart part : parts) {
+            for (BakedQuad q : part.getQuads(d.getOpposite())) {
+                int tint = q.materialInfo().tintIndex();
+                int col = tint >= 0 ? tintColor(n, level, np, tint) : -1;
+                out.add(new Cell(moved(q, d), null, -1, col));
+            }
+        }
         return out;
     }
 
     /** The core's quads, each with the direction it is culled by (null: never). */
-    private record Cell(BakedQuad quad, @Nullable Direction cull, int light) {
-        Cell(BakedQuad quad, @Nullable Direction cull) {
-            this(quad, cull, -1);
+    private record Cell(BakedQuad quad, @Nullable Direction cull, int light, int color) {
+        Cell(BakedQuad quad, @Nullable Direction cull, int light) {
+            this(quad, cull, light, -1);
         }
     }
 
@@ -263,7 +284,7 @@ public final class ChopModels {
             boolean up = d.getAxisDirection() == Direction.AxisDirection.POSITIVE;
             int next = ChoppedCells.box(pos.relative(d));
             boolean nextCut = next != Cut.WHOLE;
-            if (!nextCut && !Cut.covers(box, axis, up)) for (BakedQuad q : closing(level, pos, d)) out.add(new Cell(q, null));
+            if (!nextCut && !Cut.covers(box, axis, up)) out.addAll(closing(level, pos, d));
             if (empty) continue;
             BakedQuad q = skin.faces()[d.ordinal()];
             if (q == null) continue;
@@ -281,6 +302,7 @@ public final class ChopModels {
         e.cullFace(c.cull());
         e.fromBakedQuad(c.quad());
         e.tintIndex(c.quad().materialInfo().tintIndex());
+        if (c.color() != -1) for (int i = 0; i < 4; i++) e.color(i, 0xFF000000 | c.color());
         if (c.light() >= 0) for (int i = 0; i < 4; i++) e.lightmap(i, c.light());
         e.ambientOcclusion(c.light() >= 0 ? TriState.FALSE : TriState.DEFAULT);
         e.shadeMode(ShadeMode.VANILLA);

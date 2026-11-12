@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1 — 2026-11-12
+
+### Fixed
+- In chop mode, the grass (or any tinted block) under a tree no longer turns gray when the bottom log is cut: it keeps its biome colour.
+
 ## 2.1.0 — 2026-11-12
 
 ### Added
