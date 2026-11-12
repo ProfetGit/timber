@@ -607,8 +607,8 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
-            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "widesheet", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
+            if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet") && !g.equals("widesheet")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
                 switch (g) {
@@ -655,6 +655,7 @@ final class Parity {
                     case "chopsheet" -> chopsheet();
                     case "layer" -> layer();
                     case "layersheet" -> layersheet();
+                    case "widesheet" -> widesheet();
                     case "screen" -> screen();
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
@@ -3649,6 +3650,173 @@ final class Parity {
             && classic.tree.parts().stream().filter(pt -> !pt.leaf() && pt.pos().getY() == pa.getY()).count() == 3,
             classic == before2 ? "no fall" : "hang " + classic.tree.hang());
         finish(200);
+        cfg("chops", 1);
+        wideLayer(3);
+        wideLayer(4);
+    }
+
+    /** A fixed {@code n}x{@code n} dark oak (a modded giant's trunk) on a fresh plot, the trunk at (0..n-1, 0..n-1); its cells at height 1. */
+    static List<BlockPos> wideOak(int n) {
+        plot();
+        on(() -> {
+            Chops.clear(level);
+            return null;
+        });
+        for (int ly = 5; ly <= 8; ly++) {
+            int rr = ly >= 7 ? 2 : 3;
+            cmd("fill " + at(-rr, ly, -rr) + " " + at(n - 1 + rr, ly, n - 1 + rr) + " minecraft:dark_oak_leaves keep");
+        }
+        cmd("fill " + at(0, 0, 0) + " " + at(n - 1, 7, n - 1) + " minecraft:dark_oak_log");
+        tick(40);
+        hold("minecraft:iron_axe");
+        return on(() -> {
+            List<BlockPos> cells = new ArrayList<>();
+            for (int dx = -1; dx <= n; dx++) for (int dz = -1; dz <= n; dz++) {
+                BlockPos q = p(dx, 1, dz);
+                if (level.getBlockState(q).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)) cells.add(q);
+            }
+            cells.sort(java.util.Comparator.comparingLong(BlockPos::asLong));
+            return cells;
+        });
+    }
+
+    /** Chop mode on 3x3 and 4x4 trunks: one cut takes the whole layer, it shrinks as one footprint, the last chop breaks it and the tree tips about its full base. */
+    static void wideLayer(int n) {
+        String g = "layer " + n + "x" + n + ": ";
+        List<BlockPos> trunk = wideOak(n);
+        int cells = n * n;
+        check(g + "the fixed trunk is " + n + "x" + n, trunk.size() == cells, "trunk " + trunk.size() + " cells");
+        if (trunk.size() != cells) return;
+        cfg("chop_curve", curveFor(trunk.getFirst(), 4));
+        int x0 = trunk.stream().mapToInt(BlockPos::getX).min().getAsInt(), z0 = trunk.stream().mapToInt(BlockPos::getZ).min().getAsInt();
+        BlockPos a = trunk.getFirst();
+        BlockPos mid = trunk.stream().filter(q -> q.getX() == x0 + n / 2 && q.getZ() == z0 + n / 2).findFirst().orElse(a);
+        BlockPos corner = trunk.getLast();
+        Fall before = on(() -> Falls.lastFall);
+        int cracks0 = Chops.cracks;
+        mine(corner, false);
+        long[] cut = on(() -> Chops.cutAt(level, a));
+        int needed = cut == null ? 0 : (int) cut[1];
+        boolean all = cut != null && cut.length == cells + 2 && trunk.stream().allMatch(q -> on(() -> Chops.cutAt(level, q)) != null);
+        check(g + "one chop cuts all " + cells + " cells of the layer, each cracks", all && cut[0] == 1 && Chops.cracks - cracks0 == cells && chopEntries() == 1 && !felled(before),
+            "cut " + (cut == null ? "none" : cut.length - 2 + " cells, chops " + cut[0]) + ", cracks " + (Chops.cracks - cracks0) + ", entries " + chopEntries());
+        mine(mid, false);
+        int step = io.github.profetgit.vanillatimber.core.Cut.step(2, needed);
+        boolean footprint = true, inner = true;
+        for (BlockPos q : trunk) {
+            int b = on(() -> Chops.cellBox(level, q));
+            footprint &= b == io.github.profetgit.vanillatimber.core.Cut.upright(x0, x0 + n - 1, z0, z0 + n - 1, q.getX(), q.getZ(), step);
+            boolean edge = q.getX() == x0 || q.getX() == x0 + n - 1 || q.getZ() == z0 || q.getZ() == z0 + n - 1;
+            if (!edge && b != io.github.profetgit.vanillatimber.core.Cut.WHOLE && step * n <= 16) inner = false;
+        }
+        long[] two = on(() -> Chops.cutAt(level, a));
+        check(g + "a chop in the middle counts for the same cut; one footprint shrinks (" + (16 * n - 2 * n * step) + " of " + 16 * n + " px)",
+            two != null && two[0] == 2 && chopEntries() == 1 && footprint && inner, "chops " + (two == null ? -1 : two[0]) + ", footprint " + footprint + ", inner whole " + inner);
+        for (int c = 2; c < needed - 1; c++) mine(trunk.get(c % cells), false);
+        check(g + "the tree still stands one chop before the count", !felled(before) && on(() -> Chops.cutAt(level, a))[0] == needed - 1, "needed " + needed);
+        on(() -> {
+            for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, new AABB(p(0, 0, 0)).inflate(14))) e.discard();
+            return null;
+        });
+        mine(a, false);
+        boolean gone = on(() -> trunk.stream().allMatch(q -> level.getBlockState(q).isAir()));
+        int dropped = itemsNear(mid, 4).getOrDefault("minecraft:dark_oak_log", 0);
+        check(g + "the last chop breaks all " + cells + " cells with drops, every cut goes", felled(before) && gone && dropped == cells && chopEntries() == 0,
+            "felled " + felled(before) + ", gone " + gone + ", dropped " + dropped + ", entries " + chopEntries());
+        if (!felled(before)) return;
+        Fall f = on(() -> Falls.lastFall);
+        int tip = 0;
+        double low = 0;
+        while (tip < f.tl.end && f.tl.p[tip] < 300) low = Math.min(low, f.tl.dy[tip++]);
+        int fcx = (2 * x0 + n) * 500, fcz = (2 * z0 + n) * 500;
+        double r = Math.hypot(f.tree.px() - fcx, f.tree.pz() - fcz);
+        int hw = n * 500 - 10;
+        boolean onEdge = Math.abs(r - hw) <= 3;
+        boolean stump = on(() -> trunk.stream().allMatch(q -> level.getBlockState(q.below()).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)));
+        long cutLeft = f.tree.parts().stream().filter(pt -> !pt.leaf() && pt.pos().getY() == a.getY()).count();
+        check(g + "hangs, drops one block onto the stump, tips about its full " + n + "-wide base (hw " + hw + ", pivot on the stump edge)",
+            f.tree.hang() && Math.abs(low + 1) < 0.01 && tip < f.tl.end && f.tree.hw() == hw && onEdge && stump && cutLeft == 0 && Math.floorDiv(f.tree.py(), 1000) == a.getY() + 1,
+            "hang " + f.tree.hang() + ", low " + low + " tip tick " + tip + ", hw " + f.tree.hw() + ", pivot r " + String.format(java.util.Locale.ROOT, "%.1f", r)
+                + ", stump " + stump + ", cut-level logs in the fall " + cutLeft + ", pivot y " + f.tree.py());
+        finish(220);
+    }
+
+    /** Stills of a 3x3 trunk: whole, at the chop before the last (the thinnest core), and mid-tip from the side. */
+    static void widesheet() {
+        cfg("chops", 1);
+        on(() -> {
+            Viewers.test = 0;
+            return null;
+        });
+        try {
+            int n = 3;
+            List<BlockPos> trunk = wideOak(n);
+            if (trunk.size() != n * n) {
+                check("widesheet: the fixed trunk is 3x3", false, "trunk " + trunk.size());
+                return;
+            }
+            cfg("chop_curve", curveFor(trunk.getFirst(), 4));
+            cmd("time set 6000");
+            client(MpHost::hideHud);
+            on(() -> {
+                for (int dx = -9; dx <= 12; dx += 3) for (int dz = -9; dz <= 12; dz += 3) for (int dy : new int[] {1, 5, 9}) {
+                    BlockPos q = p(dx, dy, dz);
+                    if (level.getBlockState(q).isAir()) level.setBlock(q, net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState(), 2);
+                }
+                return null;
+            });
+            int x0 = trunk.getFirst().getX(), z0 = trunk.getFirst().getZ();
+            double tx = x0 + n / 2.0, tz = z0 + n / 2.0;
+            int needed = 4, done = 0;
+            for (int stage = 0; stage <= 1; stage++) {
+                int want = stage == 0 ? 0 : needed - 1;
+                while (done < want) {
+                    cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx, Y + 0.0, tz - 3.5, tx, Y + 1.5, tz));
+                    tick(3);
+                    mine(trunk.get(++done % trunk.size()), false);
+                    long[] cutNow = on(() -> Chops.cutAt(level, trunk.getFirst()));
+                    if (cutNow != null) needed = (int) cutNow[1];
+                    want = needed - 1;
+                }
+                tick(40);
+                for (String view : new String[] {"front", "angle"}) {
+                    double ox = view.equals("front") ? 0 : 4.0, oz = view.equals("front") ? -5.4 : -4.0;
+                    cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx + ox, Y + 2.4, tz + oz, tx, Y + 1.5, tz));
+                    tick(12);
+                    String shot = "wide_" + (stage == 0 ? "0" : "max") + "_" + view;
+                    client(mc -> SelfTest.startCapture(shot, 1));
+                    tick(6);
+                }
+            }
+            info("widesheet: needed " + needed + ", thin still at " + done + " chops");
+            Fall before = on(() -> Falls.lastFall);
+            mine(trunk.getFirst(), false);
+            Fall f = on(() -> Falls.lastFall);
+            if (f == before) {
+                check("widesheet: the last chop fells", false, "no fall");
+                return;
+            }
+            int tipT = 0;
+            while (tipT < f.tl.end && f.tl.p[tipT] < 4500) tipT++;
+            Vec3 dir = fallDir(f);
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", tx - dir.z * 8.5, Y + 0.5, tz + dir.x * 8.5, tx, Y + 2.2, tz));
+            // every frame from the hang through the plunge onto the stump (flicker check)
+            client(mc -> SelfTest.startCapture("wide_fall", 45));
+            for (int w = 0; w < 200 && SelfTest.capturing(); w++) sleep(10);
+            double mx = tx + dir.x * 3, mz = tz + dir.z * 3;
+            cmd("tp " + who() + " " + String.format(java.util.Locale.ROOT, "%.3f %.3f %.3f facing %.3f %.3f %.3f", mx - dir.z * 15, Y + 3.0, mz + dir.x * 15, mx, Y + 3.5, mz));
+            while (on(() -> f.n) < tipT - 1 && on(() -> f.n) < f.tl.end) tick(1);
+            client(mc -> SelfTest.startCapture("wide_tip", 1));
+            check("widesheet: stills taken (3x3 at 0 and " + (needed - 1) + " chops, tip)", true, "tip at fall tick " + tipT + ", hw " + f.tree.hw());
+            finish(220);
+        } finally {
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+            cfg("chops", 0);
+            cfg("chop_curve", 10);
+        }
     }
 
     /** Stills of a 2x2 dark oak cut at 0, 1, 2 and 3 of 4 chops, then mid-drop and mid-tip from the side. */

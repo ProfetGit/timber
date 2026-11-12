@@ -264,10 +264,10 @@ til the axe can't take it anymore". Timber adds its fall to that.
 - Shrinking cut (user 2026-11-12): clients with the mod draw the chopped trunk narrowed with the stripped log's texture;
   vanilla clients see the crack only; the world block never changes.
 - 2x2 and wider trunks (user 2026-11-12, "Build both"): the cut is a layer. Chops on any of this tree's trunk cells in
-  that layer (horizontally connected, at most 3x3) count for it; chopping another height starts its own cut. The layer
+  that layer (horizontally connected, the whole trunk up to 5x5; 2026-11-12, user "yes" to wider modded trunks) count for it; chopping another height starts its own cut. The layer
   shrinks as one footprint around the trunk's centre (only outside faces move in; 1x1 16 -> 4 px, 2x2 32 -> 8 px), every
   cell cracks. The last chop breaks every cell of the layer with drops; the tree hangs, drops one block onto the
-  stump and tips about its full-width base. Classic mode keeps 2.0's giant fall.
+  stump and tips about its full-width base (3x3 pivots on its 3-wide edge, hw = width x 500 - 10). Classic mode keeps 2.0's giant fall.
 - Settings screen (user 2026-11-12, "Build both"): Mod Menu on Fabric/Quilt, the mod list on NeoForge/Forge; vanilla
   widgets only; sections Felling, Fall, Axe, Server with hover help. Singleplayer edits the config; on a server ops
   change values through `/timber config`, others see them read-only.

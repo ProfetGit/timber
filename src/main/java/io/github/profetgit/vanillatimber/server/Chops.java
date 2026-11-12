@@ -236,7 +236,10 @@ public final class Chops {
         }
     }
 
-    /** The cut is a layer: this tree's upright trunk cells at the chopped one's height that touch it side by side (3x3 tiles on wider trunks); a sideways log is its own cut. */
+    /** The cut is a layer: this tree's upright trunk cells at the chopped one's height that touch it side by side, the whole trunk up to 5x5 ({@link #MAX_LAYER}; 5x5 tiles on wider ones); a sideways log is its own cut. */
+    /** The widest layer one cut takes, in cells per side. */
+    static final int MAX_LAYER = 5;
+
     static long[] layer(Tree tree, BlockPos pos, BlockState state) {
         if (!upright(state)) return new long[] {pos.asLong()};
         LongOpenHashSet trunk = new LongOpenHashSet();
@@ -247,7 +250,7 @@ public final class Chops {
         found.add(pos.asLong());
         seen.add(pos.asLong());
         int minX = pos.getX(), maxX = minX, minZ = pos.getZ(), maxZ = minZ;
-        for (int i = 0; i < found.size() && found.size() < 64; i++) {
+        for (int i = 0; i < found.size() && found.size() < 1024; i++) {
             BlockPos p = BlockPos.of(found.getLong(i));
             for (Direction d : Direction.Plane.HORIZONTAL) {
                 long q = p.relative(d).asLong();
@@ -259,12 +262,13 @@ public final class Chops {
                 maxZ = Math.max(maxZ, BlockPos.getZ(q));
             }
         }
-        int tx = minX + 3 * Math.floorDiv(pos.getX() - minX, 3), tz = minZ + 3 * Math.floorDiv(pos.getZ() - minZ, 3);
-        boolean tiled = maxX - minX >= 3 || maxZ - minZ >= 3;
+        int n = MAX_LAYER;
+        int tx = minX + n * Math.floorDiv(pos.getX() - minX, n), tz = minZ + n * Math.floorDiv(pos.getZ() - minZ, n);
+        boolean tiled = maxX - minX >= n || maxZ - minZ >= n;
         LongArrayList out = new LongArrayList();
         for (long c : found) {
             int x = BlockPos.getX(c), z = BlockPos.getZ(c);
-            if (!tiled || x >= tx && x <= tx + 2 && z >= tz && z <= tz + 2) out.add(c);
+            if (!tiled || x >= tx && x < tx + n && z >= tz && z < tz + n) out.add(c);
         }
         long[] cells = out.toLongArray();
         Arrays.sort(cells);

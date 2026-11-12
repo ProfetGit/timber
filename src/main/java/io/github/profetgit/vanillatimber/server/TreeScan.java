@@ -262,7 +262,9 @@ public final class TreeScan {
 
         // pivot and the fall direction
         int fcx = (fx0 + fx1 + 1) * 500, fcz = (fz0 + fz1 + 1) * 500;
-        int w = Math.min(Math.max(fx1 - fx0, fz1 - fz0) + 1, 2);
+        // classic: 1.3.6 caps the base at 2 wide; a chop-mode layer tips about its real footprint
+        int w = Math.max(fx1 - fx0, fz1 - fz0) + 1;
+        if (cut == null) w = Math.min(w, 2);
         int hw = w * 500 - 10, lz = -hw;
         int py0 = by * 1000 + 2 - gap * 1000;
         int h = ymax - by + 1;

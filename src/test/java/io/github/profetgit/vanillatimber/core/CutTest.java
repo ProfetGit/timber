@@ -48,6 +48,34 @@ class CutTest {
     }
 
     @Test
+    void wideLayersShrinkAsOneFootprint() {
+        // 3x3 .. 5x5 at the deepest step: n*16 -> n*16 - 2*n*6 px, inner cells untouched until the outer ones are gone
+        for (int n = 3; n <= 5; n++) {
+            for (int step = 0; step <= Cut.MAX_STEP; step++) {
+                for (int z = 0; z < n; z++) {
+                    int total = 0;
+                    for (int x = 0; x < n; x++) {
+                        int b = Cut.upright(0, n - 1, 0, n - 1, x, z, step);
+                        total += width(b, 0);
+                        assertEquals(16, width(b, 1));
+                        if (x > 0 && width(b, 0) > 0 && width(Cut.upright(0, n - 1, 0, n - 1, x - 1, z, step), 0) > 0)
+                            assertTrue(Cut.meets(Cut.upright(0, n - 1, 0, n - 1, x - 1, z, step), b, 0) || width(b, 2) == 0, "neighbours meet");
+                    }
+                    if (width(Cut.upright(0, n - 1, 0, n - 1, n / 2, z, step), 2) > 0) assertEquals(16 * n - 2 * n * step, total, n + "x" + n + " step " + step);
+                }
+            }
+            int centre = Cut.upright(0, n - 1, 0, n - 1, n / 2, n / 2, Cut.MAX_STEP);
+            assertEquals(n == 3 ? 12 : n == 4 ? 8 : 16, width(centre, 0), n + "x" + n + " cell right of the centre line: 4n px left in all");
+        }
+        assertEquals(Cut.WHOLE, Cut.upright(0, 2, 0, 2, 1, 1, 2));
+        // 3x3 at the deepest step: the outer ring has no volume left, the centre cell holds the 12 px core
+        assertTrue(Cut.empty(Cut.upright(0, 2, 0, 2, 0, 1, 6)));
+        assertTrue(Cut.empty(Cut.upright(0, 2, 0, 2, 1, 0, 6)));
+        assertFalse(Cut.empty(Cut.upright(0, 2, 0, 2, 1, 1, 6)));
+        assertFalse(Cut.empty(Cut.WHOLE));
+    }
+
+    @Test
     void sidewaysLogShrinksAcross() {
         int b = Cut.across(0, 4);
         assertEquals(Cut.pack(0, 16, 4, 12, 4, 12), b);

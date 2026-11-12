@@ -51,6 +51,12 @@ public final class Cut {
         return new int[] {Math.max(0, Math.min(16, lo)), Math.max(0, Math.min(16, hi))};
     }
 
+    /** The footprint has left the cell on some axis: the box has no volume (a wide trunk's outer ring late in the cut). */
+    public static boolean empty(int box) {
+        for (int a = 0; a < 3; a++) if (hi(box, a) <= lo(box, a)) return true;
+        return false;
+    }
+
     /** A lone log lying along {@code axis} (0 x, 1 y, 2 z): it shrinks around its centre on the other two axes. */
     public static int across(int axis, int step) {
         int[] b = new int[6];

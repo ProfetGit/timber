@@ -42,7 +42,8 @@ import org.jspecify.annotations.Nullable;
  * baked model is wrapped, and at a cell the server said is cut ({@link ChoppedCells}) the wrapper emits the box the cell
  * still fills instead of the cube: the stripped log's own quads, cropped so texels stay 1:1, plus the neighbours' faces at
  * the cell boundary, since the cell stays a full occluder and the neighbours' faces toward it are culled. The cells of
- * one layer (a 2x2 trunk's four) share a footprint: where two cut cells meet, neither draws a face. A port to another
+ * one layer (a 2x2 trunk's four, up to 5x5) share a footprint: where two cut cells meet, neither draws a face; a cell the
+ * footprint has left (a wide trunk's outer ring) draws only the neighbours' closing faces. A port to another
  * loader or version swaps this class and the call in the client entry.
  */
 public final class ChopModels {
@@ -232,7 +233,21 @@ public final class ChopModels {
     }
 
     /** The core's quads, each with the direction it is culled by (null: never). */
-    private record Cell(BakedQuad quad, @Nullable Direction cull) {}
+    private record Cell(BakedQuad quad, @Nullable Direction cull, int light) {
+        Cell(BakedQuad quad, @Nullable Direction cull) {
+            this(quad, cull, -1);
+        }
+    }
+
+    /**
+     * The light for a core face that looks into other cut cells of its layer (a wide trunk's middle): those cells are
+     * still solid blocks, so the renderer's own sample is dark. Taken from the first cell past the cut instead.
+     */
+    private static int lightPast(BlockAndTintGetter level, BlockPos pos, Direction d) {
+        BlockPos.MutableBlockPos m = pos.mutable().move(d);
+        for (int i = 0; i < 6 && ChoppedCells.box(m) != Cut.WHOLE; i++) m.move(d);
+        return net.minecraft.util.LightCoordsUtil.pack(level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, m), level.getBrightness(net.minecraft.world.level.LightLayer.SKY, m));
+    }
 
     /**
      * A cut cell's quads. Per face: the neighbour's face toward the cell where the box leaves the boundary open (unless the
@@ -242,12 +257,14 @@ public final class ChopModels {
     private static List<Cell> cell(BlockAndTintGetter level, BlockPos pos, BlockState state, int box) {
         Skin skin = skin(state);
         List<Cell> out = new ArrayList<>();
+        boolean empty = Cut.empty(box);
         for (Direction d : DIRS) {
             int axis = d.getAxis().ordinal();
             boolean up = d.getAxisDirection() == Direction.AxisDirection.POSITIVE;
             int next = ChoppedCells.box(pos.relative(d));
             boolean nextCut = next != Cut.WHOLE;
             if (!nextCut && !Cut.covers(box, axis, up)) for (BakedQuad q : closing(level, pos, d)) out.add(new Cell(q, null));
+            if (empty) continue;
             BakedQuad q = skin.faces()[d.ordinal()];
             if (q == null) continue;
             Direction cull = null;
@@ -255,7 +272,7 @@ public final class ChopModels {
                 if (nextCut && (up ? Cut.meets(box, next, axis) : Cut.meets(next, box, axis))) continue;
                 if (!nextCut) cull = d;
             }
-            out.add(new Cell(crop(q, box), cull));
+            out.add(new Cell(crop(q, box), cull, nextCut && !Cut.touches(box, axis, up) ? lightPast(level, pos, d) : -1));
         }
         return out;
     }
@@ -264,7 +281,8 @@ public final class ChopModels {
         e.cullFace(c.cull());
         e.fromBakedQuad(c.quad());
         e.tintIndex(c.quad().materialInfo().tintIndex());
-        e.ambientOcclusion(TriState.DEFAULT);
+        if (c.light() >= 0) for (int i = 0; i < 4; i++) e.lightmap(i, c.light());
+        e.ambientOcclusion(c.light() >= 0 ? TriState.FALSE : TriState.DEFAULT);
         e.shadeMode(ShadeMode.VANILLA);
         e.emit();
     }
@@ -275,7 +293,7 @@ public final class ChopModels {
         if (box == Cut.WHOLE) return null;
         Skin skin = skin(state);
         List<BakedQuad> quads = new ArrayList<>();
-        for (Direction d : DIRS) if (skin.faces()[d.ordinal()] != null) quads.add(crop(skin.faces()[d.ordinal()], box));
+        if (!Cut.empty(box)) for (Direction d : DIRS) if (skin.faces()[d.ordinal()] != null) quads.add(crop(skin.faces()[d.ordinal()], box));
         BlockStateModel model = models().get(state);
         return new BlockStateModelPart() {
             @Override
