@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.0 - unreleased
+## 2.1.0 — 2026-11-12
 
 ### Added
 - **Chop mode (optional, off by default).** Turn it on with `chops` 1: every break of a tree's log with an axe is one chop. The log stays, cracks a little more each time, and the axe wears one point per chop. The chop that reaches the count fells the tree as before. A tree takes about as many chops as HT's TreeChop asks (5 logs 4 chops, 30 logs 15, 100 logs 25); `chop_curve` (1 to 100, default 10) makes it fewer or more. Each height you chop at is its own cut, and the progress is saved with the world.
