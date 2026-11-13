@@ -261,13 +261,19 @@ public final class ChopModels {
     }
 
     /**
-     * The light for a core face that looks into other cut cells of its layer (a wide trunk's middle): those cells are
-     * still solid blocks, so the renderer's own sample is dark. Taken from the first cell past the cut instead.
+     * The light inside a cut cell's hollow, for the faces of the blocks around it that now look into it: those blocks
+     * are solid, so the renderer's own sample (the cell beyond) is dark. The brightest block and sky light found past
+     * the cut, in the four directions and above and below, lights them.
      */
-    private static int lightPast(BlockAndTintGetter level, BlockPos pos, Direction d) {
-        BlockPos.MutableBlockPos m = pos.mutable().move(d);
-        for (int i = 0; i < 6 && ChoppedCells.box(m) != Cut.WHOLE; i++) m.move(d);
-        return net.minecraft.util.LightCoordsUtil.pack(level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, m), level.getBrightness(net.minecraft.world.level.LightLayer.SKY, m));
+    private static int cavityLight(BlockAndTintGetter level, BlockPos pos) {
+        int bl = 0, sk = 0;
+        for (Direction d : DIRS) {
+            BlockPos.MutableBlockPos m = pos.mutable().move(d);
+            for (int i = 0; i < 6 && ChoppedCells.box(m) != Cut.WHOLE; i++) m.move(d);
+            bl = Math.max(bl, level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, m));
+            sk = Math.max(sk, level.getBrightness(net.minecraft.world.level.LightLayer.SKY, m));
+        }
+        return net.minecraft.util.LightCoordsUtil.pack(bl, sk);
     }
 
     /**
@@ -279,12 +285,17 @@ public final class ChopModels {
         Skin skin = skin(state);
         List<Cell> out = new ArrayList<>();
         boolean empty = Cut.empty(box);
+        int cavity = -1;
         for (Direction d : DIRS) {
             int axis = d.getAxis().ordinal();
             boolean up = d.getAxisDirection() == Direction.AxisDirection.POSITIVE;
             int next = ChoppedCells.box(pos.relative(d));
             boolean nextCut = next != Cut.WHOLE;
-            if (!nextCut && !Cut.covers(box, axis, up)) out.addAll(closing(level, pos, d));
+            if (!nextCut && !Cut.covers(box, axis, up)) {
+                // the neighbour's face now looks into the cut's hollow: it takes the light of the open air around the cut
+                if (cavity < 0) cavity = cavityLight(level, pos);
+                for (Cell c : closing(level, pos, d)) out.add(new Cell(c.quad(), c.cull(), cavity, c.color()));
+            }
             if (empty) continue;
             BakedQuad q = skin.faces()[d.ordinal()];
             if (q == null) continue;
@@ -293,7 +304,13 @@ public final class ChopModels {
                 if (nextCut && (up ? Cut.meets(box, next, axis) : Cut.meets(next, box, axis))) continue;
                 if (!nextCut) cull = d;
             }
-            out.add(new Cell(crop(q, box), cull, nextCut && !Cut.touches(box, axis, up) ? lightPast(level, pos, d) : -1));
+            int own = -1;
+            if (!Cut.touches(box, axis, up) || nextCut) {
+                // the face moved in from the cell's boundary, or looks at another cut cell (solid, so the renderer's sample is dark): it takes the hollow's light
+                if (cavity < 0) cavity = cavityLight(level, pos);
+                own = cavity;
+            }
+            out.add(new Cell(crop(q, box), cull, own));
         }
         return out;
     }

@@ -45,6 +45,18 @@ public final class Cut {
         return pack(ax[0], ax[1], 0, 16, az[0], az[1]);
     }
 
+    /**
+     * The box of cell ({@code x}, {@code z}) in an upright layer of any shape: on each axis the layer's run through the
+     * cell ({@code rx0..rx1} along x, {@code rz0..rz1} along z, block coordinates, inclusive) shrinks by
+     * {@code run length x step} sixteenths from both ends, so every run narrows like a 1xN trunk would. On a rectangle
+     * every run is the whole footprint, so this is {@link #upright}; a plus, an arch's pillars or a ragged redwood base
+     * each erode from their own outside.
+     */
+    public static int shaped(int rx0, int rx1, int rz0, int rz1, int x, int z, int step) {
+        int[] ax = span(rx0, rx1, x, step), az = span(rz0, rz1, z, step);
+        return pack(ax[0], ax[1], 0, 16, az[0], az[1]);
+    }
+
     private static int[] span(int from, int to, int at, int step) {
         int size = to - from + 1;
         int lo = from * 16 + size * step - at * 16, hi = (to + 1) * 16 - size * step - at * 16;

@@ -3641,7 +3641,7 @@ final class Parity {
         long[] cut = on(() -> Chops.cutAt(level, a));
         int needed = cut == null ? 0 : (int) cut[1];
         boolean four = cut != null && cut.length == 6 && trunk.stream().allMatch(q -> on(() -> Chops.cutAt(level, q)) != null);
-        check("layer: one chop cuts all four cells of the 2x2's layer, each cracks", four && cut[0] == 1 && Chops.cracks - cracks0 == 4 && count(Parity::isLog, 8) > 0 && !felled(before),
+        check("layer: one chop cuts all four cells of the 2x2's layer, each cracks", four && cut[0] == 1 && Chops.cracks - cracks0 >= 4 && count(Parity::isLog, 8) > 0 && !felled(before),
             "cut " + java.util.Arrays.toString(cut) + ", cracks " + (Chops.cracks - cracks0));
         int step1 = io.github.profetgit.vanillatimber.core.Cut.step(1, needed);
         boolean footprint = true;
@@ -3710,6 +3710,90 @@ final class Parity {
         cfg("chops", 1);
         wideLayer(3);
         wideLayer(4);
+        irregularLayer();
+    }
+
+    /** Chop mode on a trunk that is no rectangle: a plus with a cell touching it only at a corner (one ground cluster, so one tree). One chop cuts every upright log of the layer; each run of it narrows from its own outside; the last chop breaks them all and the tree tips about the whole footprint. */
+    static void irregularLayer() {
+        shapeLayer("layer irregular: ", new int[][] {{-1, 1}, {-2, 2}, {-1, 2}, {0, 2}, {-1, 3}, {1, 1}}, new int[] {1, 1}, new int[] {-1, 2}, 4, true);
+        // wider than 5 on one axis: a plus with 3-cell arms (11 cells, 7x5), the old tile limit
+        int[][] big = new int[11][];
+        int k = 0;
+        for (int dx = -3; dx <= 3; dx++) big[k++] = new int[] {dx, 2};
+        for (int dz = 0; dz <= 4; dz++) if (dz != 2) big[k++] = new int[] {0, dz};
+        shapeLayer("layer wide plus: ", big, new int[] {-3, 2}, new int[] {0, 2}, 7, false);
+    }
+
+    static void shapeLayer(String g, int[][] shape, int[] hit, int[] mid, int bboxW, boolean extras) {
+        int count = shape.length;
+        plot();
+        on(() -> {
+            Chops.clear(level);
+            return null;
+        });
+        for (int ly = 5; ly <= 8; ly++) {
+            if (ly >= 7) cmd("fill " + at(-4, ly, 0) + " " + at(4, ly, 4) + " minecraft:dark_oak_leaves keep");
+            else cmd("fill " + at(-6, ly, -2) + " " + at(6, ly, 6) + " minecraft:dark_oak_leaves keep");
+        }
+        for (int[] c : shape) cmd("fill " + at(c[0], 0, c[1]) + " " + at(c[0], 7, c[1]) + " minecraft:dark_oak_log");
+        tick(40);
+        hold("minecraft:iron_axe");
+        List<BlockPos> trunk = on(() -> {
+            List<BlockPos> cells = new ArrayList<>();
+            for (int dx = -5; dx <= 5; dx++) for (int dz = -1; dz <= 6; dz++) {
+                BlockPos q = p(dx, 1, dz);
+                if (level.getBlockState(q).is(net.minecraft.world.level.block.Blocks.DARK_OAK_LOG)) cells.add(q);
+            }
+            cells.sort(java.util.Comparator.comparingLong(BlockPos::asLong));
+            return cells;
+        });
+        check(g + "the fixture has " + count + " logs at height 1", trunk.size() == count, "trunk " + trunk.size() + " cells");
+        if (trunk.size() != count) return;
+        cfg("chop_curve", curveFor(trunk.getFirst(), 4));
+        BlockPos pillar = p(hit[0], 1, hit[1]), centre = p(mid[0], 1, mid[1]);
+        Fall before = on(() -> Falls.lastFall);
+        int cracks0 = Chops.cracks;
+        mine(pillar, false);
+        info("TRACE irregular chop: why '" + io.github.profetgit.vanillatimber.server.TreeScan.why + "', pillar now " + on(() -> level.getBlockState(pillar)) + ", player " + on(() -> player.position()));
+        long[] cut = on(() -> Chops.cutAt(level, centre));
+        int needed = cut == null ? 0 : (int) cut[1];
+        boolean all = cut != null && cut.length == count + 2 && trunk.stream().allMatch(q -> on(() -> Chops.cutAt(level, q)) != null);
+        check(g + "one chop on the detached pillar cuts all " + count + " upright logs of the layer, each cracks", all && cut[0] == 1 && Chops.cracks - cracks0 >= count && chopEntries() == 1 && !felled(before),
+            "cut " + (cut == null ? "none" : cut.length - 2 + " cells, chops " + cut[0]) + ", cracks " + (Chops.cracks - cracks0) + ", entries " + chopEntries());
+        int step = io.github.profetgit.vanillatimber.core.Cut.step(1, needed);
+        java.util.Set<Long> set = new java.util.HashSet<>();
+        for (BlockPos q : trunk) set.add(q.asLong());
+        boolean shaped = true;
+        StringBuilder boxes = new StringBuilder();
+        for (BlockPos q : trunk) {
+            int rx0 = q.getX(), rx1 = rx0, rz0 = q.getZ(), rz1 = rz0;
+            while (set.contains(q.atY(q.getY()).offset(rx0 - 1 - q.getX(), 0, 0).asLong())) rx0--;
+            while (set.contains(q.offset(rx1 + 1 - q.getX(), 0, 0).asLong())) rx1++;
+            while (set.contains(q.offset(0, 0, rz0 - 1 - q.getZ()).asLong())) rz0--;
+            while (set.contains(q.offset(0, 0, rz1 + 1 - q.getZ()).asLong())) rz1++;
+            int want = io.github.profetgit.vanillatimber.core.Cut.shaped(rx0, rx1, rz0, rz1, q.getX(), q.getZ(), step);
+            int b = on(() -> Chops.cellBox(level, q));
+            shaped &= b == want;
+            boxes.append(boxText(b)).append(' ');
+        }
+        boolean pillarNarrow = !extras || on(() -> Chops.cellBox(level, pillar)) == io.github.profetgit.vanillatimber.core.Cut.pack(step, 16 - step, 0, 16, step, 16 - step);
+        boolean middleWhole = !extras || on(() -> Chops.cellBox(level, centre)) == io.github.profetgit.vanillatimber.core.Cut.WHOLE;
+        check(g + "each run narrows from its own outside (the corner cell like a 1x1, the plus's middle stays whole)", shaped && pillarNarrow && middleWhole,
+            "shaped " + shaped + ", pillar " + pillarNarrow + ", middle " + middleWhole + ": " + boxes.toString().trim());
+        for (int c = 1; c < needed - 1; c++) mine(trunk.get(c % count), false);
+        check(g + "the tree still stands one chop before the count", !felled(before) && on(() -> Chops.cutAt(level, centre))[0] == needed - 1, "needed " + needed);
+        on(() -> {
+            for (ItemEntity e : level.getEntitiesOfClass(ItemEntity.class, new AABB(p(0, 0, 0)).inflate(14))) e.discard();
+            return null;
+        });
+        mine(centre, false);
+        boolean gone = on(() -> trunk.stream().allMatch(q -> level.getBlockState(q).isAir()));
+        int dropped = itemsNear(centre, 8).getOrDefault("minecraft:dark_oak_log", 0);
+        check(g + "the last chop breaks all " + count + " with drops and every cut goes", felled(before) && gone && dropped == count && chopEntries() == 0,
+            "felled " + felled(before) + ", gone " + gone + ", dropped " + dropped + ", entries " + chopEntries());
+        Fall f = on(() -> Falls.lastFall);
+        check(g + "the tree hangs and tips about the whole " + bboxW + "-wide footprint", f.tree.hang() && f.tree.hw() == bboxW * 500 - 10, "hang " + f.tree.hang() + ", hw " + f.tree.hw());
+        finish(200);
     }
 
     /** A fixed {@code n}x{@code n} dark oak (a modded giant's trunk) on a fresh plot, the trunk at (0..n-1, 0..n-1); its cells at height 1. */

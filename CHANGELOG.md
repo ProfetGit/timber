@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.5 — 2026-11-13
+
+### Fixed
+- Chop mode: faces inside the hollow of a cut trunk (the sides of the narrowed cells, and the logs around them) are lit by the open air around the cut instead of coming out black.
+- Chop mode on trunks that are not squares (redwoods, arched or ragged bases, plus shapes, trunks wider than 5): a chop now cuts every upright log of the tree at that height, so the whole base is cut at once and the tree falls when it is gone. Each part of the cut narrows from its own outside, and the tree tips about the whole footprint. Before, wide trunks were cut in 5x5 tiles from one corner, which left scattered cuts and a tree that could not fall properly.
+
 ## 2.1.2 — 2026-11-12
 
 ### Fixed

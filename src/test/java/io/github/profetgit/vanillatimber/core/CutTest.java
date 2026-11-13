@@ -82,4 +82,20 @@ class CutTest {
         assertTrue(Cut.covers(b, 0, true) == false);
         assertTrue(Cut.covers(Cut.WHOLE, 1, true));
     }
+
+    @Test
+    void shapedIsUprightOnRectanglesAndErodesEveryShape() {
+        for (int step = 0; step <= 6; step++)
+            for (int x = 3; x <= 5; x++)
+                for (int z = 7; z <= 8; z++)
+                    assertEquals(Cut.upright(3, 5, 7, 8, x, z, step), Cut.shaped(3, 5, 7, 8, x, z, step));
+        // a plus, step 1: its top arm (1,0) is 1 wide along x (run 1) and the column is 3 long
+        assertEquals(Cut.pack(1, 15, 0, 16, 3, 16), Cut.shaped(1, 1, 0, 2, 1, 0, 1));
+        // its left cell (0,1): the row is 3 long, the column 1 wide
+        assertEquals(Cut.pack(3, 16, 0, 16, 1, 15), Cut.shaped(0, 2, 1, 1, 0, 1, 1));
+        // the centre keeps its middle: both runs reach past it
+        assertEquals(Cut.WHOLE, Cut.shaped(0, 2, 0, 2, 1, 1, 1));
+        // a detached pillar is a 1x1 run: 16 -> 4 at the last stage, whatever the rest of the trunk does
+        assertEquals(Cut.pack(6, 10, 0, 16, 6, 10), Cut.shaped(9, 9, 4, 4, 9, 4, 6));
+    }
 }

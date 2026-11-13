@@ -236,41 +236,21 @@ public final class Chops {
         }
     }
 
-    /** The cut is a layer: this tree's upright trunk cells at the chopped one's height that touch it side by side, the whole trunk up to 5x5 ({@link #MAX_LAYER}; 5x5 tiles on wider ones); a sideways log is its own cut. */
-    /** The widest layer one cut takes, in cells per side. */
-    static final int MAX_LAYER = 5;
+    /**
+     * The cut is a layer: every upright log of this tree at the chopped one's height, whatever shape the trunk has
+     * (square, plus, arched, several pillars: they hold the tree up together, so the cut takes them all and the tree
+     * falls when they are gone); a sideways log is its own cut. A trunk with more than {@link #MAX_LAYER_CELLS} cells
+     * at one height is cut one log at a time.
+     */
+    static final int MAX_LAYER_CELLS = 160;
 
     static long[] layer(Tree tree, BlockPos pos, BlockState state) {
         if (!upright(state)) return new long[] {pos.asLong()};
         LongOpenHashSet trunk = new LongOpenHashSet();
         trunk.add(pos.asLong());
         for (Tree.Part p : tree.parts()) if (!p.leaf() && p.pos().getY() == pos.getY() && upright(p.state())) trunk.add(p.pos().asLong());
-        LongArrayList found = new LongArrayList();
-        LongOpenHashSet seen = new LongOpenHashSet();
-        found.add(pos.asLong());
-        seen.add(pos.asLong());
-        int minX = pos.getX(), maxX = minX, minZ = pos.getZ(), maxZ = minZ;
-        for (int i = 0; i < found.size() && found.size() < 1024; i++) {
-            BlockPos p = BlockPos.of(found.getLong(i));
-            for (Direction d : Direction.Plane.HORIZONTAL) {
-                long q = p.relative(d).asLong();
-                if (!trunk.contains(q) || !seen.add(q)) continue;
-                found.add(q);
-                minX = Math.min(minX, BlockPos.getX(q));
-                maxX = Math.max(maxX, BlockPos.getX(q));
-                minZ = Math.min(minZ, BlockPos.getZ(q));
-                maxZ = Math.max(maxZ, BlockPos.getZ(q));
-            }
-        }
-        int n = MAX_LAYER;
-        int tx = minX + n * Math.floorDiv(pos.getX() - minX, n), tz = minZ + n * Math.floorDiv(pos.getZ() - minZ, n);
-        boolean tiled = maxX - minX >= n || maxZ - minZ >= n;
-        LongArrayList out = new LongArrayList();
-        for (long c : found) {
-            int x = BlockPos.getX(c), z = BlockPos.getZ(c);
-            if (!tiled || x >= tx && x < tx + n && z >= tz && z < tz + n) out.add(c);
-        }
-        long[] cells = out.toLongArray();
+        if (trunk.size() > MAX_LAYER_CELLS) return new long[] {pos.asLong()};
+        long[] cells = trunk.toLongArray();
         Arrays.sort(cells);
         return cells;
     }
@@ -431,14 +411,14 @@ public final class Chops {
             BlockState s = level.getBlockState(BlockPos.of(cell));
             if (!upright(s)) return Cut.across(s.getValue(BlockStateProperties.AXIS).ordinal(), step);
         }
-        int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z0 = Integer.MAX_VALUE, z1 = Integer.MIN_VALUE;
-        for (long c : e.cells) {
-            x0 = Math.min(x0, BlockPos.getX(c));
-            x1 = Math.max(x1, BlockPos.getX(c));
-            z0 = Math.min(z0, BlockPos.getZ(c));
-            z1 = Math.max(z1, BlockPos.getZ(c));
-        }
-        return Cut.upright(x0, x1, z0, z1, BlockPos.getX(cell), BlockPos.getZ(cell), step);
+        LongOpenHashSet set = new LongOpenHashSet(e.cells);
+        int x = BlockPos.getX(cell), y = BlockPos.getY(cell), z = BlockPos.getZ(cell);
+        int rx0 = x, rx1 = x, rz0 = z, rz1 = z;
+        while (set.contains(BlockPos.asLong(rx0 - 1, y, z))) rx0--;
+        while (set.contains(BlockPos.asLong(rx1 + 1, y, z))) rx1++;
+        while (set.contains(BlockPos.asLong(x, y, rz0 - 1))) rz0--;
+        while (set.contains(BlockPos.asLong(x, y, rz1 + 1))) rz1++;
+        return Cut.shaped(rx0, rx1, rz0, rz1, x, z, step);
     }
 
     private static ChopCells message(ServerLevel level, ChopData.Entry e, boolean clear) {
