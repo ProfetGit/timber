@@ -658,13 +658,13 @@ final class Parity {
                     case "widesheet" -> widesheet();
                     case "ghosttrace" -> ghostTrace();
                     case "screen" -> screen();
-                    case "looks" -> looks(false);
-                    case "looksdense" -> looks(true);
-                    case "looksdensebefore" -> {
                     case "land" -> land();
                     case "giants_xl" -> giantsXl();
                     case "fall_time" -> fallTime();
                     case "tools" -> tools();
+                    case "looks" -> looks(false);
+                    case "looksdense" -> looks(true);
+                    case "looksdensebefore" -> {
                         client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
                         looks(true);
                     }
@@ -1856,15 +1856,6 @@ final class Parity {
                 size, med, median(chop), tickMs, median(moving)));
     }
 
-    static double median(List<Double> v) {
-        List<Double> s = new ArrayList<>(v);
-        java.util.Collections.sort(s);
-        return s.isEmpty() ? Double.NaN : s.get(s.size() / 2);
-    }
-
-    // ---- M3: any tree ----
-
-    static boolean is(BlockState s, String id) {
     /**
      * Worldgen giants (Arboria's 80+ block sequoias): 3x3 and 4x4 spruce trunks 90 tall (`dev/fixtures/gen_sequoia.py`)
      * with max_logs 4096 and max_blocks 8000, each with a vanilla viewer (displays) and a modded one (mesh): the chop tick
@@ -1938,6 +1929,15 @@ final class Parity {
         }
     }
 
+    static double median(List<Double> v) {
+        List<Double> s = new ArrayList<>(v);
+        java.util.Collections.sort(s);
+        return s.isEmpty() ? Double.NaN : s.get(s.size() / 2);
+    }
+
+    // ---- M3: any tree ----
+
+    static boolean is(BlockState s, String id) {
         return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString().equals(id);
     }
 
@@ -4124,20 +4124,6 @@ final class Parity {
         }
     }
 
-    // ---- the settings screen ----
-
-//? if >=26.2 {
-    /** The settings screen pauses the integrated server, so waits here are wall-clock, not ticks. */
-    static void screen() {
-        cfg("chops", 0);
-        cfg("replant", 0);
-        client(MpHost::hideHud);
-        try {
-            io.github.profetgit.vanillatimber.client.TimberScreen[] made = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
-            CompletableFuture<Void> opened = new CompletableFuture<>();
-            client(mc -> {
-                io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
-                made[0] = new io.github.profetgit.vanillatimber.client.TimberScreen(null);
     // ---- the tree stays fallen (land_blocks), fall time by size, tools ----
 
     /** What the shared rule says must land: {logs, leaves} of this fall, worked out here from the tree frame by brute force. */
@@ -4501,6 +4487,20 @@ final class Parity {
         }
     }
 
+    // ---- the settings screen ----
+
+//? if >=26.2 {
+    /** The settings screen pauses the integrated server, so waits here are wall-clock, not ticks. */
+    static void screen() {
+        cfg("chops", 0);
+        cfg("replant", 0);
+        client(MpHost::hideHud);
+        try {
+            io.github.profetgit.vanillatimber.client.TimberScreen[] made = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
+            CompletableFuture<Void> opened = new CompletableFuture<>();
+            client(mc -> {
+                io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
+                made[0] = new io.github.profetgit.vanillatimber.client.TimberScreen(null);
                 mc.gui.setScreen(made[0]);
                 opened.complete(null);
             });
@@ -4527,20 +4527,6 @@ final class Parity {
                 if (c > 0 && m.indexOf(m.substring(0, c + 1), c + 1) >= 0) doubled.add(m);
             }
             check("screen: each button says its name once", doubled.isEmpty(), doubled.isEmpty() ? labels.toString() : doubled.toString());
-            String shotName = "screen_local";
-            client(mc -> SelfTest.startCapture(shotName, 1));
-            sleep(600);
-            CompletableFuture<Void> pressed = new CompletableFuture<>();
-            client(mc -> {
-                ((net.minecraft.client.gui.components.CycleButton<?>) sc.widgets.get(Config.Key.CHOPS)).onPress(new net.minecraft.client.input.KeyEvent(257, 0, 0));
-                pressed.complete(null);
-            });
-            await(pressed);
-            sleep(400);
-            check("screen: switching chop mode on sets the config and wakes the chop count", on(() -> Config.get(Config.Key.CHOPS)) == 1 && sc.applied.contains("chops=1")
-                && sc.widgets.get(Config.Key.CHOP_CURVE).active,
-                "chops " + on(() -> Config.get(Config.Key.CHOPS)) + ", applied " + sc.applied);
-            CompletableFuture<Void> ro = new CompletableFuture<>();
             check("screen: the Tool section has the tools box, showing the list", sc.toolsBox != null && sc.toolsBox.active && sc.toolsBox.getValue().equals(on(() -> Config.tools().text())),
                 sc.toolsBox == null ? "no box" : "box '" + sc.toolsBox.getValue() + "' active " + sc.toolsBox.active);
             CompletableFuture<Void> typed = new CompletableFuture<>();
@@ -4560,6 +4546,20 @@ final class Parity {
             await(reset);
             sleep(300);
             check("screen: an empty tools box restores the axes", on(() -> Config.tools().entries()).equals(io.github.profetgit.vanillatimber.server.Tools.DEFAULT), on(() -> Config.tools().entries()).toString());
+            String shotName = "screen_local";
+            client(mc -> SelfTest.startCapture(shotName, 1));
+            sleep(600);
+            CompletableFuture<Void> pressed = new CompletableFuture<>();
+            client(mc -> {
+                ((net.minecraft.client.gui.components.CycleButton<?>) sc.widgets.get(Config.Key.CHOPS)).onPress(new net.minecraft.client.input.KeyEvent(257, 0, 0));
+                pressed.complete(null);
+            });
+            await(pressed);
+            sleep(400);
+            check("screen: switching chop mode on sets the config and wakes the chop count", on(() -> Config.get(Config.Key.CHOPS)) == 1 && sc.applied.contains("chops=1")
+                && sc.widgets.get(Config.Key.CHOP_CURVE).active,
+                "chops " + on(() -> Config.get(Config.Key.CHOPS)) + ", applied " + sc.applied);
+            CompletableFuture<Void> ro = new CompletableFuture<>();
             io.github.profetgit.vanillatimber.client.TimberScreen[] view = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
             client(mc -> {
                 io.github.profetgit.vanillatimber.client.TimberScreen.forced = io.github.profetgit.vanillatimber.client.TimberScreen.Mode.READ_ONLY;
@@ -4574,6 +4574,7 @@ final class Parity {
             check("screen: a non-operator on a server sees every value read-only", locked && view[0].widgets.size() == Config.Key.values().length
                 && view[0].helpText.getOrDefault(Config.Key.CHOPS, Component.empty()).getString().contains("operators"),
                 "active " + view[0].widgets.values().stream().filter(w -> w.active).count());
+            check("screen: read-only mode has the tools box not editable", view[0].toolsBox != null && !view[0].toolsBox.active, view[0].toolsBox == null ? "no box" : "active " + view[0].toolsBox.active);
             CompletableFuture<Void> scrolled = new CompletableFuture<>();
             client(mc -> {
                 view[0].widgets.get(Config.Key.SLICE_MS).setFocused(false);
@@ -4588,7 +4589,6 @@ final class Parity {
             sleep(600);
         } finally {
             CompletableFuture<Void> closed = new CompletableFuture<>();
-            check("screen: read-only mode has the tools box not editable", view[0].toolsBox != null && !view[0].toolsBox.active, view[0].toolsBox == null ? "no box" : "active " + view[0].toolsBox.active);
             client(mc -> {
                 io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
                 mc.gui.setScreen(null);
