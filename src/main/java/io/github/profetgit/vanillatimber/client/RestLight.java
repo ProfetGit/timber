@@ -57,7 +57,7 @@ final class RestLight implements BlockQuadOutput {
         int[] cells = msg.cells();
         for (int i = 0; i < msg.blocks(); i++) {
             getter.tree.put(BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]),
-                msg.palette().get(cells[i * 4 + 3] >> 1));
+                msg.palette().get(cells[i * 4 + 3] >> 2));
         }
     }
 
@@ -144,7 +144,7 @@ final class RestLight implements BlockQuadOutput {
         int[] cells = msg.cells();
         for (int i = 0; i < msg.blocks(); i++) {
             getter.tree.put(BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]),
-                msg.palette().get(cells[i * 4 + 3] >> 1));
+                msg.palette().get(cells[i * 4 + 3] >> 2));
         }
     }
 

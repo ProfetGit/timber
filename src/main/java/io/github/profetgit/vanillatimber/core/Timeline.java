@@ -28,7 +28,15 @@ public final class Timeline {
     /** Ticks a popping ring lives after it is tagged (pop keys at u = 1, 4, 5; killed at u = 7). */
     public static final int POP_LIFE = 6;
 
+    /**
+     * Ticks from a server frame's packets arriving to that frame's pose fully drawn by a vanilla client, on average (see
+     * the mesh's anchor): a landed ring's blocks show on arrival, so its drawing stops this much before its tick.
+     */
+    public static final double LAG = 1.5 - 1.0 / 6;
+
     public final FallSpec spec;
+    /** Log rings that turn into blocks at their pop tick instead of popping ({@code land_blocks}); all false when none. */
+    public final boolean[] landed;
     /** Per frame: pitch and tip bend (centi-degrees, as 1.3.6), squash (x1000), height offset (blocks), phase. */
     public final double[] p, bn, gx, gy, gz, lx, lz, dy;
     public final int[] ph;
@@ -41,7 +49,12 @@ public final class Timeline {
     public final List<Event> events;
 
     public Timeline(FallSpec spec, boolean[] logRings) {
+        this(spec, logRings, null);
+    }
+
+    public Timeline(FallSpec spec, boolean[] logRings, boolean[] landed) {
         this.spec = spec;
+        this.landed = landed != null && landed.length == logRings.length ? landed : new boolean[logRings.length];
         Sim s = new Sim(spec, logRings);
         s.run();
         int n = s.frames.size();
@@ -108,6 +121,12 @@ public final class Timeline {
      * the tag tick's packets arrive, one tick before that tick's pose is reached.
      */
     public float[] pop(int ring, double tau, float[] out) {
+        if (lands(ring)) {
+            if (tau < landTau(ring)) return null;
+            out[0] = 0;
+            out[1] = 0;
+            return out;
+        }
         if (ring < 0 || ring >= popTick.length || popTick[ring] < 0) return null;
         double x = tau - (popTick[ring] - 1);
         if (x <= 0) return null;
@@ -128,6 +147,40 @@ public final class Timeline {
             out[1] = 0;
         }
         return out;
+    }
+
+    /** Whether ring {@code k} turns into blocks (never popping). */
+    public boolean lands(int k) {
+        return k >= 0 && k < landed.length && landed[k];
+    }
+
+    /**
+     * The drawing time from which a landed ring (and the leaves landing with it) is no longer drawn: every landed ring
+     * turns into blocks on one tick, the last landed ring's pop tick, so no frame shows part of the tree as blocks and
+     * part still animated (critic 2026-11-17).
+     */
+    public double landTau(int k) {
+        return landTick() - LAG + HOLD;
+    }
+
+    /**
+     * Ticks the landed rings stay drawn after their blocks arrive (1 still blanked a frame under load), so the client has rebuilt the chunk sections before the
+     * animated tree goes (critic 2026-11-17: a blank frame or two at the hand-over otherwise). The server keeps vanilla
+     * clients' displays the same one tick.
+     */
+    public static final double HOLD = 2.0;
+
+    /** The one tick every landed ring turns into blocks on, or -1 when none lands. */
+    public int landTick() {
+        int t = -1;
+        boolean any = false;
+        for (int k = 0; k < landed.length; k++) {
+            if (!lands(k)) continue;
+            any = true;
+            t = Math.max(t, popTick[k]);
+        }
+        // a ring that never pops (popTick -1) lands with the others; with no popping ring at all, the tick before the end
+        return !any ? -1 : t >= 0 ? t : Math.max(0, end - 1);
     }
 
     static double lerp(double a, double b, double f) {

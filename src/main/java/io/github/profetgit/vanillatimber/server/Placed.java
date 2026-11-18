@@ -30,14 +30,15 @@ public final class Placed extends SavedData {
     static final int FORMAT = 1;
     private static final Codec<Placed> CODEC = RecordCodecBuilder.create(i -> i.group(
         Codec.INT.optionalFieldOf("format", FORMAT).forGetter(d -> FORMAT),
-        Codec.unboundedMap(Codec.STRING, Codec.LONG_STREAM).optionalFieldOf("chunks", Map.of()).forGetter(Placed::save)
-    ).apply(i, (format, chunks) -> new Placed(chunks)));
+        Codec.unboundedMap(Codec.STRING, Codec.LONG_STREAM).optionalFieldOf("chunks", Map.of()).forGetter(d -> save(d.chunks)),
+        Codec.unboundedMap(Codec.STRING, Codec.LONG_STREAM).optionalFieldOf("landed", Map.of()).forGetter(d -> save(d.landed))
+    ).apply(i, (format, chunks, landed) -> new Placed(chunks, landed)));
 //? if >=1.21.5 {
     private static final SavedDataType<Placed> TYPE = new SavedDataType<>(Identifier.fromNamespaceAndPath(Timber.ID, "placed"),
-        () -> new Placed(Map.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+        () -> new Placed(Map.of(), Map.of()), CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 //?} else {
-/*    private static final SavedData.Factory<Placed> TYPE = new SavedData.Factory<>(() -> new Placed(Map.of()),
-        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new Placed(Map.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+/*    private static final SavedData.Factory<Placed> TYPE = new SavedData.Factory<>(() -> new Placed(Map.of(), Map.of()),
+        (tag, lookup) -> SavedCodec.load(CODEC, tag, lookup, () -> new Placed(Map.of(), Map.of())), DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider lookup) {
@@ -47,7 +48,15 @@ public final class Placed extends SavedData {
 
     private final Long2ObjectOpenHashMap<LongOpenHashSet> chunks = new Long2ObjectOpenHashMap<>();
 
-    private Placed(Map<String, LongStream> saved) {
+    /** Logs a fall left lying on the ground ({@code land_blocks}): never felled again, whatever {@code protect} says. */
+    private final Long2ObjectOpenHashMap<LongOpenHashSet> landed = new Long2ObjectOpenHashMap<>();
+
+    private Placed(Map<String, LongStream> saved, Map<String, LongStream> lying) {
+        load(saved, chunks);
+        load(lying, landed);
+    }
+
+    private static void load(Map<String, LongStream> saved, Long2ObjectOpenHashMap<LongOpenHashSet> chunks) {
         saved.forEach((k, v) -> {
             int c = k.indexOf(',');
             if (c < 0) return;
@@ -61,7 +70,7 @@ public final class Placed extends SavedData {
         });
     }
 
-    private Map<String, LongStream> save() {
+    private static Map<String, LongStream> save(Long2ObjectOpenHashMap<LongOpenHashSet> chunks) {
         Map<String, LongStream> out = new HashMap<>();
         chunks.long2ObjectEntrySet().fastForEach(e -> {
             if (e.getValue().isEmpty()) return;
@@ -92,15 +101,56 @@ public final class Placed extends SavedData {
         if (d.chunks.computeIfAbsent(chunk(pos), k -> new LongOpenHashSet()).add(pos.asLong())) d.setDirty();
     }
 
-    /** Forgets {@code pos}; true if it was recorded. */
-    public static boolean remove(ServerLevel level, BlockPos pos) {
+    /** A fall left a log lying at {@code pos}. */
+    public static void addLanded(ServerLevel level, BlockPos pos) {
         Placed d = get(level);
+        if (d.landed.computeIfAbsent(chunk(pos), k -> new LongOpenHashSet()).add(pos.asLong())) d.setDirty();
+    }
+
+    /** Forgets {@code pos}, placed or landed; true if it was recorded either way. */
+    public static boolean remove(ServerLevel level, BlockPos pos) {
+        return take(level, pos) != 0;
+    }
+
+    /** As {@link #remove}, saying what it was: bit 0 placed by a player, bit 1 left lying by a fall. */
+    public static int take(ServerLevel level, BlockPos pos) {
+        Placed d = get(level);
+        return (d.drop(d.chunks, pos) ? 1 : 0) | (d.drop(d.landed, pos) ? 2 : 0);
+    }
+
+    private boolean drop(Long2ObjectOpenHashMap<LongOpenHashSet> map, BlockPos pos) {
         long c = chunk(pos);
-        LongOpenHashSet set = d.chunks.get(c);
+        LongOpenHashSet set = map.get(c);
         if (set == null || !set.remove(pos.asLong())) return false;
-        if (set.isEmpty()) d.chunks.remove(c);
-        d.setDirty();
+        if (set.isEmpty()) map.remove(c);
+        setDirty();
         return true;
+    }
+
+    /** The log at {@code pos} was left lying by a fall; a stale key is dropped. */
+    public static boolean landed(ServerLevel level, BlockPos pos) {
+        return get(level).landedHolds(level, pos);
+    }
+
+    /** Whether the log at {@code pos} must never fell: placed by a player with {@code protect} on, or left lying by a fall. */
+    public static boolean shielded(ServerLevel level, BlockPos pos) {
+        Placed d = get(level);
+        return Config.on(Config.Key.PROTECT) && d.holds(level, pos) || d.landedHolds(level, pos);
+    }
+
+    boolean landedHolds(ServerLevel level, BlockPos pos) {
+        LongOpenHashSet set = landed.get(chunk(pos));
+        if (set == null || !set.contains(pos.asLong())) return false;
+        if (isLog(level.getBlockState(pos))) return true;
+        drop(landed, pos);
+        return false;
+    }
+
+    /** Every landed position in the level (tests). */
+    public static LongOpenHashSet allLanded(ServerLevel level) {
+        LongOpenHashSet out = new LongOpenHashSet();
+        for (LongOpenHashSet s : get(level).landed.values()) out.addAll(s);
+        return out;
     }
 
     /** The log at {@code pos} was placed by a player; a stale key (no log there any more) is dropped. */

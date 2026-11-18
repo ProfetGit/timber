@@ -50,7 +50,13 @@ public final class TimberCommand {
 //?} else {
 /*        d.register(Commands.literal("timber").requires(s -> s.hasPermission(2))
 *///?}
-            .then(Commands.literal("config").executes(c -> list(c.getSource())).then(configKey))
+            .then(Commands.literal("config").executes(c -> list(c.getSource()))
+                .then(Commands.literal(Config.TOOLS).executes(c -> {
+                    c.getSource().sendSuccess(() -> Component.literal(Config.describeTools()), false);
+                    return 1;
+                }).then(Commands.argument("items", StringArgumentType.greedyString()).executes(c ->
+                    setTools(c.getSource(), StringArgumentType.getString(c, "items")))))
+                .then(configKey))
             .then(Commands.literal("reload").executes(c -> {
                 Config.load();
                 c.getSource().sendSuccess(() -> Component.literal("Timber config reloaded"), true);
@@ -66,7 +72,20 @@ public final class TimberCommand {
 
     private static int list(CommandSourceStack src) {
         for (Key k : Key.values()) src.sendSuccess(() -> Component.literal(Config.describe(k)), false);
-        return Key.values().length;
+        src.sendSuccess(() -> Component.literal(Config.describeTools()), false);
+        return Key.values().length + 1;
+    }
+
+    /** {@code /timber config tools <ids and #tags>}: "default" restores the axes. */
+    private static int setTools(CommandSourceStack src, String text) {
+        List<String> entries = text.trim().equalsIgnoreCase("default") ? Tools.DEFAULT : Tools.split(text);
+        if (Tools.clean(entries) == null) {
+            src.sendFailure(Component.literal("No item id or #tag in '" + text + "'. Example: /timber config tools #minecraft:axes minecraft:stick"));
+            return 0;
+        }
+        Tools t = Config.setTools(entries);
+        src.sendSuccess(() -> Component.literal("tools set to " + t.text()), true);
+        return 1;
     }
 
     private static int show(CommandSourceStack src, String name) {
@@ -111,16 +130,17 @@ public final class TimberCommand {
             for (Component c : requires) row.append(c);
             line(src, row);
         }
-        numRow(src, Key.MAX_LOGS, "Max logs per tree", "Bigger trees are left alone (only the one log breaks)", 64, 128, 256, 512);
+        numRow(src, Key.MAX_LOGS, "Max logs per tree", "Bigger trees are left alone (only the one log breaks)", 256, 512, 1024, 2048);
         numRow(src, Key.RADIUS, "Search radius", "How far (in blocks, sideways) from the cut a tree may reach", 8, 12, 16, 24);
         choiceRow(src, Key.SNEAK, "Sneaking", new String[] {"Sneak = one log", "Sneak to fell", "Always"},
             new String[] {"Fell trees normally; sneak to take a single log", "Only fell trees while sneaking", "Always fell, sneaking or not"});
         choiceRow(src, Key.DROPS, "Drops", new String[] {"Where it lands", "At player"},
             new String[] {"Each log hops out where it lands, leaf drops burst from the crown", "Drops appear at your feet as the tree breaks apart"});
-        boolRow(src, Key.REQUIRE_AXE, "Require an axe", "Only fell trees when chopping with an axe");
+        boolRow(src, Key.REQUIRE_AXE, "Require an axe", "Only fell trees with an item from the tools list (axes by default; /timber config tools)");
         boolRow(src, Key.DURABILITY, "Use axe durability", "Each log costs durability (Unbreaking applies); a worn axe still fells the tree and breaks");
         boolRow(src, Key.CHOPS, "Chop mode", "Bigger trees take more chops (HT's TreeChop style); each chop costs one durability and cracks the log");
         boolRow(src, Key.ANIMATION, "Falling animation", "Off: the tree vanishes at once and drops at the stump");
+        numRow(src, Key.LAND_BLOCKS, "Tree stays fallen %", "Share of the trunk (and the leaves beside it) that stays on the ground as blocks for you to chop", 0, 25, 50, 100);
         boolRow(src, Key.PROTECT, "Protect placed logs", "Logs placed by players are never felled");
         boolRow(src, Key.FEEDBACK, "Refusal message", "Say on the action bar why a tree was not felled");
         boolRow(src, Key.REPLANT, "Auto-replant", "A free sapling is planted at the stump when the tree has fallen");

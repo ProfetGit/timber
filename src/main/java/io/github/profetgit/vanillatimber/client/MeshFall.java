@@ -43,6 +43,8 @@ final class MeshFall {
     /** Per block: tree-frame centre, ring, leaf, light (eased block/sky and the packed value drawn). */
     final float[] cx, cy, cz, bl, sk;
     final int[] ring, light;
+    /** Per leaf: the ring whose landing turns it into a block ({@code land_blocks}), -1 for a leaf that vanishes at the slam. */
+    final int[] landRing;
     final boolean[] leaf;
     final BlockState[] states;
     final int blocks;
@@ -58,7 +60,7 @@ final class MeshFall {
      * a frame (60 fps) after the arrival. Every vanilla client lands within about half a tick of it, whatever its phase;
      * copying this client's own phase instead (the 0.0.5 anchor) left the mesh up to 1.3 ticks off another client's.
      */
-    static final double LAG = 1.5 - 1.0 / 6;
+    static final double LAG = Timeline.LAG;
     /** The client tick count when the payload was handled (the anchor gives up 4 ticks later). */
     final long handled;
     /** Client time (ticks + partial) at which the drawing time is 0, NaN until the first drawn frame; see {@link #frame}. */
@@ -82,7 +84,7 @@ final class MeshFall {
     MeshFall(TreeFall msg, ClientLevel level, long handled) {
         this.msg = msg;
         this.handled = handled;
-        tl = new Timeline(msg.spec(), msg.logRings());
+        tl = new Timeline(msg.spec(), msg.logRings(), msg.landed());
         x = msg.px() / 1000.0;
         y0 = msg.py() / 1000.0;
         z = msg.pz() / 1000.0;
@@ -94,6 +96,7 @@ final class MeshFall {
         bl = new float[blocks];
         sk = new float[blocks];
         ring = new int[blocks];
+        landRing = new int[blocks];
         light = new int[blocks];
         leaf = new boolean[blocks];
         states = new BlockState[blocks];
@@ -109,11 +112,12 @@ final class MeshFall {
         oy = new double[kt - kn + 1];
         oz = new double[kt - kn + 1];
         drawn = new DrawnPose(tl, kn, kt);
+        landRings();
         if (msg.probe() >= 0) {
             int[] cells = msg.cells();
             int i = msg.probe() * 4;
             BlockPos at = msg.origin().offset(cells[i], cells[i + 1], cells[i + 2]);
-            BlockState st = msg.palette().get(cells[i + 3] >> 1);
+            BlockState st = msg.palette().get(cells[i + 3] >> 2);
             if (level.getBlockState(at) == st) {
                 probe = at;
                 probeState = st;
@@ -123,6 +127,21 @@ final class MeshFall {
         float far = 0;
         for (int i = 0; i < blocks; i++) far = Math.max(far, cx[i] * cx[i] + cy[i] * cy[i] + cz[i] * cz[i]);
         reach = (float) Math.sqrt(far) + 1;
+    }
+
+    /**
+     * Which blocks turn into blocks at the land tick: the server flags each one in the payload (bit 1 of the cell word),
+     * so a cell the client would put in another ring than the server can't stay drawn after the hand-over.
+     */
+    private void landRings() {
+        int[] cells = msg.cells();
+        for (int i = 0; i < blocks; i++) landRing[i] = (cells[i * 4 + 3] & 2) != 0 ? Math.max(0, Layout.ring((msg.origin().getY() + cells[i * 4 + 1]) * 1000 - msg.py())) : -1;
+    }
+
+    /** Whether block {@code i} is still drawn at drawing time {@code tau} ({@code leavesOn}: the slam hasn't cleared the crown). */
+    private boolean shown(int i, double tau, boolean leavesOn) {
+        if (landRing[i] >= 0) return tau < tl.landTau(landRing[i]);
+        return !leaf[i] || leavesOn;
     }
 
     /** Drawing time in server frames at client time {@code t}: frame n's pose is fully drawn at tau = n. */
@@ -176,7 +195,7 @@ final class MeshFall {
                             BlockPos.MutableBlockPos cell, BlockPos o, int[] cells, int bin) {
         for (int i = 0; i < blocks; i++) {
             cell.set(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
-            BlockState state = msg.palette().get(cells[i * 4 + 3] >> 1);
+            BlockState state = msg.palette().get(cells[i * 4 + 3] >> 2);
             boolean lf = (cells[i * 4 + 3] & 1) != 0;
             int wx = cell.getX() * 1000 - msg.px(), wy = cell.getY() * 1000 - msg.py(), wz = cell.getZ() * 1000 - msg.pz();
             int k = Layout.ring(wy);
@@ -192,9 +211,10 @@ final class MeshFall {
             sk[i] = Packed.sky(lit);
             light[i] = lit;
             for (BlockBake.Quad quad : baker.block(cell, state)) {
-                long key = (long) k << 8 | (lf ? 4 : 0) | quad.layer.ordinal();
+                int lr = landRing[i];
+                long key = (long) k << 24 | (long) (lr + 1) << 8 | (lf ? 4 : 0) | quad.layer.ordinal();
                 Group g = byKey.computeIfAbsent(key, kk -> {
-                    Group ng = new Group(this, k, lf, quad.layer);
+                    Group ng = new Group(this, k, lf, lr, quad.layer);
                     groups.add(ng);
                     return ng;
                 });
@@ -253,7 +273,7 @@ final class MeshFall {
         int n = 0;
         for (int i = 0; i < blocks && n * 3 + 2 < out.length; i++) {
             float[] p = leaf[i] ? null : d.pop(ring[i], pp);
-            if (leaf[i] ? !d.leaves : p != null && p[0] == 0 && p[1] == 0) continue;
+            if (!shown(i, d.tau, d.leaves) || !leaf[i] && landRing[i] < 0 && p != null && p[0] == 0 && p[1] == 0) continue;
             pose(m, ring[i], leaf[i], d, 0, 0, 0).transformPosition(cx[i], cy[i], cz[i], w);
             out[n * 3] = w.x;
             out[n * 3 + 1] = w.y;
@@ -280,11 +300,11 @@ final class MeshFall {
         Vector3f w = new Vector3f();
         for (int i = 0; i < blocks; i++) {
             int d = states[i].getLightDampening();
-            if (d <= 0) continue;
+            if (d <= 0 || !shown(i, t, s.leaves)) continue;
             int gi = (ring[i] - kn) * 2 + (leaf[i] ? 1 : 0);
             if (shadowSeen[gi] == 0) {
                 float[] p = leaf[i] ? null : tl.pop(ring[i], t, pop);
-                boolean shown = leaf[i] ? s.leaves : p == null || p[0] != 0 || p[1] != 0;
+                boolean shown = leaf[i] || p == null || p[0] != 0 || p[1] != 0;
                 shadowSeen[gi] = (byte) (shown ? 1 : 2);
                 if (shown) shadowMats[gi] = pose(shadowMats[gi] == null ? new Matrix4f() : shadowMats[gi], ring[i], leaf[i], s, 0, 0, 0);
             }
@@ -372,7 +392,9 @@ final class MeshFall {
         Vector3f tmp = new Vector3f();
         for (Group g : groups) {
             float ex = inflate, ey = inflate;
-            if (g.leaf) {
+            if (g.landRing >= 0) {
+                if (tau >= tl.landTau(g.landRing)) continue;
+            } else if (g.leaf) {
                 if (!s.leaves) continue;
             } else {
                 float[] p = s.pop(g.k, pop);
@@ -395,6 +417,7 @@ final class MeshFall {
         final MeshFall fall;
         final int k;
         final boolean leaf;
+        final int landRing;
         final RenderPass.Layer layer;
         float[] pos = new float[48], off = new float[48], uv = new float[32];
         int[] tint = new int[4], block = new int[4];
@@ -410,8 +433,9 @@ final class MeshFall {
         /** World position of the ring's axis point at rest. */
         final Vector3f rest = new Vector3f();
 
-        Group(MeshFall fall, int k, boolean leaf, RenderPass.Layer layer) {
+        Group(MeshFall fall, int k, boolean leaf, int landRing, RenderPass.Layer layer) {
             this.fall = fall;
+            this.landRing = landRing;
             this.k = k;
             this.leaf = leaf;
             this.layer = layer;

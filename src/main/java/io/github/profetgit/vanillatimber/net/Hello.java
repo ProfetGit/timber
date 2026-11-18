@@ -11,7 +11,7 @@ import net.minecraft.resources.Identifier;
  * client ever sends (PRD 7); the server then sends it {@link TreeFall} instead of displays.
  */
 public record Hello(int version) implements CustomPacketPayload {
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
     public static final Type<Hello> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "hello"));
     public static final StreamCodec<RegistryFriendlyByteBuf, Hello> CODEC = StreamCodec.of((buf, h) -> buf.writeVarInt(h.version()), buf -> new Hello(buf.readVarInt()));
 

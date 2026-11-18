@@ -8,7 +8,7 @@ package io.github.profetgit.vanillatimber.core;
 public final class Curve {
     public static final double LEAN = 10.0;
     static final double A0 = 25.0;
-    public static final int MIN_DUR = 10, MAX_DUR = 26;
+    public static final int MIN_DUR = 10, MAX_DUR = 200;
     private static final int FINE = 2000;
     private static final int[][] TABLES = new int[MAX_DUR + 1][];
 

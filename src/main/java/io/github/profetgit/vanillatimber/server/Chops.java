@@ -21,7 +21,6 @@ import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.item.ItemStack;
@@ -82,7 +81,7 @@ public final class Chops {
     static boolean mayChop(ServerPlayer player) {
         if (!Falls.gates(player)) return false;
         ItemStack tool = player.getMainHandItem();
-        return !Config.on(Config.Key.REQUIRE_AXE) || tool.isEmpty() || tool.is(ItemTags.AXES) || tool.is(Falls.C_AXES);
+        return tool.isEmpty() || Falls.toolOk(tool);
     }
 
     // ---- the mining packet and the delayed break (bracketed by ChopMixin) ----
@@ -112,7 +111,7 @@ public final class Chops {
         if (action != START || !Config.on(Config.Key.CHOPS) || Migrate.inert || Viewers.local(player)) return;
         BlockState state = level.getBlockState(pos);
         if (TreeTypes.forTrunk(state) == null || !mayChop(player) || !inReach(player, pos)) return;
-        if (Config.on(Config.Key.PROTECT) && Placed.has(level, pos)) return;
+        if (Placed.shielded(level, pos)) return;
         mask(player, level, pos, state);
     }
 
@@ -150,7 +149,7 @@ public final class Chops {
         if (start < 0 || !mayChop(player)) return false;
         ItemStack tool = player.getMainHandItem();
         if (!canDestroy(tool, state, level, pos, player) || player.blockActionRestricted(level, pos, player.gameMode.getGameModeForPlayer())) return false;
-        if (Config.on(Config.Key.PROTECT) && Placed.has(level, pos) || Falls.busy(level, pos)) return false;
+        if (Placed.shielded(level, pos) || Falls.busy(level, pos)) return false;
         // the rate limit comes before the add-on hook and the scan, so a client spamming STOP costs no scans
         int now = gm.timber$gameTicks();
         Integer lastChop = LAST.get(player.getUUID());
@@ -481,12 +480,17 @@ public final class Chops {
 
     private static Settings settings() {
         Config.Key[] keys = Config.Key.values();
-        String[] names = new String[keys.length];
-        int[] values = new int[keys.length];
+        java.util.List<String> tools = Config.tools().entries();
+        // the tools list rides as names "tool:<entry>" (value 0): a 2.1 client reads names it knows and skips the rest
+        java.util.List<String> extra = new java.util.ArrayList<>();
+        for (String t : tools) if ((Settings.TOOL + t).length() <= 64) extra.add(Settings.TOOL + t);
+        String[] names = new String[keys.length + extra.size()];
+        int[] values = new int[names.length];
         for (int i = 0; i < keys.length; i++) {
             names[i] = keys[i].json;
             values[i] = Config.get(keys[i]);
         }
+        for (int i = 0; i < extra.size(); i++) names[keys.length + i] = extra.get(i);
         return new Settings(names, values);
     }
 

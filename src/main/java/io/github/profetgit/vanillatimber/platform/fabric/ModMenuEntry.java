@@ -1,6 +1,6 @@
 package io.github.profetgit.vanillatimber.platform.fabric;
 
-//? if fabric && >=26.2 {
+//? if fabric {
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 import io.github.profetgit.vanillatimber.client.TimberScreen;

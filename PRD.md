@@ -165,7 +165,9 @@ My calls, open to veto:
 - Server config `config/timber.json`:
   - the 1.3.x keys: max_logs, max_blocks, radius, require_axe, sneak, durability, animation, drops, protect, feedback,
     welcome;
-  - new keys: display_cap (1200), slice_ms (2), replant (0), knockback (1), trunk_damage (4);
+  - new keys: display_cap (600; wired in 2.2, before it was a constant), slice_ms (2), replant (0), knockback (1),
+    trunk_damage (4); 2.2: land_blocks (0 %, 0-100), `tools` (string list, §5.14);
+  - 2.2 ceilings: max_logs up to 4096, max_blocks up to 8000, radius up to 64 (worldgen giants, §5.14);
   - `anim.*` tunables (lean degrees, fall duration terms, spring k/c/m, bounce scale, ripple gaps).
 - The server re-reads the file when its mtime changes (SnappyBlocks `Config.java` pattern), clamps every value, writes
   comments, and syncs it to modded clients (HarvestSweep `ConfigPayload`).
@@ -273,6 +275,21 @@ til the axe can't take it anymore". Timber adds its fall to that.
   change values through `/timber config`, others see them read-only.
 - Classic mode (`chops` 0) fix, same release: a worn axe no longer refuses. The tree falls and the axe breaks (what
   breaking the logs one by one with it, then by hand, would give).
+
+### 5.14 Answers to CurseForge comments (2.2, user 2026-11-17)
+- **Tree stays fallen** (`land_blocks` %, default 0): that share of the log rings (spread evenly, stump ring first,
+  `core/Landing`) turns into blocks where it lies at its pop tick: logs sideways along the fall (pitch >= 45), leaves (full blocks only: vines, cocoa, moss never land, their faces would point the wrong way)
+  within 1 block (tree frame) of a landed log, each in its own cell or not at all, as natural leaves (user: "keep some of its leafs when it has fallen down").
+  All landed rings turn into blocks on one tick (the last landed ring's pop tick); the animated tree stays drawn one tick longer (no blank frame). A log whose cell is taken moves to the nearest free cell within 2 blocks; with none it drops as before. Landed logs are recorded in
+  `Placed` (`landed`), never fell again (protect or not), cost no durability. Modded clients stop drawing those rings and
+  leaves at the same tick (`TreeFall` landed mask, `Hello` v3; 2.1 clients get displays). Off with `animation` 0. With `land_blocks` on, the fall direction snaps to the nearest axis (facing axis, then the two side axes if blocked; `TreeScan.AXIS_TRIES`) so the trunk lies as a straight row (user 2026-11-18: "make the trees only fall a given axis, not diagonally"); a log moved off its cell moves along the fall or up/down before sideways.
+- **Bigger trees fall slower**, by size alone (user 2026-11-18: no speed setting): up to 28 rings 1.3.6's length, then
+  22 x sqrt(h / 28) ticks (56 rings 31, 90 rings 39), at most 200 (`FallSpec.duration`, `FallSpec.sized`).
+- **Which items fell** (`tools`, used while `require_axe` 1): item ids and `#tags`, default `#minecraft:axes`,
+  `#c:tools/axe`; `/timber config tools ...`, a text box in the screen; modded clients get it in `Settings` names
+  `tool:<entry>` for chop prediction.
+- **Worldgen giants** (Arboria sequoias 80+ tall): ceilings raised; `giants_xl` measures 3x3/4x4 x 90 trunks.
+- **Settings screen on 1.21.1 and 1.20.1** (all loaders), as on 26.x.
 
 ## 6. Controls
 | Input | Context | Action |

@@ -116,6 +116,12 @@ public final class DrawnPose {
      * is gone (the server kills it at u = 7).
      */
     public float[] pop(int ring, float[] out) {
+        if (tl.lands(ring)) {
+            if (tau < tl.landTau(ring)) return null;
+            out[0] = 0;
+            out[1] = 0;
+            return out;
+        }
         if (ring < 0 || ring >= pops.length || pops[ring] == null || popNext[ring] == 0) return null;
         if (tau >= tl.popTick[ring] + 5) {
             out[0] = 0;

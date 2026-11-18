@@ -24,12 +24,14 @@ import net.minecraft.world.level.block.state.BlockState;
  * palette plus cells relative to {@code origin}, and {@code e}, the server frames already played when it was sent
  * (0 at the chop; a player who walks in mid-fall gets the frame it walked in at).
  *
+ * @param landed rings that turn into blocks at their pop tick instead of popping ({@code land_blocks}); the leaves landing with
+ *               them follow from {@code core/Landing}
  * @param probe the block (index into {@code cells}) the server removes at frame 1, or -1 (sent after frame 0): the
  *              client starts its clock when that removal shows, the tick the displays start toward frame 1's pose
  * @param cells 4 ints per block: dx, dy, dz from {@code origin}, palette index << 1 | leaf
  */
-public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin, FallSpec spec, boolean[] logRings, int e,
-                       int probe, List<BlockState> palette, int[] cells) implements CustomPacketPayload {
+public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin, FallSpec spec, boolean[] logRings, boolean[] landed,
+                       int e, int probe, List<BlockState> palette, int[] cells) implements CustomPacketPayload {
     public static final Type<TreeFall> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "tree_fall"));
     public static final StreamCodec<RegistryFriendlyByteBuf, TreeFall> CODEC = StreamCodec.of(TreeFall::write, TreeFall::read);
 
@@ -43,14 +45,16 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
     }
 
     /** The payload of one fall, sent at server frame {@code e}. Air parts (a block that changed under the scan) and hidden leaves are left out. */
-    public static TreeFall of(int id, Tree tree, int e) {
+    public static TreeFall of(int id, Tree tree, int e, boolean[] landed, int[] landRing) {
         Map<BlockState, Integer> index = new IdentityHashMap<>();
         List<BlockState> palette = new ArrayList<>();
         List<Tree.Part> parts = tree.parts();
         int[] cells = new int[parts.size() * 4];
         int n = 0, probe = -1;
         BlockPos o = tree.origin();
+        int pi = -1;
         for (Tree.Part p : parts) {
+            pi++;
             if (p.state().isAir() || p.hidden()) continue;
             if (e == 0 && probe < 0 && !p.pos().equals(tree.anchor())) probe = n / 4;
             Integer i = index.get(p.state());
@@ -62,9 +66,10 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[n++] = p.pos().getX() - o.getX();
             cells[n++] = p.pos().getY() - o.getY();
             cells[n++] = p.pos().getZ() - o.getZ();
-            cells[n++] = i << 1 | (p.leaf() ? 1 : 0);
+            // word: palette index << 2 | lands at the land tick (2) | leaf (1)
+            cells[n++] = i << 2 | (landRing != null && pi < landRing.length && landRing[pi] >= 0 ? 2 : 0) | (p.leaf() ? 1 : 0);
         }
-        return new TreeFall(id, o, tree.px(), tree.py(), tree.pz(), tree.bin(), tree.spec(), tree.logRings(), e, probe, palette,
+        return new TreeFall(id, o, tree.px(), tree.py(), tree.pz(), tree.bin(), tree.spec(), tree.logRings(), landed, e, probe, palette,
             n == cells.length ? cells : java.util.Arrays.copyOf(cells, n));
     }
 
@@ -94,11 +99,8 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         buf.writeVarInt(s.dr());
         buf.writeVarInt(s.rs());
         buf.writeVarInt(f.logRings.length);
-        for (int i = 0; i < f.logRings.length; i += 8) {
-            int b = 0;
-            for (int j = 0; j < 8 && i + j < f.logRings.length; j++) if (f.logRings[i + j]) b |= 1 << j;
-            buf.writeByte(b);
-        }
+        bits(buf, f.logRings);
+        bits(buf, f.landed);
         buf.writeVarInt(f.e);
         buf.writeVarInt(f.probe + 1);
         buf.writeVarInt(f.palette.size());
@@ -124,11 +126,9 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         double fd = buf.readDouble();
         int ft = buf.readVarInt(), dr = buf.readVarInt(), rs = buf.readVarInt();
         FallSpec spec = new FallSpec(h, hit, dur, amp, km, fd, ft, dr, rs);
-        boolean[] rings = new boolean[buf.readVarInt()];
-        for (int i = 0; i < rings.length; i += 8) {
-            int b = buf.readUnsignedByte();
-            for (int j = 0; j < 8 && i + j < rings.length; j++) rings[i + j] = (b >> j & 1) != 0;
-        }
+        boolean[] rings = new boolean[buf.readVarInt()], landed = new boolean[rings.length];
+        unbits(buf, rings);
+        unbits(buf, landed);
         int e = buf.readVarInt(), probe = buf.readVarInt() - 1;
         int np = buf.readVarInt();
         List<BlockState> palette = new ArrayList<>(np);
@@ -141,7 +141,22 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[i + 2] = unzig(buf);
             cells[i + 3] = buf.readVarInt();
         }
-        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, e, probe, palette, cells);
+        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, landed, e, probe, palette, cells);
+    }
+
+    private static void bits(RegistryFriendlyByteBuf buf, boolean[] v) {
+        for (int i = 0; i < v.length; i += 8) {
+            int b = 0;
+            for (int j = 0; j < 8 && i + j < v.length; j++) if (v[i + j]) b |= 1 << j;
+            buf.writeByte(b);
+        }
+    }
+
+    private static void unbits(RegistryFriendlyByteBuf buf, boolean[] v) {
+        for (int i = 0; i < v.length; i += 8) {
+            int b = buf.readUnsignedByte();
+            for (int j = 0; j < 8 && i + j < v.length; j++) v[i + j] = (b >> j & 1) != 0;
+        }
     }
 
     private static void zig(RegistryFriendlyByteBuf buf, int v) {

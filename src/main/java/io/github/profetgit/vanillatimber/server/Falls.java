@@ -8,15 +8,10 @@ import java.util.List;
 import java.util.Map;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.GameType;
@@ -60,7 +55,6 @@ public final class Falls {
         Chops.leave(player);
     }
 
-    public static final TagKey<Item> C_AXES = TagKey.create(Registries.ITEM, Identifier.fromNamespaceAndPath("c", "tools/axe"));
 
     /** PRD 5.1 gates 1 to 3, in order: the player's toggle, game mode, sneak mode. */
     static boolean gates(ServerPlayer player) {
@@ -74,14 +68,19 @@ public final class Falls {
     /** PRD 5.1 gates 1 to 4, in order: the player's toggle, game mode, sneak mode, the axe. */
     static boolean mayFell(ServerPlayer player) {
         if (!gates(player)) return false;
-        ItemStack tool = player.getMainHandItem();
-        return !Config.on(Config.Key.REQUIRE_AXE) || tool.is(ItemTags.AXES) || tool.is(C_AXES);
+        return toolOk(player.getMainHandItem());
+    }
+
+    /** PRD 5.1 gate 4: with {@code require_axe} the held item must be on the {@code tools} list. */
+    public static boolean toolOk(ItemStack tool) {
+        return !Config.on(Config.Key.REQUIRE_AXE) || Config.tools().matches(tool);
     }
 
     static void chop(ServerLevel level, ServerPlayer player, BlockPos pos, BlockState state) {
         if (Migrate.inert) return;
         long t0 = System.nanoTime();
-        boolean placed = Placed.remove(level, pos);
+        int taken = Placed.take(level, pos);
+        boolean placed = (taken & 1) != 0, lying = (taken & 2) != 0;
         // chop mode (PRD 5.13): a break fells only as the final chop Chops let through, with the tool it had, through its layer
         boolean chops = Config.on(Config.Key.CHOPS);
         ItemStack tool = player.getMainHandItem().copy();
@@ -90,7 +89,7 @@ public final class Falls {
             if ((fin = Chops.takeFinal(level, player, pos)) == null) return;
             tool = fin.tool();
         }
-        if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || !chops && !mayFell(player) || busy(level, pos)) return;
+        if (TreeTypes.forTrunk(state) == null || placed && Config.on(Config.Key.PROTECT) || lying || !chops && !mayFell(player) || busy(level, pos)) return;
         // PRD 5.1: one fell per player per tick, so a multi-break mod breaking 20 logs fells one tree
         int now = level.getServer().getTickCount();
         Integer before = FELLED.put(player.getUUID(), now);
@@ -112,12 +111,13 @@ public final class Falls {
             refuse(player, "protected", "Timber: part of this tree is protected");
             return;
         }
-        if (!chops) wear(level, player, tree.logs());
+        boolean[] land = landMask(tree);
+        if (!chops) wear(level, player, tree.logs() - landedLogs(tree, land));
         else Chops.breakCut(level, player, fin);
 //? if >=1.21.11 {
-        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().get(GameRules.BLOCK_DROPS));
+        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().get(GameRules.BLOCK_DROPS), land);
 //?} else {
-/*        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS));
+/*        Fall fall = new Fall(nextId++ & 0x7FFFFFFF, level, tree, player, tool, level.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS), land);
 *///?}
         lastFall = fall;
         if (!Config.on(Config.Key.ANIMATION)) {
@@ -128,6 +128,20 @@ public final class Falls {
         fall.hold();
         if (timed()) fall.chopNs = System.nanoTime() - t0;
         Timber.LOG.debug("tree at {}: {} logs, {} leaves, {}", pos, tree.logs(), tree.leaves(), tree.spec());
+    }
+
+    /** The log rings that stay on the ground as blocks ({@code land_blocks}); none without the animation. */
+    static boolean[] landMask(Tree tree) {
+        int pct = Config.get(Config.Key.LAND_BLOCKS);
+        if (!Config.on(Config.Key.ANIMATION) || pct <= 0) return new boolean[tree.logRings().length];
+        return io.github.profetgit.vanillatimber.core.Landing.rings(tree.logRings(), pct);
+    }
+
+    /** Logs in the landed rings: they cost the axe nothing, the rest drop as items. */
+    static int landedLogs(Tree tree, boolean[] land) {
+        int c = 0;
+        for (Tree.Part p : tree.parts()) if (!p.leaf() && !p.state().isAir() && p.k() < land.length && land[p.k()]) c++;
+        return c;
     }
 
     /**

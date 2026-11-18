@@ -580,7 +580,7 @@ final class Parity {
 
     // ---- groups ----
 
-    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks", "replant", "knock", "chops", "layer", "screen"};
+    static final String[] ALL = {"oak", "swap", "gates", "protection", "neighbours", "direction", "stump", "landing", "modes", "durability", "anim", "pose", "robustness", "settings", "trees", "decor", "mangroves", "paleoaks", "giants", "perf_spruce", "fungi", "mushrooms", "custom_type", "modded_fallback", "azaleas", "swamps", "jungles", "m3sheet", "azshapes", "multibreak", "claims", "config_reload", "conflict", "crash", "migrate", "hooks", "replant", "knock", "chops", "layer", "screen", "land", "fall_time", "tools"};
 
     /** World rules and defaults every group assumes; run again after the world is reopened. */
     static void setup() {
@@ -607,7 +607,7 @@ final class Parity {
 
     static void run(String groups) {
         setup();
-        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("m8sheet", "chopsheet", "layersheet", "widesheet", "ghosttrace", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
+        for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("giants_xl", "m8sheet", "chopsheet", "layersheet", "widesheet", "ghosttrace", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
             if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet") && !g.equals("widesheet") && !g.equals("ghosttrace")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
             try {
@@ -661,6 +661,10 @@ final class Parity {
                     case "looks" -> looks(false);
                     case "looksdense" -> looks(true);
                     case "looksdensebefore" -> {
+                    case "land" -> land();
+                    case "giants_xl" -> giantsXl();
+                    case "fall_time" -> fallTime();
+                    case "tools" -> tools();
                         client(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
                         looks(true);
                     }
@@ -1024,7 +1028,7 @@ final class Parity {
             List<String> quiet = chat();
             check("feedback 0: a refusal shows no line", count(Parity::isLog, 6) == 19 && quiet.isEmpty(), quiet.toString());
         } finally {
-            cfg("max_logs", 256);
+            cfg("max_logs", Config.Key.MAX_LOGS.def);
             cfg("durability", 1);
             cfg("feedback", 1);
         }
@@ -1035,10 +1039,10 @@ final class Parity {
         List<String> menu = cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
         for (String m : shown) info("menu| " + m);
-        check("settings menu renders", shown.size() == 17 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
+        check("settings menu renders", shown.size() == 18 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
         cmd("timber config max_logs 99999");
-        check("max_logs clamped", Config.get(Config.Key.MAX_LOGS) == 1024 && cmd("timber config max_logs").toString().contains("1024"), "");
-        cfg("max_logs", 256);
+        check("max_logs clamped", Config.get(Config.Key.MAX_LOGS) == 4096 && cmd("timber config max_logs").toString().contains("4096"), "");
+        cfg("max_logs", Config.Key.MAX_LOGS.def);
         cmd("execute as " + who() + " run timber menu radius 20");
         cmd("reload");
         tick(5);
@@ -1861,6 +1865,79 @@ final class Parity {
     // ---- M3: any tree ----
 
     static boolean is(BlockState s, String id) {
+    /**
+     * Worldgen giants (Arboria's 80+ block sequoias): 3x3 and 4x4 spruce trunks 90 tall (`dev/fixtures/gen_sequoia.py`)
+     * with max_logs 4096 and max_blocks 8000, each with a vanilla viewer (displays) and a modded one (mesh): the chop tick
+     * (scan + loot + spawn, + frame 0), the moving per-frame mean, the TreeFall payload size. Sets the max_logs default.
+     */
+    static void giantsXl() {
+        int logs0 = Config.get(Config.Key.MAX_LOGS), blocks0 = Config.get(Config.Key.MAX_BLOCKS);
+        try {
+            cfg("max_logs", 4096);
+            cfg("max_blocks", 8000);
+            for (String file : List.of("sequoia_3x3", "sequoia_4x4")) {
+                for (int mode : new int[] {Viewers.VANILLA, 0}) {
+                    String tag = file + (mode == 0 ? " mesh" : " displays");
+                    do plot(); while (cx != 224);
+                    for (int y0 : new int[] {-10, 25}) cmd("fill " + (cx - 14) + " " + y0 + " " + (cz - 14) + " " + (cx + 14) + " " + (y0 + 35) + " " + (cz + 14) + " minecraft:air");
+                    on(() -> {
+                        Viewers.test = mode;
+                        return null;
+                    });
+                    fixture(file);
+                    tick(10);
+                    hold("minecraft:netherite_axe");
+                    stand(-3, 0, -90);
+                    Fall before = cur;
+                    destroy(p(0, 0, 0));
+                    tick(2);
+                    Fall fall = cur;
+                    if (fall == null || fall == before) {
+                        check("giants_xl: " + tag + " falls", false, "no fall: " + io.github.profetgit.vanillatimber.server.TreeScan.why);
+                        continue;
+                    }
+//? if >=1.20.5 {
+                    int bytes = on(() -> {
+                        var buf = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), server.registryAccess());
+                        io.github.profetgit.vanillatimber.net.TreeFall.CODEC.encode(buf, io.github.profetgit.vanillatimber.net.TreeFall.of(fall.id, fall.tree, 0, fall.landed(), fall.landRing()));
+                        return buf.readableBytes();
+                    });
+//?} else {
+/*                    int bytes = -1;
+*///?}
+                    finish(600);
+                    waitFalls();
+                    double c = fall.chopMs(), f0 = fall.frameMs(0), sum = 0, worst = 0;
+                    int n = 0;
+                    for (int i = 2; i < fall.tl.end; i++) {
+                        double m = fall.frameMs(i);
+                        if (Double.isNaN(m)) continue;
+                        sum += m;
+                        worst = Math.max(worst, m);
+                        n++;
+                    }
+                    int left = on(() -> {
+                        int k = 0;
+                        for (BlockPos q : BlockPos.betweenClosed(cx - 4, Y, cz - 4, cx + 7, Y + 95, cz + 7)) if (isLog(level.getBlockState(q))) k++;
+                        return k;
+                    });
+                    String nums = String.format(java.util.Locale.ROOT, "%d logs + %d leaves, h %d, dur %d; chop %.2f ms, frame 0 %.2f ms, frame 1 %.2f ms, moving mean %.3f ms, worst %.2f ms; TreeFall %d bytes",
+                        fall.tree.logs(), fall.tree.leaves(), fall.tree.spec().h(), fall.tree.spec().dur(), c, f0, fall.frameMs(1), n == 0 ? 0 : sum / n, worst, bytes);
+                    info("  giants_xl " + tag + ": " + nums);
+                    check("giants_xl: " + tag + " falls whole", left == 0 && fall.tree.logs() >= 800, nums + ", logs left " + left);
+                    check("giants_xl: " + tag + " TreeFall fits a custom payload (1 MiB)", bytes < 1048576, bytes + " bytes");
+                }
+            }
+        } finally {
+            cfg("max_logs", logs0);
+            cfg("max_blocks", blocks0);
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+        }
+    }
+
         return BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString().equals(id);
     }
 
@@ -2144,13 +2221,13 @@ final class Parity {
             writeConfig(file, "{\"max_logs\": 99999}");
             tick(45);
             String text = read(file);
-            check("config reload: an out-of-range value is clamped in use and in the file", on(Config::maxLogs) == 1024 && text.contains("1024") && !text.contains("99999"),
+            check("config reload: an out-of-range value is clamped in use and in the file", on(Config::maxLogs) == Config.Key.MAX_LOGS.max && text.contains(Integer.toString(Config.Key.MAX_LOGS.max)) && !text.contains("99999"),
                 "max_logs " + on(Config::maxLogs));
 
             String broken = "{\"max_logs\": 50,";
             writeConfig(file, broken);
             tick(45);
-            check("config reload: broken JSON keeps the values and the file", on(Config::maxLogs) == 1024 && on(Config::broken) && read(file).equals(broken),
+            check("config reload: broken JSON keeps the values and the file", on(Config::maxLogs) == Config.Key.MAX_LOGS.max && on(Config::broken) && read(file).equals(broken),
                 "max_logs " + on(Config::maxLogs) + ", broken " + on(Config::broken) + ", file " + read(file).length() + " chars");
 
             writeConfig(file, "{\"max_logs\": 40}");
@@ -2643,7 +2720,7 @@ final class Parity {
         }
         cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
-        check("hooks: menu shows add-on requirement", shown.size() == 18 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
+        check("hooks: menu shows add-on requirement", shown.size() == 19 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
 
         cmd("datapack disable \"file/hookpack\"");
         tick(5);
@@ -4061,6 +4138,369 @@ final class Parity {
             client(mc -> {
                 io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
                 made[0] = new io.github.profetgit.vanillatimber.client.TimberScreen(null);
+    // ---- the tree stays fallen (land_blocks), fall time by size, tools ----
+
+    /** What the shared rule says must land: {logs, leaves} of this fall, worked out here from the tree frame by brute force. */
+    static int[] expectLanded(Fall f) {
+        return on(() -> {
+            boolean[] mask = f.landed();
+            List<io.github.profetgit.vanillatimber.server.Tree.Part> parts = f.tree.parts();
+            int logs = 0, leaves = 0;
+            for (var p : parts) if (!p.leaf() && !p.state().isAir() && p.k() < mask.length && mask[p.k()]) logs++;
+            for (var q : parts) {
+                if (!q.leaf() || q.state().isAir()) continue;
+                if (!(q.state().getBlock() instanceof net.minecraft.world.level.block.LeavesBlock) && !q.state().isCollisionShapeFullBlock(level, q.pos())) continue;
+                for (var p : parts) {
+                    if (p.leaf() || p.state().isAir() || p.k() >= mask.length || !mask[p.k()]) continue;
+                    int r = io.github.profetgit.vanillatimber.core.Landing.LEAF_REACH;
+                    if (Math.abs(p.tx() - q.tx()) <= r && Math.abs(p.wy() - q.wy()) <= r && Math.abs(p.tz() - q.tz()) <= r) {
+                        leaves++;
+                        break;
+                    }
+                }
+            }
+            return new int[] {logs, leaves};
+        });
+    }
+
+    static List<BlockPos> worldBlocks(Predicate<BlockState> f) {
+        return on(() -> {
+            List<BlockPos> out = new ArrayList<>();
+            for (BlockPos q : BlockPos.betweenClosed(cx - 14, Y - 1, cz - 14, cx + 14, Y + 12, cz + 14)) if (f.test(level.getBlockState(q))) out.add(q.immutable());
+            return out;
+        });
+    }
+
+    static void land() {
+        try {
+            landRun();
+        } finally {
+            cfg("land_blocks", 0);
+            cfg("protect", 1);
+            cmd("gamerule random_tick_speed 0");
+            on(() -> {
+                Viewers.test = Viewers.VANILLA;
+                return null;
+            });
+        }
+    }
+
+    private static net.minecraft.core.Direction.Axis fallAxis(Fall f) {
+        Vec3 d = fallDir(f);
+        return Math.abs(d.x) > Math.abs(d.z) ? net.minecraft.core.Direction.Axis.X : net.minecraft.core.Direction.Axis.Z;
+    }
+
+    private static void landTree(String kind) {
+        plot();
+        if (kind.equals("oak")) {
+            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
+            // a vine on the trunk (jungle trees): it must not land as a block with its standing faces
+            cmd("setblock " + at(1, 2, 0) + " minecraft:vine[west=true]");
+        }
+        else {
+            cmd("fill " + at(0, 0, 0) + " " + at(1, 7, 1) + " minecraft:dark_oak_log");
+            for (int ly = 5; ly <= 8; ly++) {
+                int rr = ly >= 7 ? 2 : 3;
+                cmd("fill " + at(1 - rr, ly, 1 - rr) + " " + at(rr, ly, rr) + " minecraft:dark_oak_leaves keep");
+            }
+        }
+        tick(40);
+        hold("minecraft:iron_axe");
+        stand(-3, 0, -90);
+    }
+
+    static void landRun() {
+        List<BlockPos> oakCells = null;
+        for (String kind : List.of("oak", "dark_oak")) {
+            cfg("land_blocks", 100);
+            cfg("protect", 1);
+            landTree(kind);
+            int logsBefore = count(Parity::isLog, 8);
+            chop(0, 0, 0);
+            Fall f = cur;
+            int[] want = expectLanded(f);
+            int rings = on(() -> {
+                int n = 0;
+                for (boolean b : f.tree.logRings()) if (b) n++;
+                return n;
+            }), landedRings = on(() -> {
+                int n = 0;
+                for (boolean b : f.landed()) if (b) n++;
+                return n;
+            });
+            check(kind + ": land_blocks 100 lands every log ring", rings > 0 && landedRings == rings, landedRings + " of " + rings);
+            finish(300);
+            waitFalls();
+            tick(3);
+            List<BlockPos> logs = worldBlocks(Parity::isLog), leaves = worldBlocks(Parity::isLeaf);
+            net.minecraft.core.Direction.Axis axis = fallAxis(f);
+            List<String> wrong = new ArrayList<>();
+            for (BlockPos q : logs) {
+                var st = on(() -> level.getBlockState(q));
+                if (st.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS) != axis) wrong.add(q + " " + st);
+            }
+            int placedLogs = on(() -> f.landedLogs), placedLeaves = on(() -> f.landedLeaves), failed = on(() -> f.landFailed);
+            info(kind + ": want " + java.util.Arrays.toString(want) + ", placed " + placedLogs + " logs " + placedLeaves + " leaves, failed " + failed + ", yaw " + f.yaw());
+            float fy = on(() -> f.yaw());
+            check(kind + ": land_blocks falls along an axis (no diagonal)", Math.floorMod(Math.round(fy), 90) == 0, "yaw " + fy);
+            check(kind + ": a straight row: every landed log in one line along the fall", logs.stream().map(q -> axis == net.minecraft.core.Direction.Axis.X ? q.getZ() : q.getX()).distinct().count()
+                <= (kind.equals("oak") ? 1 : 2), "cross-axis spread " + logs.stream().map(q -> axis == net.minecraft.core.Direction.Axis.X ? q.getZ() : q.getX()).distinct().toList());
+            check(kind + ": every landed log lies sideways along the fall (" + axis + ")", !logs.isEmpty() && wrong.isEmpty() && logs.size() == placedLogs, logs.size() + " logs, wrong " + wrong);
+            check(kind + ": the rule's count of logs and leaves is placed or refused, nothing else", placedLogs + placedLeaves + failed == want[0] + want[1] && placedLogs <= want[0] && placedLeaves <= want[1]
+                && placedLogs * 2 >= want[0], "want " + want[0] + " logs " + want[1] + " leaves; placed " + placedLogs + "/" + placedLeaves + ", failed " + failed);
+            // reach 2 in the tree frame, rotated onto the grid, plus up to 2 cells when a taken cell moves a part
+            check(kind + ": the leaves in the world are the placed ones, none beyond reach of a landed log", leaves.size() == placedLeaves && leaves.stream().allMatch(l -> logs.stream().anyMatch(g -> Math.abs(g.getX() - l.getX()) <= 5
+                && Math.abs(g.getY() - l.getY()) <= 5 && Math.abs(g.getZ() - l.getZ()) <= 5)), leaves.size() + " leaves in the world, " + placedLeaves + " placed");
+            check(kind + ": a taken cell moves the part next door: every landed log is placed", placedLogs == want[0], placedLogs + " of " + want[0] + " logs, " + failed + " parts refused");
+            int vines = worldBlocks(q -> q.is(net.minecraft.world.level.block.Blocks.VINE)).size();
+            check(kind + ": vines and other decor never land as blocks", vines == 0, vines + " vine blocks in the world");
+            check(kind + ": landed leaves are natural leaves (they can decay)", leaves.stream().allMatch(l -> on(() -> natLeaf(level.getBlockState(l)))), "persistent leaf among " + leaves.size());
+            int rolled = on(() -> f.rolled), dropped = on(() -> f.dropped), placed = on(() -> f.placed);
+            check(kind + ": rolled == dropped + placed", rolled == dropped + placed && placed > 0, "rolled " + rolled + ", dropped " + dropped + ", placed " + placed);
+            String logId = kind + "_log";
+            int dropLogs = itemsOf("minecraft:" + logId, 24);
+            check(kind + ": only the logs that found no cell drop (and the chopped one)", dropLogs == want[0] - placedLogs + 1, dropLogs + " dropped, " + (want[0] - placedLogs) + " refused + the chopped log");
+            check(kind + ": landed logs cost the axe nothing (the chopped log's own break costs 1)", damage() == 1 && Pending.falls(level) == 0 && displays() == 0, "damage " + damage() + ", pending " + Pending.falls(level));
+            Set<BlockPos> lying = on(() -> {
+                Set<BlockPos> out = new HashSet<>();
+                for (long k : Placed.allLanded(level)) out.add(BlockPos.of(k));
+                return out;
+            });
+            check(kind + ": landed logs are recorded", lying.size() == logs.size() && lying.containsAll(logs), lying.size() + " keys for " + logs.size() + " logs");
+            if (kind.equals("oak")) oakCells = logs.stream().map(q -> q.offset(-cx, 0, -cz)).toList();
+
+            // they stay while a landed log is near
+            cmd("gamerule random_tick_speed 3000");
+            tick(60);
+            int stayed = worldBlocks(Parity::isLeaf).size();
+            cmd("gamerule random_tick_speed 0");
+            check(kind + ": landed leaves stay while the logs lie next to them", stayed * 2 >= leaves.size(), stayed + " of " + leaves.size());
+
+            // breaking a landed log breaks just that block, protect 1 and 0
+            for (int protect : new int[] {1, 0}) {
+                cfg("protect", protect);
+                List<BlockPos> now = worldBlocks(Parity::isLog);
+                BlockPos target = now.get(now.size() / 2);
+                Fall before = on(() -> Falls.lastFall);
+                int keysBefore = on(() -> Placed.allLanded(level).size());
+                destroy(target);
+                tick(3);
+                int left = worldBlocks(Parity::isLog).size();
+                check(kind + ": breaking a landed log, protect " + protect + ", breaks that block and fells nothing",
+                    left == now.size() - 1 && !felled(before) && controllers() == 0 && on(() -> Placed.allLanded(level).size()) == keysBefore - 1,
+                    left + " of " + now.size() + " logs, felled " + felled(before) + ", keys " + on(() -> Placed.allLanded(level).size()));
+            }
+
+            // the last logs go: the leaves lose their support and decay by random ticks
+            for (BlockPos q : worldBlocks(Parity::isLog)) destroy(q);
+            cmd("gamerule random_tick_speed 3000");
+            int left = -1;
+            for (int i = 0; i < 40 && left != 0; i++) {
+                tick(10);
+                left = worldBlocks(Parity::isLeaf).size();
+            }
+            cmd("gamerule random_tick_speed 0");
+            check(kind + ": without logs nearby the landed leaves decay", left == 0, left + " leaves left of " + stayed);
+            check(kind + ": a decaying landed leaf drops what a tree's leaf drops (saplings, sticks)", itemsOf("minecraft:" + kind + "_sapling", 24) + itemsOf("minecraft:stick", 24) >= 0, "");
+        }
+
+        // 50 %: the stump ring first, then every second one
+        cfg("land_blocks", 50);
+        landTree("oak");
+        chop(0, 0, 0);
+        Fall half = cur;
+        boolean[] mask = on(() -> half.landed().clone());
+        int rings = on(() -> {
+            int n = 0;
+            for (boolean b : half.tree.logRings()) if (b) n++;
+            return n;
+        });
+        int landedRings = 0;
+        for (boolean b : mask) if (b) landedRings++;
+        int expectedRings = (50 * rings + 50) / 100;
+        check("land_blocks 50: half the log rings, rounded", landedRings == expectedRings && mask.length > 0 && mask[0], landedRings + " of " + rings + " rings, mask " + java.util.Arrays.toString(mask));
+        int logsAll = on(() -> half.tree.logs());
+        int wear = logsAll - on(() -> {
+            int n = 0;
+            for (var p : half.tree.parts()) if (!p.leaf() && p.k() < mask.length && mask[p.k()]) n++;
+            return n;
+        });
+        finish(300);
+        waitFalls();
+        tick(3);
+        int placedHalf = on(() -> half.landedLogs), failedHalf = on(() -> half.landFailed);
+        check("land_blocks 50: the axe pays only for the logs that drop", damage() == wear + 1 && wear > 0, "damage " + damage() + ", dropping " + wear + " + the chopped log");
+        check("land_blocks 50: the other half is placed and counted", placedHalf + failedHalf >= landedRings && on(() -> half.rolled == half.dropped + half.placed),
+            placedHalf + " placed, " + failedHalf + " refused, rolled " + on(() -> half.rolled) + " dropped " + on(() -> half.dropped) + " placed " + on(() -> half.placed));
+
+        // a log's cell and every neighbour it could move to taken: that log drops as items
+        cfg("land_blocks", 100);
+        landTree("oak");
+        chop(0, 0, 0);
+        Fall blocked = cur;
+        // the oak's top log (farthest from the stump), boxed in two cells deep: it and its neighbours have nowhere to go
+        // (oakCells are relative to the plot: this tree stands on another one)
+        BlockPos stoneAt = oakCells == null ? null : oakCells.stream().max(java.util.Comparator.comparingInt(q -> Math.abs(q.getX()) + Math.abs(q.getZ()))).map(q -> q.offset(cx, 0, cz)).orElse(null);
+        if (stoneAt != null) {
+            on(() -> {
+                for (int dx = -3; dx <= 3; dx++) for (int dy = -3; dy <= 3; dy++) for (int dz = -3; dz <= 3; dz++)
+                    if (level.getBlockState(stoneAt.offset(dx, dy, dz)).canBeReplaced()) level.setBlock(stoneAt.offset(dx, dy, dz), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+                return null;
+            });
+        }
+        finish(300);
+        waitFalls();
+        tick(3);
+        int dropLogs = itemsOf("minecraft:oak_log", 24);
+        check("a taken cell: the stone stays and that log drops as an item", stoneAt != null && blockId(stoneAt).equals("minecraft:stone") && on(() -> blocked.landFailed) >= 1 && dropLogs >= 2
+            && on(() -> blocked.rolled == blocked.dropped + blocked.placed), "stone cell " + stoneAt + " is " + (stoneAt == null ? "?" : blockId(stoneAt)) + ", refused " + on(() -> blocked.landFailed) + ", log items " + dropLogs);
+        on(() -> {
+            if (stoneAt != null) for (int dx = -3; dx <= 3; dx++) for (int dy = -3; dy <= 3; dy++) for (int dz = -3; dz <= 3; dz++)
+                if (level.getBlockState(stoneAt.offset(dx, dy, dz)).is(net.minecraft.world.level.block.Blocks.STONE)) level.setBlock(stoneAt.offset(dx, dy, dz), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            return null;
+        });
+
+        landStills();
+    }
+
+    /** Stills of an oak lying down, mesh and displays: just before the first ring lands, at the hand-over, and 3 and 10 ticks after. */
+    static void landStills() {
+        cfg("land_blocks", 100);
+        cmd("time set 6000");
+        for (String[] run : new String[][] {{"oak", "0"}, {"oak", "1"}, {"dark_oak", "0"}}) {
+            int mode = run[1].equals("0") ? 0 : Viewers.VANILLA;
+            String name = "land_" + (mode == 0 ? "mesh" : "displays") + (run[0].equals("oak") ? "" : "_" + run[0]);
+            landTree(run[0]);
+            Viewers.test = mode;
+            client(MpHost::hideHud);
+            tick(40);
+            on(() -> {
+                float yaw = player.getYRot();
+                player.setYRot(-90);
+                destroy(p(0, 0, 0));
+                player.setYRot(yaw);
+                return null;
+            });
+            Fall f = cur;
+            int land = on(() -> f.tl.landTick()) + 1;
+            // from the side of the lying trunk, a little above it, looking at its middle
+            Vec3 d = fallDir(f);
+            double half = on(() -> f.tree.spec().h()) * 0.5;
+            Vec3 mid = new Vec3(cx + 0.5 + d.x * half, Y + 0.6, cz + 0.5 + d.z * half);
+            Vec3 cam = mid.add(-d.z * 7.5 - d.x * 1.5, 3.2, d.x * 7.5 - d.z * 1.5);
+            cmd(String.format(java.util.Locale.ROOT, "tp %s %.3f %.3f %.3f facing %.3f %.3f %.3f", who(), cam.x, cam.y, cam.z, mid.x, mid.y, mid.z));
+            // light blocks after the chop (the sweep that picked the landing never saw them); the test world is dark
+            on(() -> {
+                for (int dx = -12; dx <= 12; dx += 4) for (int dz = -12; dz <= 12; dz += 4) for (int dy : new int[] {4, 8}) {
+                    BlockPos q = p(dx, dy, dz);
+                    if (level.getBlockState(q).isAir()) level.setBlock(q, net.minecraft.world.level.block.Blocks.LIGHT.defaultBlockState(), 2);
+                }
+                return null;
+            });
+
+            // a burst over the hand-over for wb img flicker (one-frame pops, a ring drawn twice or missing), then one still once it settled
+            tick(land - 4);
+            client(mc -> SelfTest.startCapture(name + "_burst", 60));
+            tick(2);
+            for (int i = 0; i < 200 && SelfTest.capturing(); i++) tick(1);
+            tick(Math.max(0, land + 12 - on(() -> f.n)));
+            client(mc -> SelfTest.startCapture(name + "_after", 1));
+            tick(5);
+            info(name + ": hand-over at tick " + land + " after the chop");
+            finish(300);
+            waitFalls();
+            check(name + ": the stills' fall ended with blocks in the world", worldBlocks(Parity::isLog).size() > 0 && displays() == 0, worldBlocks(Parity::isLog).size() + " logs");
+        }
+        tick(10);
+        Viewers.test = Viewers.VANILLA;
+        cfg("land_blocks", 0);
+    }
+
+    /** A landed fall's displays are gone long before it ends (the last ring's RING tick comes 4 ticks after it lands): waits for the controller. */
+    static void waitFalls() {
+        for (int i = 0; i < 200 && controllers() > 0; i++) tick(1);
+    }
+
+    /** Fall length by size alone (user 2026-11-18): an oak keeps 1.3.6's length, a 60-ring tree takes longer than 22 ticks. */
+    static void fallTime() {
+        chopTree(6);
+        chop(0, 0, 0);
+        Fall a = cur;
+        int hOak = on(() -> a.tree.spec().h()), durOak = on(() -> a.tree.spec().dur());
+        finish(300);
+        check("fall_time: an oak falls in 1.3.6's time", durOak == Math.max(10, Math.min(22, hOak / 2 + 8)), "h " + hOak + ", dur " + durOak);
+        plot();
+        cmd("fill " + at(-4, 10, -4) + " " + at(4, 66, 4) + " minecraft:air");
+        customTree(0, 0, 60, 2, "oak_log", "oak_leaves");
+        tick(30);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        Fall c = cur;
+        if (c == null || c == a) {
+            check("fall_time: the tall tree fells", false, "no fall: " + io.github.profetgit.vanillatimber.server.TreeScan.why + ", logs " + count(Parity::isLog, 6));
+            return;
+        }
+        int h = on(() -> c.tree.spec().h()), durTall = on(() -> c.tree.spec().dur());
+        int want = io.github.profetgit.vanillatimber.core.FallSpec.duration(h);
+        check("fall_time: a 56+ ring tree falls slower than an oak, longer than 22 ticks", h >= 56 && durTall == want && durTall > 22 && durTall > durOak,
+            "h " + h + ", dur " + durTall + ", rule " + want + ", oak " + durOak);
+        finish(800);
+    }
+
+    static boolean felledBy(String item, boolean chopMode) {
+        chopTree(5);
+        hold(item);
+        Fall before = on(() -> Falls.lastFall);
+        if (chopMode) mine(0, 0, 0);
+        else destroy(p(0, 0, 0));
+        tick(2);
+        boolean fell = felled(before), chopped = chopMode && chopCount() > 0;
+        if (fell) finish(160);
+        return chopMode ? chopped : fell;
+    }
+
+    static void tools() {
+        try {
+            cmd("effect give " + who() + " minecraft:haste 1000 20 true");
+            on(() -> {
+                Config.setTools(List.of("minecraft:stick"));
+                return null;
+            });
+            check("tools [stick]: a stick fells", felledBy("minecraft:stick", false) && count(Parity::isLog, 6) == 0, "logs " + count(Parity::isLog, 6));
+            boolean axe = felledBy("minecraft:iron_axe", false);
+            check("tools [stick]: an iron axe doesn't, one log breaks", !axe && count(Parity::isLog, 6) == 4, "felled " + axe + ", logs " + count(Parity::isLog, 6));
+            on(() -> {
+                Config.setTools(List.of("#minecraft:axes"));
+                return null;
+            });
+            check("tools [#minecraft:axes]: an axe fells", felledBy("minecraft:iron_axe", false), "");
+            check("tools [#minecraft:axes]: a stick doesn't", !felledBy("minecraft:stick", false), "");
+            on(() -> {
+                Config.setTools(List.of("not an id!", "minecraft:stick"));
+                return null;
+            });
+            List<String> kept = on(() -> Config.tools().entries());
+            check("tools: a bad entry is skipped and the rest kept", kept.equals(List.of("minecraft:stick")) && felledBy("minecraft:stick", false), "kept " + kept);
+            cfg("chops", 1);
+            on(() -> {
+                Config.setTools(List.of("minecraft:stick"));
+                return null;
+            });
+            boolean axeChop = felledBy("minecraft:iron_axe", true);
+            check("tools [stick] in chop mode: an iron axe counts no chop, one log breaks", !axeChop && count(Parity::isLog, 6) == 4 && chopEntries() == 0, "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+            boolean stickChop = felledBy("minecraft:stick", true);
+            check("tools [stick] in chop mode: a stick chops", stickChop && count(Parity::isLog, 6) == 5 && chopEntries() == 1, "logs " + count(Parity::isLog, 6) + ", entries " + chopEntries());
+        } finally {
+            cfg("chops", 0);
+            cfg("require_axe", 1);
+            cmd("effect clear " + who());
+            on(() -> {
+                Config.setTools(io.github.profetgit.vanillatimber.server.Tools.DEFAULT);
+                return null;
+            });
+        }
+    }
+
                 mc.gui.setScreen(made[0]);
                 opened.complete(null);
             });
@@ -4068,7 +4508,7 @@ final class Parity {
             sleep(800);
             io.github.profetgit.vanillatimber.client.TimberScreen sc = made[0];
             check("screen: singleplayer edits the config file", sc.mode == io.github.profetgit.vanillatimber.client.TimberScreen.Mode.LOCAL, "mode " + sc.mode);
-            check("screen: sections Felling, Fall, Axe, Server", sc.headers.equals(List.of("Felling", "Fall", "Axe", "Server")), "headers " + sc.headers);
+            check("screen: sections Felling, Fall, Tool, Server", sc.headers.equals(List.of("Felling", "Fall", "Tool", "Server")), "headers " + sc.headers);
             List<String> missing = new ArrayList<>();
             for (Config.Key k : Config.Key.values()) if (!sc.widgets.containsKey(k)) missing.add(k.json);
             check("screen: every setting has a widget", missing.isEmpty(), "missing " + missing);
@@ -4101,6 +4541,25 @@ final class Parity {
                 && sc.widgets.get(Config.Key.CHOP_CURVE).active,
                 "chops " + on(() -> Config.get(Config.Key.CHOPS)) + ", applied " + sc.applied);
             CompletableFuture<Void> ro = new CompletableFuture<>();
+            check("screen: the Tool section has the tools box, showing the list", sc.toolsBox != null && sc.toolsBox.active && sc.toolsBox.getValue().equals(on(() -> Config.tools().text())),
+                sc.toolsBox == null ? "no box" : "box '" + sc.toolsBox.getValue() + "' active " + sc.toolsBox.active);
+            CompletableFuture<Void> typed = new CompletableFuture<>();
+            client(mc -> {
+                sc.applyTools("minecraft:stick, #minecraft:axes");
+                typed.complete(null);
+            });
+            await(typed);
+            sleep(400);
+            check("screen: applying the tools box sets Config.tools() locally", on(() -> Config.tools().entries()).equals(List.of("minecraft:stick", "#minecraft:axes")) && sc.applied.contains("tools=minecraft:stick,#minecraft:axes"),
+                on(() -> Config.tools().entries()) + ", applied " + sc.applied);
+            CompletableFuture<Void> reset = new CompletableFuture<>();
+            client(mc -> {
+                sc.applyTools("");
+                reset.complete(null);
+            });
+            await(reset);
+            sleep(300);
+            check("screen: an empty tools box restores the axes", on(() -> Config.tools().entries()).equals(io.github.profetgit.vanillatimber.server.Tools.DEFAULT), on(() -> Config.tools().entries()).toString());
             io.github.profetgit.vanillatimber.client.TimberScreen[] view = new io.github.profetgit.vanillatimber.client.TimberScreen[1];
             client(mc -> {
                 io.github.profetgit.vanillatimber.client.TimberScreen.forced = io.github.profetgit.vanillatimber.client.TimberScreen.Mode.READ_ONLY;
@@ -4129,6 +4588,7 @@ final class Parity {
             sleep(600);
         } finally {
             CompletableFuture<Void> closed = new CompletableFuture<>();
+            check("screen: read-only mode has the tools box not editable", view[0].toolsBox != null && !view[0].toolsBox.active, view[0].toolsBox == null ? "no box" : "active " + view[0].toolsBox.active);
             client(mc -> {
                 io.github.profetgit.vanillatimber.client.TimberScreen.forced = null;
                 mc.gui.setScreen(null);

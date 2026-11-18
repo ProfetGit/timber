@@ -13,6 +13,8 @@ import net.minecraft.resources.Identifier;
  * it doesn't predict the removal of a log the server keeps); the settings screen shows the rest on a server.
  */
 public record Settings(String[] names, int[] values) implements CustomPacketPayload {
+    /** Name prefix of a {@code tools} entry ("tool:#minecraft:axes", value 0). */
+    public static final String TOOL = "tool:";
     public static final Type<Settings> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "settings"));
     public static final StreamCodec<RegistryFriendlyByteBuf, Settings> CODEC = StreamCodec.of(
         (buf, s) -> {
@@ -37,6 +39,13 @@ public record Settings(String[] names, int[] values) implements CustomPacketPayl
     public int get(String name, int fallback) {
         for (int i = 0; i < names.length; i++) if (names[i].equals(name)) return values[i];
         return fallback;
+    }
+
+    /** The server's tools list, or null when it sent none (a 2.1 server: axes). */
+    public java.util.List<String> tools() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String n : names) if (n.startsWith(TOOL)) out.add(n.substring(TOOL.length()));
+        return out.isEmpty() ? null : out;
     }
 
     public boolean has(String name) {

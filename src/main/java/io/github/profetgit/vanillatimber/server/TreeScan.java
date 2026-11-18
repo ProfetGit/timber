@@ -43,6 +43,8 @@ public final class TreeScan {
     public static final TagKey<Block> HANGING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "hanging"));
     public static final TagKey<Block> RISING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "rising"));
     static final int[] TRIES = {3375, -3375, 0, 6750, -6750, 9000, -9000};
+    /** Fall directions tried with {@code land_blocks} on: the facing axis, then the side axes (never back at the player). */
+    static final int[] AXIS_TRIES = {0, 9000, -9000};
     /** 1.3.6's face order (+x, -x, +y, -y, +z, -z), which decides what the walk takes first at the cap. */
     private static final Direction[] FACES = {Direction.EAST, Direction.WEST, Direction.UP, Direction.DOWN, Direction.SOUTH, Direction.NORTH};
     /** Offsets within 1.5 blocks (faces and edges): ground logs this close are one seed ({@code own/seed_grow}). */
@@ -83,7 +85,8 @@ public final class TreeScan {
         boolean connected = type.rule() == TreeType.Rule.CONNECTED;
         int radius = Config.radius(), maxLogs = Config.maxLogs(), maxBlocks = Config.maxBlocks();
         boolean hideLeaves = Config.on(Config.Key.HIDE_LEAVES);
-        Placed placed = Config.on(Config.Key.PROTECT) ? Placed.get(level) : null;
+        Placed placed = Placed.get(level);
+        boolean protect = Config.on(Config.Key.PROTECT);
         // flood (1.3.6 flood/*): 26 neighbours of the same log within the radius across, plus creaking hearts on a
         // face; node 0 is the chopped cell. Placed logs are walked through but never owned.
         List<BlockPos> nodes = new ArrayList<>();
@@ -117,7 +120,7 @@ public final class TreeScan {
                     }
                     floodLogs++;
                     if (ground(level.getBlockState(q.below()), log, type)) ground.set(nodes.size());
-                    if (placed != null && placed.holds(level, q)) mine.set(nodes.size());
+                    if (protect && placed.holds(level, q) || placed.landedHolds(level, q)) mine.set(nodes.size());
                 }
                 index.put(q.asLong(), nodes.size());
                 nodes.add(q);
@@ -268,12 +271,16 @@ public final class TreeScan {
         int hw = w * 500 - 10, lz = -hw;
         int py0 = by * 1000 + 2 - gap * 1000;
         int h = ymax - by + 1;
-        int pyaw = Layout.snapYaw(playerYaw);
+        // land_blocks: the tree falls along an axis, so it lies down as a straight row of blocks (user 2026-11-18: "make
+        // the trees only fall a given axis, not diagonally"); the facing axis first, the two side axes if it is blocked
+        boolean axis = Config.get(Config.Key.LAND_BLOCKS) > 0 && Config.on(Config.Key.ANIMATION);
+        int pyaw = axis ? Math.floorMod((int) Math.round(playerYaw / 90.0) * 9000, 36000) : Layout.snapYaw(playerYaw);
+        int[] tries = axis ? AXIS_TRIES : TRIES;
         Sweep sw = new Sweep(level, treeLogs, fcx, py0, fcz, hw, lz, h);
         int best = -1, byaw = pyaw;
         boolean done = false;
-        for (int i = 0; i < TRIES.length && !(i >= 2 && done); i++) {
-            int yaw = Math.floorMod(pyaw + TRIES[i], 36000);
+        for (int i = 0; i < tries.length && !(axis ? done : i >= 2 && done); i++) {
+            int yaw = Math.floorMod(pyaw + tries[i], 36000);
             int th = sw.sweep(yaw);
             if (th > best) {
                 best = th;
@@ -311,7 +318,7 @@ public final class TreeScan {
         boolean[] logRings = new boolean[km + 1];
         for (Tree.Part part : parts) if (!part.leaf()) logRings[part.k()] = true;
         int rs = lymin == Integer.MAX_VALUE ? h : lymin - by - (hang ? 1 : 0);
-        FallSpec spec = FallSpec.derive(h, best / 100.0, gap, hang, dr, km, rs);
+        FallSpec spec = FallSpec.sized(h, best / 100.0, gap, hang, dr, km, rs);
         BlockState leaf = take.lastLeaf == null ? null : level.getBlockState(take.lastLeaf);
         return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), take.leafCount, hw,
             Math.min(cw, 4000), chopped, leaf, roots, base.immutable(), total);

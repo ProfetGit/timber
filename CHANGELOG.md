@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.0 — unreleased
+
+### Added
+- **The tree can stay fallen.** `land_blocks` (0 to 100 %, off by default): that share of the trunk stays on the ground as sideways logs when the fall ends, with the leaves right next to it, for you to chop by hand (vines, cocoa and moss still fall off). The rest pops into drops as before. With it on, trees fall straight along north, south, east or west (the way you face, or to the side if that is blocked), so the trunk lies as one straight row. Logs that land cost no axe durability, are never felled again as a tree, and their leaves decay once you have chopped the logs away.
+- **Choose what fells trees.** `tools` lists the items that fell trees while `require_axe` is on: item ids and `#tags`, axes by default (`/timber config tools #minecraft:axes minecraft:stick`, or the text box in the settings screen). `require_axe` 0 still lets any item fell.
+- **Settings screen on 1.21.1 and 1.20.1** (Mod Menu on Fabric and Quilt, the mods list on NeoForge and Forge), as on 26.2 and 26.3.
+
+### Changed
+- Big trees fall slower: past 28 blocks a fall takes longer the taller the tree, like a real falling trunk (a 56-block tree 1.5 s, a 90-block one 2 s), instead of 1.1 s for every giant. Small trees keep their speed.
+- Much bigger trees fall by default (worldgen mods' sequoias and redwoods): the default limits are now 1024 logs (was 256) and 5000 leaves (was 900), and they go up to 4096 logs, 8000 leaves and 64 blocks sideways. A 90-block sequoia with a 3x3 trunk falls whole. Existing config files keep their values: raise `max_logs` and `max_blocks` yourself, or delete the two lines.
+- `display_cap` now sets how many displays a fall may spawn for players without the mod (default 600, as before); it had no effect.
+
 ## 2.1.5 — 2026-11-13
 
 ### Fixed

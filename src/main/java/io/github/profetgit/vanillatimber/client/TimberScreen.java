@@ -1,6 +1,5 @@
 package io.github.profetgit.vanillatimber.client;
 
-//? if >=26.2 {
 import com.mojang.serialization.Codec;
 import io.github.profetgit.vanillatimber.net.Settings;
 import io.github.profetgit.vanillatimber.server.Config;
@@ -11,15 +10,24 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
-import net.minecraft.client.gui.layouts.LinearLayout;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.OptionsList;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+//? if >=1.21 {
+import net.minecraft.client.gui.layouts.LinearLayout;
+import net.minecraft.client.gui.screens.options.OptionsSubScreen;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.OptionsSubScreen;
+*///?}
 
 /**
  * Timber's settings (PRD 5.13), vanilla widgets only: the server config in four sections, each with the config file's
@@ -36,8 +44,8 @@ public final class TimberScreen extends OptionsSubScreen {
 
     private static final Section[] SECTIONS = {
         new Section("felling", "Felling", Key.CHOPS, Key.CHOP_CURVE, Key.SNEAK, Key.PROTECT),
-        new Section("fall", "Fall", Key.ANIMATION, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT, Key.HIDE_LEAVES),
-        new Section("axe", "Axe", Key.REQUIRE_AXE, Key.DURABILITY),
+        new Section("fall", "Fall", Key.ANIMATION, Key.LAND_BLOCKS, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT, Key.HIDE_LEAVES),
+        new Section("axe", "Tool", Key.REQUIRE_AXE, Key.DURABILITY),
         new Section("server", "Server", Key.MAX_LOGS, Key.MAX_BLOCKS, Key.RADIUS, Key.FEEDBACK, Key.WELCOME, Key.DISPLAY_CAP, Key.SLICE_MS),
     };
 
@@ -52,6 +60,9 @@ public final class TimberScreen extends OptionsSubScreen {
 
     public final Mode mode;
     private final Settings remote;
+    /** The tools list as typed (applied when the screen closes), and as it was when it opened. */
+    public EditBox toolsBox;
+    private String toolsAtOpen = "";
 
     public TimberScreen(Screen parent) {
         super(parent, Minecraft.getInstance().options, Component.translatableWithFallback("vanilla_timber.config.title", "Timber settings"));
@@ -72,6 +83,7 @@ public final class TimberScreen extends OptionsSubScreen {
         return net.getCommands().getRoot().getChild("timber") != null ? Mode.OPERATOR : Mode.READ_ONLY;
     }
 
+//? if >=1.21 {
     @Override
     protected void addTitle() {
         LinearLayout header = layout.addToHeader(LinearLayout.vertical().spacing(4));
@@ -80,6 +92,27 @@ public final class TimberScreen extends OptionsSubScreen {
         header.addChild(new StringWidget(subtitle().withStyle(ChatFormatting.GRAY), font));
         layout.setHeaderHeight(46);
     }
+//?} else {
+/*    private OptionsList list;
+
+    @Override
+    protected void init() {
+        list = new OptionsList(minecraft, width, height, 32, height - 32, 25);
+        addOptions();
+        addWidget(list);
+        addRenderableWidget(toolsBox);
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose()).bounds(width / 2 + 5, height - 27, 150, 20).build());
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor g, int mouseX, int mouseY, float partial) {
+        renderBackground(g);
+        list.render(g, mouseX, mouseY, partial);
+        g.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
+        g.drawCenteredString(font, subtitle().withStyle(ChatFormatting.GRAY), width / 2, 19, 0xFFFFFF);
+        super.render(g, mouseX, mouseY, partial);
+    }
+*///?}
 
     private MutableComponent subtitle() {
         return switch (mode) {
@@ -90,16 +123,19 @@ public final class TimberScreen extends OptionsSubScreen {
         };
     }
 
+//? if >=1.21 {
     @Override
+//?}
     protected void addOptions() {
         java.util.Map<Key, OptionInstance<?>> made = new java.util.EnumMap<>(Key.class);
         for (Section s : SECTIONS) {
             Component head = Component.translatableWithFallback("vanilla_timber.config.section." + s.id(), s.title());
-            list.addHeader(head);
+            header(head);
             headers.add(head.getString());
             OptionInstance<?>[] row = new OptionInstance<?>[s.keys().length];
             for (int i = 0; i < row.length; i++) made.put(s.keys()[i], row[i] = option(s.keys()[i]));
             list.addSmall(row);
+            if (s.id().equals("axe")) addTools();
         }
         for (java.util.Map.Entry<Key, OptionInstance<?>> e : made.entrySet()) {
             Key k = e.getKey();
@@ -109,6 +145,70 @@ public final class TimberScreen extends OptionsSubScreen {
             if (mode == Mode.READ_ONLY || mode == Mode.ABSENT || mode == Mode.OPERATOR && remote != null && !remote.has(k.json)) w.active = false;
         }
         follow(value(Key.CHOPS) == 1);
+    }
+
+    private void header(Component head) {
+//? if >=1.21.11 {
+        list.addHeader(head);
+//?} else if >=1.21 {
+/*        list.addSmall(new StringWidget(310, 20, head, font).alignLeft(), null);
+*///?}
+    }
+
+    /** The {@code tools} list: a text field under the axe switch, applied when the screen closes. */
+    private void addTools() {
+        java.util.List<String> now = mode == Mode.LOCAL ? Config.tools().entries() : remote != null && remote.tools() != null ? remote.tools()
+            : io.github.profetgit.vanillatimber.server.Tools.DEFAULT;
+        toolsAtOpen = String.join(", ", now);
+        Component caption = Component.translatableWithFallback("vanilla_timber.config.tools", "Fells with");
+        toolsBox = new EditBox(font, 0, 0, 150, 20, caption);
+        toolsBox.setMaxLength(2048);
+        toolsBox.setValue(toolsAtOpen);
+//? if >=1.21 {
+        toolsBox.moveCursorToStart(false);
+//?} else {
+/*        toolsBox.moveCursorToStart();
+*///?}
+//? if >=1.21 {
+        toolsBox.setHint(Component.translatableWithFallback("vanilla_timber.config.tools.hint", "Item ids and #tags").withStyle(ChatFormatting.DARK_GRAY));
+//?} else {
+/*        toolsBox.setHint(Component.translatableWithFallback("vanilla_timber.config.tools.hint_footer", "Fells with: item ids, #tags").withStyle(ChatFormatting.DARK_GRAY));
+*///?}
+        MutableComponent help = Component.translatableWithFallback("vanilla_timber.config.tools.help",
+            "Items that fell trees while Require an axe is on: item ids (minecraft:stick) and #tags (#minecraft:axes), comma separated. Empty: axes. Saved when you leave this screen.");
+        if (mode == Mode.READ_ONLY) help.append("\n").append(Component.translatableWithFallback("vanilla_timber.config.op_only",
+            "Only operators can change this (/timber config)").withStyle(ChatFormatting.YELLOW));
+        toolsBox.setTooltip(Tooltip.create(help));
+        boolean editable = mode == Mode.LOCAL || mode == Mode.OPERATOR && remote != null;
+        toolsBox.setEditable(editable);
+        toolsBox.active = editable;
+//? if >=1.21 {
+        StringWidget label = new StringWidget(150, 20, caption, font);
+        list.addSmall(label, toolsBox);
+//?} else {
+/*        toolsBox.setX(width / 2 - 155);
+        toolsBox.setY(height - 27);
+*///?}
+    }
+
+    @Override
+    public void removed() {
+        if (toolsBox != null && !toolsBox.getValue().trim().equals(toolsAtOpen)) applyTools(toolsBox.getValue());
+        super.removed();
+    }
+
+    /** Self-test hook too: sets the list the way closing the screen does. */
+    public void applyTools(String text) {
+        java.util.List<String> entries = text.isBlank() ? io.github.profetgit.vanillatimber.server.Tools.DEFAULT : io.github.profetgit.vanillatimber.server.Tools.split(text);
+        if (mode == Mode.LOCAL) {
+            IntegratedServer server = minecraft.getSingleplayerServer();
+            if (server != null) server.execute(() -> Config.setTools(entries));
+            else Config.setTools(entries);
+        } else if (mode == Mode.OPERATOR && minecraft.getConnection() != null) {
+            minecraft.getConnection().sendCommand("timber config tools " + (text.isBlank() ? "default" : String.join(" ", entries)));
+        } else return;
+        toolsAtOpen = text.trim();
+        applied.add("tools=" + String.join(",", entries));
     }
 
     /** The chop count only matters in chop mode: greyed out while it is off, as vanilla greys dependent options. */
@@ -167,7 +267,11 @@ public final class TimberScreen extends OptionsSubScreen {
         }
         if (k.min == 0 && k.max == 1) return OptionInstance.createBoolean(id, typed(help(k)), now == 1, b -> apply(k, b ? 1 : 0));
         return new OptionInstance<>(id, typed(help(k)), (cap, v) -> CommonComponents.optionNameValue(cap, Component.literal(shown(k, v))),
+//? if >=1.21 {
             new OptionInstance.IntRange(k.min, k.max, false), now, v -> apply(k, v));
+//?} else {
+/*            new OptionInstance.IntRange(k.min, k.max), now, v -> apply(k, v));
+*///?}
     }
 
     private static String[] choices(Key k) {
@@ -195,13 +299,9 @@ public final class TimberScreen extends OptionsSubScreen {
             case CHOP_CURVE -> io.github.profetgit.vanillatimber.server.Chops.needed(5, v) + " to " + io.github.profetgit.vanillatimber.server.Chops.needed(100, v);
             case RADIUS -> v + " blocks";
             case SLICE_MS -> v + " ms";
+            case LAND_BLOCKS -> v == 0 ? "Off" : v + "%";
             case TRUNK_DAMAGE -> (v % 2 == 0 ? Integer.toString(v / 2) : v / 2 + ".5") + (v == 2 ? " heart" : " hearts");
             default -> Integer.toString(v);
         };
     }
 }
-//?} else {
-/*public final class TimberScreen {
-    private TimberScreen() {}
-}
-*///?}

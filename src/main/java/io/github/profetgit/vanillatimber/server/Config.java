@@ -16,15 +16,16 @@ import java.nio.file.Path;
  */
 public final class Config {
     public enum Key {
-        MAX_LOGS("max_logs", 256, 16, 1024, "Most logs in one tree; a bigger tree is left alone (only the chopped log breaks)"),
-        MAX_BLOCKS("max_blocks", 900, 100, 1200, "Most leaves (and attached blocks) one tree takes with it"),
-        RADIUS("radius", 12, 4, 32, "How far, in blocks sideways, a tree may reach from the cut"),
-        REQUIRE_AXE("require_axe", 1, 0, 1, "1: only fell trees when chopping with an axe (#minecraft:axes or #c:tools/axe)"),
+        MAX_LOGS("max_logs", 1024, 16, 4096, "Most logs in one tree; a bigger tree is left alone (only the chopped log breaks)"),
+        MAX_BLOCKS("max_blocks", 5000, 100, 8000, "Most leaves (and attached blocks) one tree takes with it"),
+        RADIUS("radius", 12, 4, 64, "How far, in blocks sideways, a tree may reach from the cut"),
+        REQUIRE_AXE("require_axe", 1, 0, 1, "1: only fell trees when chopping with an item from the tools list (axes by default)"),
         SNEAK("sneak", 0, 0, 2, "0: sneaking takes a single log; 1: only fell while sneaking; 2: always fell"),
         DURABILITY("durability", 1, 0, 1, "1: each log costs axe durability (Unbreaking applies); a tree that would break the axe still falls and the axe breaks; chop mode pays per chop instead"),
         CHOPS("chops", 0, 0, 1, "1: chop mode: each break of a trunk log is a chop that wears the axe and cracks the log; the tree falls on the last chop (chop_curve)"),
         CHOP_CURVE("chop_curve", 10, 1, 100, "Chop mode: chops a tree takes = 1 + a * ln(1 + (logs - 1) / a) with a = this value; smaller is fewer chops"),
         ANIMATION("animation", 1, 0, 1, "0: the tree vanishes at once and drops at the stump"),
+        LAND_BLOCKS("land_blocks", 0, 0, 100, "Percent of the trunk that stays on the ground as sideways logs, with the leaves next to them, for you to chop by hand; the rest drops as items (ignored when animation is 0)"),
         DROPS("drops", 0, 0, 1, "0: each log hops out where it lands, leaf drops burst from the crown; 1: everything drops at the player"),
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),
         FEEDBACK("feedback", 1, 0, 1, "1: action bar message when a tree is not felled, and why"),
@@ -33,7 +34,7 @@ public final class Config {
         KNOCKBACK("knockback", 1, 0, 1, "1: the falling trunk knocks back every mob it sweeps through (never players)"),
         TRUNK_DAMAGE("trunk_damage", 4, 0, 20, "Damage the trunk deals to a hostile mob without a name tag that it hits (half hearts); other mobs are only pushed"),
         HIDE_LEAVES("hide_leaves", 0, 0, 1, "1: leaves shut in on all sides get no display (cheaper, but the crown looks hollow when it falls)"),
-        DISPLAY_CAP("display_cap", 1200, 100, 4000, "Most displays one fall may spawn"),
+        DISPLAY_CAP("display_cap", 600, 100, 4000, "Most displays one fall may spawn for players without Timber; over it the rest of the crown only bursts at the slam"),
         SLICE_MS("slice_ms", 2, 1, 20, "Server milliseconds a fall may spend per tick when work is time-sliced");
 
         public final String json;
@@ -60,6 +61,10 @@ public final class Config {
 
     private static final Path FILE = Platform.get().configDir().resolve("timber.json");
     private static volatile int[] values = defaults();
+    /** The items that fell while require_axe is 1 (key {@code tools}, a list of item ids and #tags). */
+    private static volatile Tools tools = Tools.DEFAULTS;
+    static final String TOOLS = "tools";
+    private static final String TOOLS_COMMENT = "Items that fell trees while require_axe is 1: item ids (minecraft:stick) and item tags (#minecraft:axes)";
     private static JsonObject extra = new JsonObject();
     private static long stamp = -1;
     /** The file failed to parse at the last read: the values in use are the last good ones. */
@@ -104,6 +109,17 @@ public final class Config {
         return get(key) == 1;
     }
 
+    public static Tools tools() {
+        return tools;
+    }
+
+    /** Sets the tools list (invalid entries skipped; nothing valid: the defaults) and saves it; returns what is stored. */
+    public static Tools setTools(java.util.List<String> entries) {
+        tools = Tools.of(entries);
+        write();
+        return tools;
+    }
+
     public static int maxLogs() {
         return get(Key.MAX_LOGS);
     }
@@ -146,8 +162,18 @@ public final class Config {
                 Timber.LOG.warn("Timber: config {} is not a number, using {}", k.json, k.def);
             }
         }
+        Tools t = Tools.DEFAULTS;
+        JsonElement te = raw.get(TOOLS);
+        if (te != null) {
+            java.util.List<String> list = new java.util.ArrayList<>();
+            if (te.isJsonArray()) for (JsonElement x : te.getAsJsonArray()) if (x.isJsonPrimitive()) list.add(x.getAsString());
+            if (te.isJsonPrimitive()) list.addAll(Tools.split(te.getAsString()));
+            if (Tools.clean(list) == null) Timber.LOG.warn("Timber: config tools has no valid entry, using {}", Tools.DEFAULT);
+            t = Tools.of(list);
+        }
         JsonObject rest = new JsonObject();
-        for (String name : raw.keySet()) if (Key.of(name) == null) rest.add(name, raw.get(name));
+        for (String name : raw.keySet()) if (Key.of(name) == null && !name.equals(TOOLS)) rest.add(name, raw.get(name));
+        tools = t;
         values = v;
         extra = rest;
         write();
@@ -164,6 +190,7 @@ public final class Config {
 
     public static void reset() {
         values = defaults();
+        tools = Tools.DEFAULTS;
         write();
     }
 
@@ -173,9 +200,13 @@ public final class Config {
         for (int i = 0; i < keys.length; i++) {
             Key k = keys[i];
             b.append("  // ").append(k.comment).append(" (").append(k.min).append("..").append(k.max).append(", default ").append(k.def).append(")\n");
-            b.append("  \"").append(k.json).append("\": ").append(values[i]);
-            b.append(i < keys.length - 1 || !extra.keySet().isEmpty() ? ",\n" : "\n");
+            b.append("  \"").append(k.json).append("\": ").append(values[i]).append(",\n");
         }
+        b.append("  // ").append(TOOLS_COMMENT).append(" (default ").append(String.join(", ", Tools.DEFAULT)).append(")\n");
+        com.google.gson.JsonArray list = new com.google.gson.JsonArray();
+        for (String e : tools.entries()) list.add(e);
+        b.append("  \"").append(TOOLS).append("\": ").append(list);
+        b.append(!extra.keySet().isEmpty() ? ",\n" : "\n");
         int n = 0, total = extra.keySet().size();
         for (String name : extra.keySet()) {
             b.append("  \"").append(name).append("\": ").append(extra.get(name));
@@ -200,6 +231,11 @@ public final class Config {
             if (Files.exists(FILE) && Files.getLastModifiedTime(FILE).toMillis() != stamp) load();
         } catch (IOException ignored) {
         }
+    }
+
+    /** The {@code tools} line for {@code /timber config}. */
+    public static String describeTools() {
+        return TOOLS + " = " + tools.text() + " (default " + String.join(", ", Tools.DEFAULT) + ")";
     }
 
     /** {@code key = value} lines for {@code /timber config}. */

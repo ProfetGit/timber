@@ -230,7 +230,7 @@ public final class GroundShadow {
                 ox[i] = o.getX() + cells[i * 4];
                 oy[i] = o.getY() + cells[i * 4 + 1];
                 oz[i] = o.getZ() + cells[i * 4 + 2];
-                os[i] = f.msg.palette().get(cells[i * 4 + 3] >> 1);
+                os[i] = f.msg.palette().get(cells[i * 4 + 3] >> 2);
             }
         }
 

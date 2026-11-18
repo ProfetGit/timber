@@ -1,7 +1,6 @@
 package io.github.profetgit.vanillatimber.client;
 
 import io.github.profetgit.vanillatimber.net.Settings;
-import io.github.profetgit.vanillatimber.server.Falls;
 import io.github.profetgit.vanillatimber.server.TreeScan;
 import io.github.profetgit.vanillatimber.server.TreeTypes;
 import net.minecraft.client.Minecraft;
@@ -11,7 +10,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -23,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class ChopClient {
     private static final TagKey<Block> MUSHROOM_STEMS = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "mushroom_stems"));
     private static volatile int chops, sneak, requireAxe = 1;
+    private static volatile io.github.profetgit.vanillatimber.server.Tools tools = io.github.profetgit.vanillatimber.server.Tools.DEFAULTS;
     /** The server's settings as it last sent them, or null (no Timber on the server, or not joined). */
     private static volatile Settings server;
 
@@ -33,6 +32,7 @@ public final class ChopClient {
         chops = s.get("chops", 0);
         sneak = s.get("sneak", 0);
         requireAxe = s.get("require_axe", 1);
+        tools = io.github.profetgit.vanillatimber.server.Tools.of(s.tools());
     }
 
     public static void reset() {
@@ -40,6 +40,7 @@ public final class ChopClient {
         chops = 0;
         sneak = 0;
         requireAxe = 1;
+        tools = io.github.profetgit.vanillatimber.server.Tools.DEFAULTS;
     }
 
     /** The server's settings for the settings screen, or null when it sent none. */
@@ -64,6 +65,6 @@ public final class ChopClient {
         if (!(state.is(BlockTags.LOGS) || state.is(TreeScan.LOGS) || state.is(MUSHROOM_STEMS)) || state.is(TreeTypes.NEVER)) return false;
         if (requireAxe != 1) return true;
         ItemStack tool = mc.player.getMainHandItem();
-        return tool.isEmpty() || tool.is(ItemTags.AXES) || tool.is(Falls.C_AXES);
+        return tool.isEmpty() || tools.matches(tool);
     }
 }
