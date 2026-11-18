@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.2.0 — unreleased
+## 2.2.0 — 2026-11-18
 
 ### Added
 - **The tree can stay fallen.** `land_blocks` (0 to 100 %, off by default): that share of the trunk stays on the ground as sideways logs when the fall ends, with the leaves right next to it, for you to chop by hand (vines, cocoa and moss still fall off). The rest pops into drops as before. With it on, trees fall straight along north, south, east or west (the way you face, or to the side if that is blocked), so the trunk lies as one straight row. Logs that land cost no axe durability, are never felled again as a tree, and their leaves decay once you have chopped the logs away.

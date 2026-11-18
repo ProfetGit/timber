@@ -30,6 +30,9 @@ Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 1.21.1 and 1.20.1** on **Fa
 - **Safe for servers.** Land claims and other protections are asked about every block before a tree falls. If the server crashes mid-fall, the loot is waiting at the stump on the next start. A multi-break mod fells one tree, not twenty.
 - **Fair durability.** The axe pays for the whole tree, Unbreaking included. If your axe is too worn for the whole tree, the tree still falls and the axe breaks. Drops are the normal block drops for your axe, Fortune and Silk Touch included.
 - **Chop mode, if you want work for your wood.** Turn on `chops` 1 and a tree takes several chops before it falls, like HT's TreeChop: the log cracks a little more each time and the progress is saved with the world. On giant trunks (2×2 and modded ones up to 5×5) a chop cuts the whole layer, and the tree drops onto the stump before it tips over. Off by default.
+- **Or let the tree lie there.** Turn on `land_blocks` and the felled trunk stays on the ground as logs, with the leaves next to it, for you to chop by hand (no climbing to the top logs). It falls straight along an axis and lands as a neat row of logs. Any share from 10 to 100 %. Off by default.
+- **Giants fall like giants.** The bigger the tree, the slower it comes down. Worldgen giants like sequoias can be felled too.
+- **Your tools, your rules.** `tools` lists what fells trees: axes by default, any item or tag you add. `require_axe` 0 lets anything fell.
 - **Everyone chooses.** Any player can turn it off or on for themselves with `/trigger timber`.
 
 ![How to use](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-how-to-use.webp)
