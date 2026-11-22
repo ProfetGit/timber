@@ -359,5 +359,10 @@
     "to": "data/$1/tags/blocks/",
     "groups": "1",
     "when": "<1.21"
+  },
+  {
+    "from": "BlockStateModelPart",
+    "to": "BlockModelPart",
+    "when": "<26.1"
   }
 ]

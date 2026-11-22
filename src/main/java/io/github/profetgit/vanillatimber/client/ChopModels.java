@@ -1,6 +1,6 @@
 package io.github.profetgit.vanillatimber.client;
 
-//? if fabric && >=26.2 {
+//? if fabric && >=1.21.11 {
 import io.github.profetgit.vanillatimber.core.Cut;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,17 +10,10 @@ import java.util.function.Predicate;
 import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
 import net.fabricmc.fabric.api.client.model.loading.v1.ModelModifier;
 import net.fabricmc.fabric.api.client.model.loading.v1.wrapper.WrapperBlockStateModel;
-import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter;
-import net.fabricmc.fabric.api.client.renderer.v1.mesh.ShadeMode;
 import net.fabricmc.fabric.api.util.TriState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.builders.UVPair;
-import net.minecraft.client.renderer.block.BlockAndTintGetter;
-import net.minecraft.client.renderer.block.BlockStateModelSet;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
-import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -36,6 +29,22 @@ import net.minecraft.world.level.block.state.properties.Property;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.jspecify.annotations.Nullable;
+//? if >=26.1 {
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.ShadeMode;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.BlockStateModelSet;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+//?} else {
+/*import net.fabricmc.fabric.api.renderer.v1.mesh.QuadEmitter;
+import net.fabricmc.fabric.api.renderer.v1.mesh.ShadeMode;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.world.level.BlockAndTintGetter;
+*///?}
 
 /**
  * Chop mode's shrinking logs (PRD 5.13): the one class that names Fabric's model loading and Renderer APIs. A log's
@@ -74,9 +83,23 @@ public final class ChopModels {
 
     private record Skin(BakedQuad[] faces) {}
 
-    private static BlockStateModelSet models() {
+//? if >=26.1 {
+    private static Object modelSet() {
         return Minecraft.getInstance().getModelManager().getBlockStateModelSet();
     }
+
+    private static BlockStateModel model(BlockState state) {
+        return ((BlockStateModelSet) modelSet()).get(state);
+    }
+//?} else {
+/*    private static Object modelSet() {
+        return Minecraft.getInstance().getModelManager().getMissingBlockStateModel();
+    }
+
+    private static BlockStateModel model(BlockState state) {
+        return Minecraft.getInstance().getBlockRenderer().getBlockModel(state);
+    }
+*///?}
 
     private static BlockState allFaces(BlockState state) {
         for (Property<?> p : state.getProperties()) {
@@ -104,7 +127,7 @@ public final class ChopModels {
 
     private static BakedQuad[] faces(BlockState state) {
         List<BlockStateModelPart> parts = new ArrayList<>();
-        models().get(state).collectParts(RandomSource.create(42L), parts);
+        model(state).collectParts(RandomSource.create(42L), parts);
         BakedQuad[] out = new BakedQuad[6];
         for (Direction d : DIRS) {
             for (BlockStateModelPart part : parts) {
@@ -118,7 +141,7 @@ public final class ChopModels {
     }
 
     private static Skin skin(BlockState state) {
-        Object set = models();
+        Object set = modelSet();
         if (skinsFor != set) {
             SKINS.clear();
             skinsFor = set;
@@ -138,7 +161,7 @@ public final class ChopModels {
             BakedQuad q = theirs[d.ordinal()];
             if (q == null) {
                 q = own[d.ordinal()];
-                if (q != null && end != null && d.getAxis() != axis) q = resprite(q, end.materialInfo().sprite());
+                if (q != null && end != null && d.getAxis() != axis) q = resprite(q, sprite(end));
             }
             out[d.ordinal()] = q;
         }
@@ -155,26 +178,52 @@ public final class ChopModels {
         return UVPair.unpackV(q.packedUV(i));
     }
 
-    private static BakedQuad.MaterialInfo withSprite(BakedQuad.MaterialInfo m, TextureAtlasSprite sprite, int tint) {
+//? if >=26.1 {
+    private static TextureAtlasSprite sprite(BakedQuad q) {
+        return q.materialInfo().sprite();
+    }
+
+    private static int tint(BakedQuad q) {
+        return q.materialInfo().tintIndex();
+    }
+
+    private static BakedQuad make(BakedQuad q, Vector3fc[] pos, long[] uv, TextureAtlasSprite sprite, int tint) {
+        return new BakedQuad(pos[0], pos[1], pos[2], pos[3], uv[0], uv[1], uv[2], uv[3], q.direction(), withSprite(q.materialInfo(), sprite, tint));
+    }
+//?} else {
+/*    private static TextureAtlasSprite sprite(BakedQuad q) {
+        return q.sprite();
+    }
+
+    private static int tint(BakedQuad q) {
+        return q.tintIndex();
+    }
+
+    private static BakedQuad make(BakedQuad q, Vector3fc[] pos, long[] uv, TextureAtlasSprite sprite, int tint) {
+        return new BakedQuad(pos[0], pos[1], pos[2], pos[3], uv[0], uv[1], uv[2], uv[3], tint, q.direction(), sprite, q.shade(), q.lightEmission());
+    }
+*///?}
 //? if >=26.3 {
+    private static BakedQuad.MaterialInfo withSprite(BakedQuad.MaterialInfo m, TextureAtlasSprite sprite, int tint) {
         return new BakedQuad.MaterialInfo(sprite, m.layer(), m.itemRenderType(), m.itemGlintRenderType(), m.itemGlintSpecialRenderType(), tint,
             m.shadeDirectionOverride(), m.lightEmission());
-//?} else {
-/*        return new BakedQuad.MaterialInfo(sprite, m.layer(), m.itemRenderType(), tint, m.shade(), m.lightEmission());
-*///?}
     }
+//?} else if >=26.1 {
+/*    private static BakedQuad.MaterialInfo withSprite(BakedQuad.MaterialInfo m, TextureAtlasSprite sprite, int tint) {
+        return new BakedQuad.MaterialInfo(sprite, m.layer(), m.itemRenderType(), tint, m.shade(), m.lightEmission());
+    }
+*///?}
 
     /** The same quad showing {@code sprite}'s whole texture where it showed its own sprite's. */
     private static BakedQuad resprite(BakedQuad q, TextureAtlasSprite sprite) {
-        TextureAtlasSprite old = q.materialInfo().sprite();
+        TextureAtlasSprite old = sprite(q);
         long[] uv = new long[4];
         for (int i = 0; i < 4; i++) {
             float nu = (u(q, i) - old.getU0()) / (old.getU1() - old.getU0());
             float nv = (v(q, i) - old.getV0()) / (old.getV1() - old.getV0());
             uv[i] = UVPair.pack(sprite.getU0() + nu * (sprite.getU1() - sprite.getU0()), sprite.getV0() + nv * (sprite.getV1() - sprite.getV0()));
         }
-        return new BakedQuad(q.position0(), q.position1(), q.position2(), q.position3(), uv[0], uv[1], uv[2], uv[3], q.direction(),
-            withSprite(q.materialInfo(), sprite, q.materialInfo().tintIndex()));
+        return make(q, new Vector3fc[] {q.position0(), q.position1(), q.position2(), q.position3()}, uv, sprite, tint(q));
     }
 
     private static float coord(Vector3fc p, int axis) {
@@ -210,14 +259,13 @@ public final class ChopModels {
             pos[i] = new Vector3f(n[0], n[1], n[2]);
             uv[i] = UVPair.pack(u0 + s * du1 + t * du2, v0 + s * dv1 + t * dv2);
         }
-        return new BakedQuad(pos[0], pos[1], pos[2], pos[3], uv[0], uv[1], uv[2], uv[3], d, q.materialInfo());
+        return make(q, pos, uv, sprite(q), tint(q));
     }
 
     private static BakedQuad moved(BakedQuad q, Direction by) {
         Vector3f[] pos = new Vector3f[4];
         for (int i = 0; i < 4; i++) pos[i] = new Vector3f(q.position(i)).add(by.getStepX(), by.getStepY(), by.getStepZ());
-        return new BakedQuad(pos[0], pos[1], pos[2], pos[3], q.packedUV0(), q.packedUV1(), q.packedUV2(), q.packedUV3(), q.direction(),
-            withSprite(q.materialInfo(), q.materialInfo().sprite(), -1));
+        return make(q, pos, new long[] {q.packedUV0(), q.packedUV1(), q.packedUV2(), q.packedUV3()}, sprite(q), -1);
     }
 
     // ---- the cell's quads ----
@@ -241,11 +289,11 @@ public final class ChopModels {
         BlockPos np = pos.relative(d);
         BlockState n = level.getBlockState(np);
         List<BlockStateModelPart> parts = new ArrayList<>();
-        models().get(n).collectParts(RandomSource.create(42L), parts);
+        model(n).collectParts(RandomSource.create(42L), parts);
         List<Cell> out = new ArrayList<>();
         for (BlockStateModelPart part : parts) {
             for (BakedQuad q : part.getQuads(d.getOpposite())) {
-                int tint = q.materialInfo().tintIndex();
+                int tint = tint(q);
                 int col = tint >= 0 ? tintColor(n, level, np, tint) : -1;
                 out.add(new Cell(moved(q, d), null, -1, col));
             }
@@ -318,7 +366,7 @@ public final class ChopModels {
     private static void emit(QuadEmitter e, Cell c) {
         e.cullFace(c.cull());
         e.fromBakedQuad(c.quad());
-        e.tintIndex(c.quad().materialInfo().tintIndex());
+        e.tintIndex(tint(c.quad()));
         if (c.color() != -1) for (int i = 0; i < 4; i++) e.color(i, 0xFF000000 | c.color());
         if (c.light() >= 0) for (int i = 0; i < 4; i++) e.lightmap(i, c.light());
         e.ambientOcclusion(c.light() >= 0 ? TriState.FALSE : TriState.DEFAULT);
@@ -333,7 +381,7 @@ public final class ChopModels {
         Skin skin = skin(state);
         List<BakedQuad> quads = new ArrayList<>();
         if (!Cut.empty(box)) for (Direction d : DIRS) if (skin.faces()[d.ordinal()] != null) quads.add(crop(skin.faces()[d.ordinal()], box));
-        BlockStateModel model = models().get(state);
+        BlockStateModel model = model(state);
         return new BlockStateModelPart() {
             @Override
             public List<BakedQuad> getQuads(@Nullable Direction direction) {
@@ -345,6 +393,7 @@ public final class ChopModels {
                 return false;
             }
 
+//? if >=26.1 {
             @Override
             public net.minecraft.client.resources.model.sprite.Material.Baked particleMaterial() {
                 return model.particleMaterial();
@@ -354,6 +403,12 @@ public final class ChopModels {
             public int materialFlags() {
                 return model.materialFlags();
             }
+//?} else {
+/*            @Override
+            public TextureAtlasSprite particleIcon() {
+                return model.particleIcon();
+            }
+*///?}
         };
     }
 

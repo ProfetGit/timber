@@ -26,7 +26,32 @@ abstract class BlockCrackMixin {
         else original.call(model, random, parts);
     }
 }
-//?} else {
+//?} else if fabric && >=1.21.11 {
+/*import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
+import io.github.profetgit.vanillatimber.client.ChopModels;
+import java.util.List;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.model.BlockModelPart;
+import net.minecraft.client.renderer.block.model.BlockStateModel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.state.BlockState;
+import org.spongepowered.asm.mixin.injection.At;
+
+@Mixin(BlockRenderDispatcher.class)
+abstract class BlockCrackMixin {
+    @WrapOperation(method = "renderBreakingTexture", at = @At(value = "INVOKE",
+        target = "Lnet/minecraft/client/renderer/block/model/BlockStateModel;collectParts(Lnet/minecraft/util/RandomSource;Ljava/util/List;)V"))
+    private void vanilla_timber$core(BlockStateModel model, RandomSource random, List<BlockStateModelPart> parts, Operation<Void> original,
+                                     @Local(argsOnly = true) BlockState state, @Local(argsOnly = true) BlockPos pos) {
+        BlockStateModelPart core = ChopModels.crackPart(state, pos);
+        if (core != null) parts.add(core);
+        else original.call(model, random, parts);
+    }
+}
+*///?} else {
 /*@Mixin(targets = "net.minecraft.client.renderer.LevelRenderer")
 abstract class BlockCrackMixin {
 }

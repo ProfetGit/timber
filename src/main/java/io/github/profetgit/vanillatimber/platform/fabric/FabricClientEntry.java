@@ -18,7 +18,7 @@ public final class FabricClientEntry implements ClientModInitializer, Platform.C
     @Override
     public void onInitializeClient() {
         TimberClient.init(this);
-//? if >=26.2
+//? if >=1.21.11
         ChopModels.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> TimberClient.joined());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> TimberClient.left());
