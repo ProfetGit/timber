@@ -3,7 +3,7 @@
 ## 2.2.1 — 2026-11-22
 
 ### Added
-- **Minecraft 1.21.11 on Fabric and Quilt**, with every 2.2 feature including the settings screen (Mod Menu button, `/timber config`, `config/timber.json`).
+- **Minecraft 1.21.11 on Fabric, Quilt, NeoForge and Forge**, with every 2.2 feature including the settings screen (Mod Menu button, `/timber config`, `config/timber.json`).
 - **Chop mode's shrinking logs on 1.21.11**: each cut narrows the log, as on 26.2 and 26.3.
 
 ## 2.2.0 — 2026-11-18
