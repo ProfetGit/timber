@@ -87,7 +87,7 @@ public final class Chops {
     // ---- the mining packet and the delayed break (bracketed by ChopMixin) ----
 
     private static boolean canDestroy(ItemStack tool, BlockState state, ServerLevel level, BlockPos pos, ServerPlayer player) {
-//? if >=26.1 {
+//? if >=1.21.5 {
         return tool.canDestroyBlock(state, level, pos, player);
 //?} else {
 /*        return tool.getItem().canAttackBlock(state, level, pos, player);
@@ -95,7 +95,7 @@ public final class Chops {
     }
 
     private static boolean inReach(ServerPlayer player, BlockPos pos) {
-//? if >=26.1 {
+//? if >=1.21.11 {
         return player.isWithinBlockInteractionRange(pos, 1.0);
 //?} else if >=1.20.5 {
 /*        return player.canInteractWithBlock(pos, 1.0);

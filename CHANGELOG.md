@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1 — unreleased
+
+### Added
+- **Minecraft 1.21.11 on Fabric and Quilt**, with every 2.2 feature including the settings screen (Mod Menu button, `/timber config`, `config/timber.json`).
+
 ## 2.2.0 — 2026-11-18
 
 ### Added
