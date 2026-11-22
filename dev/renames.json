@@ -117,12 +117,12 @@
   {
     "regex": "net\\.neoforged\\.neoforge\\.event\\.level\\.block\\.BreakBlockEvent",
     "to": "net.neoforged.neoforge.event.level.BlockEvent.BreakEvent",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "from": "BreakBlockEvent",
     "to": "BreakEvent",
-    "when": "<1.21.2"
+    "when": "<26.1"
   },
   {
     "from": "AddServerReloadListenersEvent",
@@ -364,5 +364,12 @@
     "from": "BlockStateModelPart",
     "to": "BlockModelPart",
     "when": "<26.1"
+  },
+  {
+    "regex": "ModList\\.(isLoaded|getModContainerById)\\(",
+    "to": "ModList.get().$1(",
+    "when": "<26.1",
+    "files": "^ForgeEntry\\.java$",
+    "groups": "1"
   }
 ]

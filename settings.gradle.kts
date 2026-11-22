@@ -23,6 +23,8 @@ stonecutter {
         legacy("1.21.1")
         version("1.21.1-neoforge", "1.21.1").buildscript = "build.neoforge-legacy.gradle.kts"
         legacy("1.21.11")
+        version("1.21.11-neoforge", "1.21.11").buildscript = "build.neoforge-legacy.gradle.kts"
+        version("1.21.11-forge", "1.21.11").buildscript = "build.forge-legacy.gradle.kts"
         legacy("1.20.1")
         target("26.2", "fabric", "neoforge", "forge")
         target("26.3", "fabric", "neoforge", "forge")
