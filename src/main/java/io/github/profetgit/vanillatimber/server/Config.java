@@ -25,6 +25,7 @@ public final class Config {
         CHOPS("chops", 0, 0, 1, "1: chop mode: each break of a trunk log is a chop that wears the axe and cracks the log; the tree falls on the last chop (chop_curve)"),
         CHOP_CURVE("chop_curve", 10, 1, 100, "Chop mode: chops a tree takes = 1 + a * ln(1 + (logs - 1) / a) with a = this value; smaller is fewer chops"),
         ANIMATION("animation", 1, 0, 1, "0: the tree vanishes at once and drops at the stump"),
+        STYLE("style", 0, 0, 1, "0: classic, the tree slams and its logs pop one ring at a time; 1: poof, the tree slams, sits there a moment and vanishes in one cloud, its items left behind (no tree stays fallen; ignored when animation is 0)"),
         LAND_BLOCKS("land_blocks", 0, 0, 100, "Percent of the trunk that stays on the ground as sideways logs, with the leaves next to them, for you to chop by hand; the rest drops as items (ignored when animation is 0)"),
         DROPS("drops", 0, 0, 1, "0: each log hops out where it lands, leaf drops burst from the crown; 1: everything drops at the player"),
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),

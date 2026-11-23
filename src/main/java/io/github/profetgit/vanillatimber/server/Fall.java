@@ -83,6 +83,8 @@ public final class Fall {
     private final Set<UUID> sentTo = new HashSet<>();
     private TreeFall payload;
     public final int id;
+    /** The poof style (config {@code style} 1 when the tree was chopped). */
+    public final boolean poof;
     public int n = -1, rolled, dropped, payloads;
     /** Items of landed parts (they became blocks, so they never drop), and the blocks placed (tests); {@code rolled == dropped + placed}. */
     public int placed, landedLogs, landedLeaves, landFailed;
@@ -100,7 +102,8 @@ public final class Fall {
         this.level = level;
         this.tree = tree;
         this.cutter = cutter;
-        this.tl = new Timeline(tree.spec(), tree.logRings(), land);
+        this.poof = Config.get(Config.Key.STYLE) == 1;
+        this.tl = new Timeline(tree.spec(), tree.logRings(), land, poof);
         landed = tl.landed;
         stepNs = Falls.timed() ? new long[tl.end + 1] : null;
         x = tree.px() / 1000.0;
@@ -299,7 +302,7 @@ public final class Fall {
         for (ServerPlayer p : level.getChunkSource().chunkMap.getPlayers(chunk, false)) {
             if (!Viewers.local(p) || sentTo.contains(p.getUUID()) || !TreeFall.canSend(p)) continue;
             sentTo.add(p.getUUID());
-            if (payload == null || payload.e() != n) payload = TreeFall.of(id, tree, n, landed, landRing);
+            if (payload == null || payload.e() != n) payload = TreeFall.of(id, tree, n, landed, landRing, poof);
             payload.send(p);
             payloads++;
         }
@@ -553,6 +556,17 @@ public final class Fall {
                 if ((spawned ? ringShown(e.ring()) : ringExists(e.ring())) && popping[e.ring()]) Fx.ringPop(level, this, p, e.pitch());
                 for (ItemStack s : ringDrops[e.ring()]) drop(s, p, true);
                 ringDrops[e.ring()].clear();
+            }
+            case INHALE -> Fx.inhale(level, at);
+            case POOF -> {
+                for (int i = 0; i < shown.length; i++) if (shown[i] != null) discard(i);
+                Fx.poof(level, this, at, pitch);
+                for (int k = 0; k < ringDrops.length; k++) {
+                    if (ringDrops[k].isEmpty()) continue;
+                    Vec3 p = Fx.local(at, pitch, yaw, k + 0.5, lz);
+                    for (ItemStack s : ringDrops[k]) drop(s, p, true);
+                    ringDrops[k].clear();
+                }
             }
             case LEAVES_GONE, FINISH -> { }
         }

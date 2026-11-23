@@ -15,7 +15,7 @@ import java.util.List;
  */
 public final class Timeline {
     /** Something the server does on a tick: a sound, the slam, a ring's drops, the end. */
-    public enum Kind { CHOP, LAND, CREAK, CRACK, WHOOSH, IMPACT, LEAVES_GONE, THUD, RING, FINISH }
+    public enum Kind { CHOP, LAND, CREAK, CRACK, WHOOSH, IMPACT, LEAVES_GONE, THUD, RING, FINISH, INHALE, POOF }
 
     public record Event(int tick, Kind kind, int ring, float volume, float pitch) {}
 
@@ -35,6 +35,8 @@ public final class Timeline {
     public static final double LAG = 1.5 - 1.0 / 6;
 
     public final FallSpec spec;
+    /** The poof style: after the slam the tree holds still, swells and vanishes in one cloud (no ripple, no landed blocks). */
+    public final boolean poof;
     /** Log rings that turn into blocks at their pop tick instead of popping ({@code land_blocks}); all false when none. */
     public final boolean[] landed;
     /** Per frame: pitch and tip bend (centi-degrees, as 1.3.6), squash (x1000), height offset (blocks), phase. */
@@ -53,9 +55,14 @@ public final class Timeline {
     }
 
     public Timeline(FallSpec spec, boolean[] logRings, boolean[] landed) {
+        this(spec, logRings, landed, false);
+    }
+
+    public Timeline(FallSpec spec, boolean[] logRings, boolean[] landed, boolean poof) {
         this.spec = spec;
-        this.landed = landed != null && landed.length == logRings.length ? landed : new boolean[logRings.length];
-        Sim s = new Sim(spec, logRings);
+        this.poof = poof;
+        this.landed = !poof && landed != null && landed.length == logRings.length ? landed : new boolean[logRings.length];
+        Sim s = new Sim(spec, logRings, poof);
         s.run();
         int n = s.frames.size();
         p = new double[n];
@@ -197,6 +204,7 @@ public final class Timeline {
     private static final class Sim {
         final FallSpec s;
         final boolean[] logRings;
+        final boolean poof;
         final List<double[]> frames = new ArrayList<>();
         final List<Event> events = new ArrayList<>();
         final int[] popTick;
@@ -205,9 +213,10 @@ public final class Timeline {
         double p, bn, bv, pv, wv, gx = 1000, gy = 1000, gz = 1000, lx = 1000, lz = 1000, y, y0;
         boolean shiver = true, flex = true, hang, whoosh, dropped, done;
 
-        Sim(FallSpec s, boolean[] logRings) {
+        Sim(FallSpec s, boolean[] logRings, boolean poof) {
             this.s = s;
             this.logRings = logRings;
+            this.poof = poof;
             popTick = new int[s.km() + 1];
             java.util.Arrays.fill(popTick, -1);
             dur = s.dur();
@@ -255,6 +264,7 @@ public final class Timeline {
                 case 4 -> tipping();
                 case 5 -> drop();
                 case 6 -> { }
+                case 8 -> poofing();
                 default -> ripple();
             }
             pose();
@@ -338,8 +348,10 @@ public final class Timeline {
         void bounce() {
             if (t == 1) shape(980, 1000, 1060, 1140, 90);
             if (t == 2) {
-                leavesGone = n;
-                event(Kind.LEAVES_GONE, -1, 0, 0);
+                if (!poof) {
+                    leavesGone = n;
+                    event(Kind.LEAVES_GONE, -1, 0, 0);
+                }
                 shape(1010, 1000, 985, 1000, 1000);
             }
             if (t == 3) shape(1000, 1000, 1000, 1000, 1000);
@@ -348,6 +360,11 @@ public final class Timeline {
                 shape(1040, 1000, 900, 1000, 1000);
             }
             if (t == 8) shape(990, 1000, 1030, 1000, 1000);
+            if (t >= 8 && poof) {
+                phase(8);
+                shape(1000, 1000, 1000, 1000, 1000);
+                return;
+            }
             if (t >= 8) {
                 phase(7);
                 kr = 0;
@@ -358,6 +375,30 @@ public final class Timeline {
                 return;
             }
             arc(1, 6, 400, 3600);
+        }
+
+        /** Swells the trunk's cross-section by {@code xz} and shrinks its length to {@code y} (thousandths). */
+        void swell(double xz, double y) {
+            shape(xz, y, xz, xz, xz);
+        }
+
+        /**
+         * The poof, after the bounce has settled (u counts from there): one still beat, a small two-tick gulp (the tree squashes
+         * down, not up), one tick of stretch as it springs, then the cloud takes it all on one tick. 5 ticks after the settle.
+         */
+        void poofing() {
+            int u = t;
+            if (u == 2) {
+                event(Kind.INHALE, -1, 0.8f, 1.1f);
+                swell(1030, 965);
+            }
+            if (u == 3) swell(1055, 930);
+            if (u == 4) shape(920, 1170, 920, 920, 920);
+            if (u == 5) event(Kind.POOF, -1, 1.2f, 0.9f);
+            if (u == 6) {
+                event(Kind.FINISH, -1, 0, 0);
+                done = true;
+            }
         }
 
         void arc(int t0, int len, double num, double den) {

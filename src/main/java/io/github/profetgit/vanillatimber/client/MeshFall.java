@@ -86,7 +86,7 @@ final class MeshFall {
     MeshFall(TreeFall msg, ClientLevel level, long handled) {
         this.msg = msg;
         this.handled = handled;
-        tl = new Timeline(msg.spec(), msg.logRings(), msg.landed());
+        tl = new Timeline(msg.spec(), msg.logRings(), msg.landed(), msg.poof());
         x = msg.px() / 1000.0;
         y0 = msg.py() / 1000.0;
         z = msg.pz() / 1000.0;
@@ -339,12 +339,41 @@ final class MeshFall {
         return c;
     }
 
+    /** The poof: a puff at a spread of the tree's blocks as they were on its last drawn frame, bigger at the logs. */
+    private boolean poofed;
+
+    private void poofOnce(ClientLevel level) {
+        if (!tl.poof || poofed || level == null) return;
+        poofed = true;
+        poofClouds(level);
+    }
+
+    private void poofClouds(ClientLevel level) {
+        double[] c = new double[blocks * 3];
+        int[] rings = new int[blocks];
+        int n = centresAt(Math.max(0, tl.end - 2), c, rings);
+        net.minecraft.util.RandomSource r = level.getRandom();
+        int stride = Math.max(1, n / 36), nl = 0;
+        for (int i = 0; i < n; i++) if (rings[i] != -1) nl++;
+        int logStride = Math.max(1, nl / 22);
+        int li = 0;
+        for (int i = 0; i < n; i++) {
+            boolean log = rings[i] != -1;
+            if (log ? li++ % logStride != 0 : i % stride != 0) continue;
+            double dx = c[i * 3] - x, dz = c[i * 3 + 2] - z, len = Math.max(0.5, Math.sqrt(dx * dx + dz * dz));
+            float size = log ? 0.55F + r.nextFloat() * 0.3F : 0.38F + r.nextFloat() * 0.25F;
+            PoofClouds.puff(level, c[i * 3] + (r.nextDouble() - 0.5) * 0.5, c[i * 3 + 1] + (r.nextDouble() - 0.3) * 0.4,
+                c[i * 3 + 2] + (r.nextDouble() - 0.5) * 0.5, dx / len, dz / len, size, !log && r.nextBoolean(), r);
+        }
+    }
+
     /** Light every second client tick: each block's current centre, eased toward it (HavingABlast debris light). */
     void tick(ClientLevel level, long ticks) {
         // the frame-1 cell was changed some other way: keep the payload's clock
         if (probe != null && ticks - handled > 4) probe = null;
         double t = tau(ticks);
         if (t >= tl.end - 1) {
+            poofOnce(level);
             dead = true;
             return;
         }
@@ -371,6 +400,7 @@ final class MeshFall {
         Vec3 cam = pass.cam;
         double tau = tau(t);
         if (tau >= tl.end - 1) {
+            poofOnce(net.minecraft.client.Minecraft.getInstance().level);
             dead = true;
             return;
         }

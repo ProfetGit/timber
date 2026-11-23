@@ -168,6 +168,51 @@ final class Fx {
         return points;
     }
 
+    /** The poof's wind-up: a held breath, the pitch climbing with the swell. */
+    static void inhale(ServerLevel level, Vec3 at) {
+        sound(level, at, SoundEvents.SLIME_SQUISH_SMALL, 1.0f, 0.6f);
+    }
+
+    /**
+     * The poof: one cloud over the whole lying tree, a pop and a puff. The walk takes about 24 steps whatever the size, so a
+     * giant costs what an oak does; the crown gets one big cloud on top.
+     */
+    static void poof(ServerLevel level, Fall f, Vec3 at, double pitch) {
+        Tree t = f.tree;
+        sound(level, at, SoundEvents.BUBBLE_COLUMN_BUBBLE_POP, 1.6f, 0.6f);
+        sound(level, at, SoundEvents.BUBBLE_COLUMN_BUBBLE_POP, 1.2f, 1.1f);
+        sound(level, at, SoundEvents.PUFFER_FISH_BLOW_OUT, 1.2f, 1.0f);
+        sound(level, at, SoundEvents.WOOL_BREAK, 1.2f, 0.6f);
+        int h = t.spec().h(), step = Math.max(1, h / 24);
+        double cw = t.cw() / 1000.0;
+        Vec3 p = local(at, pitch, t.yaw(), 0.5, f.lz);
+        for (int k = 0; k < h; k += step) {
+            vanillaOnly(level, ParticleTypes.POOF, p.add(0, 0.5, 0), cw * 0.5 + 0.1, 0.3, cw * 0.5 + 0.1, 0.02, 7);
+            vanillaOnly(level, ParticleTypes.CLOUD, p.add(0, 0.5, 0), cw * 0.4, 0.25, cw * 0.4, 0.015, 4);
+            vanillaOnly(level, ParticleTypes.SMALL_GUST, p.add(0, 0.5, 0), cw * 0.4, 0.2, cw * 0.4, 0, 1);
+            p = local(p, pitch, t.yaw(), step, 0);
+        }
+        Vec3 mid = local(at, pitch, t.yaw(), h / 2.0, f.lz).add(0, 0.8, 0);
+        vanillaOnly(level, ParticleTypes.POOF, mid, 0.35, 0.35, 0.35, 0.04, 14);
+        Vec3 crown = local(at, pitch, t.yaw(), f.cy, f.lz).add(0, 0.6, 0);
+        vanillaOnly(level, ParticleTypes.POOF, crown, f.cr * 0.6, 0.4, f.cr * 0.6, 0.04, 14);
+        vanillaOnly(level, ParticleTypes.CLOUD, crown, f.cr * 0.5, 0.35, f.cr * 0.5, 0.03, 8);
+        particle(level, f.leafParticle, crown, f.cr * 0.6, 0.4, f.cr * 0.6, 0.05, 10);
+        particle(level, block(t.log()), at.add(0, 0.4, 0), 0.3, 0.2, 0.3, 0.06, 6);
+    }
+
+    /** The poof's cloud for players without Timber only: a modded client draws its own sprites at the poof tick. */
+    static void vanillaOnly(ServerLevel level, ParticleOptions p, Vec3 at, double dx, double dy, double dz, double speed, int count) {
+        for (net.minecraft.server.level.ServerPlayer pl : level.players()) {
+            if (Viewers.local(pl)) continue;
+//? if >=1.21.11 {
+            level.sendParticles(pl, p, false, false, at.x, at.y, at.z, count, dx, dy, dz, speed);
+//?} else {
+/*            level.sendParticles(pl, p, false, at.x, at.y, at.z, count, dx, dy, dz, speed);
+*///?}
+        }
+    }
+
     /** The trunk bonks a mob: a wooden thunk, a knock on a door, and a few crits. */
     static void bonk(ServerLevel level, Vec3 at) {
         sound(level, at, SoundEvents.WOOD_HIT, 1f, 0.7f);

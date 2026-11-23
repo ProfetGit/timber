@@ -44,7 +44,7 @@ public final class TimberScreen extends OptionsSubScreen {
 
     private static final Section[] SECTIONS = {
         new Section("felling", "Felling", Key.CHOPS, Key.CHOP_CURVE, Key.SNEAK, Key.PROTECT),
-        new Section("fall", "Fall", Key.ANIMATION, Key.LAND_BLOCKS, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT, Key.HIDE_LEAVES),
+        new Section("fall", "Fall", Key.ANIMATION, Key.STYLE, Key.LAND_BLOCKS, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT, Key.HIDE_LEAVES),
         new Section("axe", "Tool", Key.REQUIRE_AXE, Key.DURABILITY),
         new Section("server", "Server", Key.MAX_LOGS, Key.MAX_BLOCKS, Key.RADIUS, Key.FEEDBACK, Key.WELCOME, Key.DISPLAY_CAP, Key.SLICE_MS),
     };
@@ -278,6 +278,7 @@ public final class TimberScreen extends OptionsSubScreen {
         return switch (k) {
             case SNEAK -> new String[] {"One log", "Sneak to fell", "Always fell"};
             case DROPS -> new String[] {"Where it lands", "At the player"};
+            case STYLE -> new String[] {"Classic", "Poof"};
             default -> null;
         };
     }

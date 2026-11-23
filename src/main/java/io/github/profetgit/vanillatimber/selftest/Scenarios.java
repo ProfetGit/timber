@@ -65,6 +65,11 @@ final class Scenarios {
         if (only.equals("all") || only.contains("smoke")) smoke(s);
         if (only.equals("all") || only.contains("scan")) scan(s);
         if (only.equals("all") || only.contains("fall")) fall(s);
+        if (only.contains("poof")) {
+            s.server(server -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "timber config style 1"));
+            fall(s);
+            s.server(server -> server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput(), "timber config style 0"));
+        }
         if (only.equals("all") || only.contains("mesh")) mesh(s);
         if (only.equals("all") || only.contains("sync")) sync(s);
         if (only.contains("perfmeshoff")) s.run(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);

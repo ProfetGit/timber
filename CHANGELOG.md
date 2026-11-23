@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.7 — unreleased
+
+### Added
+- **Poof fall style** (`style` 1, in the settings screen and `/timber config style`). The tree falls and slams as usual, sits still for a beat, swells like a held breath, stretches for one tick, then vanishes in a single cloud with a pop. Every item hops out where its log lay. Classic stays the default. Clients on an older 2.2 build see the fall as displays.
+
 ## 2.2.6 — 2026-11-23
 
 ### Added

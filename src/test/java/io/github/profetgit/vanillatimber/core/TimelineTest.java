@@ -125,4 +125,27 @@ class TimelineTest {
             bad.append(String.format("t%d %s 1.3.6=%.3f 2.0=%.3f; ", tick, what, want, got));
         }
     }
+
+    @org.junit.jupiter.api.Test
+    void poofSlamsHoldsAndVanishesOnOneTick() {
+        FallSpec spec = FallSpec.sized(8, 90, 0, false, 0, 7, 4);
+        boolean[] rings = new boolean[8];
+        java.util.Arrays.fill(rings, true);
+        Timeline classic = new Timeline(spec, rings);
+        Timeline tl = new Timeline(spec, rings, new boolean[8], true);
+        int impact = -1, inhale = -1, poof = -1;
+        for (Timeline.Event e : tl.events) {
+            if (e.kind() == Timeline.Kind.IMPACT) impact = e.tick();
+            if (e.kind() == Timeline.Kind.INHALE) inhale = e.tick();
+            if (e.kind() == Timeline.Kind.POOF) poof = e.tick();
+            assertTrue(e.kind() != Timeline.Kind.RING && e.kind() != Timeline.Kind.LEAVES_GONE, "no ripple, leaves stay: " + e.kind());
+        }
+        assertTrue(impact > 0 && inhale - impact >= 8 && poof - inhale >= 3, "beats " + impact + " " + inhale + " " + poof);
+        assertEquals(poof + 1, tl.end, "one tick after the poof the fall ends");
+        assertTrue(tl.leavesGone < 0, "leaves stay on until the poof");
+        for (int k = 0; k < 8; k++) assertEquals(-1, tl.popTick[k]);
+        assertTrue(poof - impact >= 11 && poof - impact <= 16, "slam to poof " + (poof - impact) + " ticks");
+        for (int i = 0; i <= impact; i++) assertEquals(classic.p[i], tl.p[i], 1e-9, "same fall until the slam, tick " + i);
+        assertTrue(tl.gy[poof - 1] > 1100 && tl.gx[poof - 1] < 950, "stretch smear just before the poof");
+    }
 }

@@ -1896,7 +1896,7 @@ final class Parity {
 //? if >=1.20.5 {
                     int bytes = on(() -> {
                         var buf = new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(), server.registryAccess());
-                        io.github.profetgit.vanillatimber.net.TreeFall.CODEC.encode(buf, io.github.profetgit.vanillatimber.net.TreeFall.of(fall.id, fall.tree, 0, fall.landed(), fall.landRing()));
+                        io.github.profetgit.vanillatimber.net.TreeFall.CODEC.encode(buf, io.github.profetgit.vanillatimber.net.TreeFall.of(fall.id, fall.tree, 0, fall.landed(), fall.landRing(), fall.poof));
                         return buf.readableBytes();
                     });
 //?} else {

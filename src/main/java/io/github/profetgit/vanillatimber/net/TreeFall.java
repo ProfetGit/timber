@@ -31,7 +31,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * @param cells 4 ints per block: dx, dy, dz from {@code origin}, palette index << 1 | leaf
  */
 public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin, FallSpec spec, boolean[] logRings, boolean[] landed,
-                       int e, int probe, List<BlockState> palette, int[] cells) implements CustomPacketPayload {
+                       int e, int probe, List<BlockState> palette, int[] cells, boolean poof) implements CustomPacketPayload {
     public static final Type<TreeFall> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Timber.ID, "tree_fall"));
     public static final StreamCodec<RegistryFriendlyByteBuf, TreeFall> CODEC = StreamCodec.of(TreeFall::write, TreeFall::read);
 
@@ -45,7 +45,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
     }
 
     /** The payload of one fall, sent at server frame {@code e}. Air parts (a block that changed under the scan) and hidden leaves are left out. */
-    public static TreeFall of(int id, Tree tree, int e, boolean[] landed, int[] landRing) {
+    public static TreeFall of(int id, Tree tree, int e, boolean[] landed, int[] landRing, boolean poof) {
         Map<BlockState, Integer> index = new IdentityHashMap<>();
         List<BlockState> palette = new ArrayList<>();
         List<Tree.Part> parts = tree.parts();
@@ -70,7 +70,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[n++] = i << 2 | (landRing != null && pi < landRing.length && landRing[pi] >= 0 ? 2 : 0) | (p.leaf() ? 1 : 0);
         }
         return new TreeFall(id, o, tree.px(), tree.py(), tree.pz(), tree.bin(), tree.spec(), tree.logRings(), landed, e, probe, palette,
-            n == cells.length ? cells : java.util.Arrays.copyOf(cells, n));
+            n == cells.length ? cells : java.util.Arrays.copyOf(cells, n), poof);
     }
 
     public static boolean canSend(ServerPlayer player) {
@@ -101,6 +101,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         buf.writeVarInt(f.logRings.length);
         bits(buf, f.logRings);
         bits(buf, f.landed);
+        buf.writeBoolean(f.poof);
         buf.writeVarInt(f.e);
         buf.writeVarInt(f.probe + 1);
         buf.writeVarInt(f.palette.size());
@@ -129,6 +130,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         boolean[] rings = new boolean[buf.readVarInt()], landed = new boolean[rings.length];
         unbits(buf, rings);
         unbits(buf, landed);
+        boolean poof = buf.readBoolean();
         int e = buf.readVarInt(), probe = buf.readVarInt() - 1;
         int np = buf.readVarInt();
         List<BlockState> palette = new ArrayList<>(np);
@@ -141,7 +143,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
             cells[i + 2] = unzig(buf);
             cells[i + 3] = buf.readVarInt();
         }
-        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, landed, e, probe, palette, cells);
+        return new TreeFall(id, origin, px, py, pz, bin, spec, rings, landed, e, probe, palette, cells, poof);
     }
 
     private static void bits(RegistryFriendlyByteBuf buf, boolean[] v) {

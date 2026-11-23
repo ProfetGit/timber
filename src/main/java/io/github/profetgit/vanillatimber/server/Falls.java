@@ -133,7 +133,7 @@ public final class Falls {
     /** The log rings that stay on the ground as blocks ({@code land_blocks}); none without the animation. */
     static boolean[] landMask(Tree tree) {
         int pct = Config.get(Config.Key.LAND_BLOCKS);
-        if (!Config.on(Config.Key.ANIMATION) || pct <= 0) return new boolean[tree.logRings().length];
+        if (!Config.on(Config.Key.ANIMATION) || Config.get(Config.Key.STYLE) == 1 || pct <= 0) return new boolean[tree.logRings().length];
         return io.github.profetgit.vanillatimber.core.Landing.rings(tree.logRings(), pct);
     }
 
