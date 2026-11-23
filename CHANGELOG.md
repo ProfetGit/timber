@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.4 — 2026-11-23
+
+### Fixed
+- **Shader packs on 1.21.1, 1.21.11 and 1.20.1** (Iris): a falling tree casts its shadow while it falls and keeps the shadows on its own leaves, instead of the shadow vanishing the moment the trunk is cut. 26.2 and 26.3 already did this.
+- **Leaves keep their colour under shader packs on 1.20.1** (Iris 1.7): they no longer change colour and lighting when the tree starts to fall.
+- **A falling tree keeps its depth.** The dark pockets between leaf clumps and under the canopy stay for the whole fall, and the log stays lit once the leaves are gone.
+
 ## 2.2.1 — 2026-11-22
 
 ### Added
