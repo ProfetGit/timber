@@ -36,20 +36,20 @@ public final class TestBlocks {
         block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new TintedParticleLeavesBlock(0.01f, BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()
             .setId(k)));
-//?} else if >=1.21.2 {
-/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollision().setId(k)));
+//?} else if >=1.21.2 {
+/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion().setId(k)));
-*///?} else {
-/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission().setId(k)));
+*///?} else {
+/*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()));
-*///?}
-    }
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission()));
+*///?}
+    }
 
     private static java.util.function.BiConsumer<ResourceKey<Block>, Block> sink;
 
