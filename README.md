@@ -10,10 +10,7 @@
 Timber 2.0 is a mod for **Minecraft Java 26.3, 26.2, 26.1.2, 1.21.11, 1.21.1 and 1.20.1** on **Fabric, Quilt, NeoForge and Forge**. Put it on the server and everyone who joins sees the tree fall, even with an unmodified game. Put it on your own game too and the fall is drawn smoothly on your screen. It replaces the Timber data pack, so existing worlds and the mod's CurseForge page carry on from 1.3.x.
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_oak_chops.webp" alt="An oak in chop mode" width="49%">
-<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_birch.webp" alt="A tall birch felled with one chop" width="49%">
-<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_cherry.webp" alt="A cherry tree felled with one chop" width="49%">
-<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_spruce.webp" alt="A giant 2x2 spruce felled with one chop" width="49%">
+<img src="https://raw.githubusercontent.com/ProfetGit/timber/main/docs/showcase/timber_showcase.webp" alt="Four Timber clips: an oak in chop mode, a tall birch, a cherry tree and a giant 2x2 spruce felled" width="80%">
 </p>
 
 ![Features](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-features.webp)
@@ -46,7 +43,7 @@ Sneak to take a single log instead. Creative mode never fells trees, so building
 
 With Mod Menu installed, Timber has a settings screen with a short explanation on every option; on a server, operators can change the values there and everyone else can look. Settings live in `config/timber.json` on the server. The file is re-read while the game runs, so edits apply without a restart. Operators can also use `/timber config` to list the settings, `/timber config <setting> <value>` to change one, `/timber reload` to re-read the file, and `/timber menu` for a clickable menu.
 
-You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed and which items count (`tools`), durability use, the animation (off makes the tree vanish and drop at the stump), how much of the tree stays fallen as blocks for you to chop (`land_blocks`, off by default), placed-log protection, chop mode (`chops`, `chop_curve`), auto-replant (`replant`, off by default), trunk knockback (`knockback`) and its damage to hostile mobs (`trunk_damage`), and the action bar messages.
+You can set the biggest tree (logs and leaves), how far a tree may reach, how sneaking works, where drops land, whether an axe is needed and which items count (`tools`), durability use, the animation (off makes the tree vanish and drop at the stump), the fall style (`style`: classic, or poof, where the tree vanishes in one cloud after the slam), how much of the tree stays fallen as blocks for you to chop (`land_blocks`, off by default), placed-log protection, chop mode (`chops`, `chop_curve`), auto-replant (`replant`, off by default), trunk knockback (`knockback`) and its damage to hostile mobs (`trunk_damage`), and the action bar messages.
 
 ![Add-ons](https://raw.githubusercontent.com/ProfetGit/timber/main/docs/desc/title-add-ons.webp)
 
