@@ -20,6 +20,16 @@
     "when": "<26.1"
   },
   {
+    "regex": "LightCoordsUtil\\.getLightCoords\\(",
+    "to": "io.github.profetgit.vanillatimber.core.LegacyLight.getLightCoords(",
+    "when": ">=26.1 <26.2"
+  },
+  {
+    "from": "createTestWorldDimensions",
+    "to": "createFlatWorldDimensions",
+    "when": ">=26.1 <26.2"
+  },
+  {
     "from": "LightCoordsUtil",
     "to": "LegacyLight",
     "when": "<26.1"

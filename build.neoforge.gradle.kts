@@ -78,3 +78,9 @@ tasks.processResources {
 tasks.named<Jar>("jar") {
     from(rootProject.file("LICENSE"))
 }
+
+// 26.1.2 is older than the 26.2 names the sources use: dev/renames.json + renames-common.json entries for "<26.2"
+if (mc == "26.1.2") {
+    extra["mcVersion"] = mc
+    apply(from = rootProject.file("../../tools/Backport/renames.gradle.kts"))
+}

@@ -26,7 +26,29 @@ abstract class BlockCrackMixin {
         else original.call(model, random, parts);
     }
 }
-//?} else if fabric && >=1.21.11 {
+//?} else if fabric && >=26.1 {
+/*import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
+import com.mojang.blaze3d.vertex.PoseStack;
+import io.github.profetgit.vanillatimber.client.ChopModels;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.state.level.BlockBreakingRenderState;
+import org.spongepowered.asm.mixin.injection.At;
+
+@Mixin(LevelRenderer.class)
+abstract class BlockCrackMixin {
+    @WrapOperation(method = "submitBlockDestroyAnimation", at = @At(value = "INVOKE",
+        target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitBreakingBlockModel(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/block/dispatch/BlockStateModel;JI)V"))
+    private void vanilla_timber$core(SubmitNodeCollector collector, PoseStack poseStack, BlockStateModel model, long seed, int progress,
+                                     Operation<Void> original, @Local(name = "state") BlockBreakingRenderState state) {
+        BlockStateModel core = ChopModels.crackModel(state.blockState(), state.blockPos());
+        original.call(collector, poseStack, core != null ? core : model, seed, progress);
+    }
+}
+*///?} else if fabric && >=1.21.11 {
 /*import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;

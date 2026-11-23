@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.6 — 2026-11-23
+
+### Added
+- **Minecraft 26.1.2 on Fabric, Quilt, NeoForge and Forge**, with every 2.2 feature including the settings screen and chop mode's shrinking logs (Fabric and Quilt).
+
 ## 2.2.5 — 2026-11-23
 
 ### Fixed

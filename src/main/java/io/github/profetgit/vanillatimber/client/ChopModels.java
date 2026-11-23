@@ -412,6 +412,31 @@ public final class ChopModels {
         };
     }
 
+//? if >=26.1 <26.2 {
+    /*// 26.1 submits the crack as a whole model: the same core part, wrapped.
+    public static @Nullable BlockStateModel crackModel(BlockState state, BlockPos pos) {
+        BlockStateModelPart core = crackPart(state, pos);
+        if (core == null) return null;
+        BlockStateModel base = model(state);
+        return new BlockStateModel() {
+            @Override
+            public void collectParts(RandomSource random, List<BlockStateModelPart> output) {
+                output.add(core);
+            }
+
+            @Override
+            public net.minecraft.client.resources.model.sprite.Material.Baked particleMaterial() {
+                return base.particleMaterial();
+            }
+
+            @Override
+            public int materialFlags() {
+                return base.materialFlags();
+            }
+        };
+    }
+
+*///?}
     /** The log's model, which at a chopped cell draws the core. */
     private static final class Chopped extends WrapperBlockStateModel {
         Chopped(BlockStateModel wrapped) {

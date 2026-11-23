@@ -1,12 +1,13 @@
 package io.github.profetgit.vanillatimber.core;
 
-//? if <26.1 {
+//? if <26.2 {
 /*import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.BlockAndLightGetter;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 
-// stands in for 26.x's LightCoordsUtil (dev/renames.json points it here): packed light, usable on a dedicated server
+// stands in for 26.x's LightCoordsUtil (dev/renames.json points it here): packed light, usable on a dedicated server;
+// 26.1.2 has the packing helpers but its getLightCoords lives in the client-only LevelRenderer, so only that call comes here
 public final class LegacyLight {
     private LegacyLight() {}
 
@@ -22,7 +23,7 @@ public final class LegacyLight {
         return block << 4 | sky << 20;
     }
 
-    public static int getLightCoords(BlockAndTintGetter level, BlockPos pos) {
+    public static int getLightCoords(BlockAndLightGetter level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         if (state.emissiveRendering(level, pos)) return 15728880;
         int sky = level.getBrightness(LightLayer.SKY, pos);
