@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.8 — 2026-11-23
+
+### Fixed
+- **Black poof clouds.** A cloud puff that landed inside a block (against a hill, in a dense forest) was lit by that block's own darkness and showed up black. Each puff now takes the brightest light of its cell and the cells around it.
+
 ## 2.2.7 — 2026-11-23
 
 ### Added

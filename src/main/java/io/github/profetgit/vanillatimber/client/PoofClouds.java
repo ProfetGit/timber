@@ -7,7 +7,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.SingleQuadParticle;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.data.AtlasIds;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.LightCoordsUtil;
 //?} else {
 /*import net.minecraft.core.particles.ParticleTypes;
 *///?}
@@ -88,6 +90,21 @@ final class PoofClouds {
             // pops open fast, then holds its size while the frames break it up
             float grow = u < 0.25F ? 0.5F + 2F * u : 1F;
             this.quadSize = this.full * grow;
+        }
+
+        /** A puff inside a block would be lit by the block's own light (black): take the brightest of its cell and the six around it. */
+        @Override
+        protected int getLightCoords(float a) {
+            BlockPos at = BlockPos.containing(this.x, this.y, this.z);
+            if (!this.level.hasChunkAt(at)) return 15728640;
+            int b = 0, sk = 0;
+            for (int i = 0; i < 7; i++) {
+                BlockPos p = i == 0 ? at : at.relative(net.minecraft.core.Direction.values()[i - 1]);
+                int l = LightCoordsUtil.getLightCoords(this.level, p);
+                b = Math.max(b, LightCoordsUtil.block(l));
+                sk = Math.max(sk, LightCoordsUtil.sky(l));
+            }
+            return LightCoordsUtil.pack(b, sk);
         }
 
         @Override
