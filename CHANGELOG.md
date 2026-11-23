@@ -1,9 +1,11 @@
 # Changelog
 
-## 2.2.7 — unreleased
+## 2.2.7 — 2026-11-23
 
 ### Added
-- **Poof fall style** (`style` 1, in the settings screen and `/timber config style`). The tree falls and slams as usual, sits still for a beat, swells like a held breath, stretches for one tick, then vanishes in a single cloud with a pop. Every item hops out where its log lay. Classic stays the default. Clients on an older 2.2 build see the fall as displays.
+- **Poof fall style.** A new `style` setting (Fall section of the settings screen, or `/timber config style 1`). The tree falls and slams as usual, holds still for a beat, gulps down a little, springs, and vanishes in a single cartoon cloud with a pop. Every item hops out where its log lay. Classic stays the default, and `land_blocks` is ignored in poof style.
+- **Hand-drawn cloud sprites.** On Minecraft 26.3 the poof is made of Timber's own 16-frame pixel puffs (bigger ones at the logs, smaller ones in the crown) that pop open and break up in half a second. Other versions use the vanilla poof particle.
+- Players without Timber see the same poof fall with the vanilla cloud. A client on an older 2.2 build also sees the fall as displays.
 
 ## 2.2.6 — 2026-11-23
 
