@@ -15,9 +15,11 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
@@ -458,14 +460,27 @@ public final class TreeScan {
         void around(BlockPos p) {
             for (Direction dir : FACES) {
                 BlockPos q = p.relative(dir);
-                if (type.isDecor(level.getBlockState(q))) decor(q);
+                if (type.isDecor(level.getBlockState(q)) || dir == Direction.DOWN && loose(q)) decor(q);
             }
+        }
+
+        /**
+         * A block of some mod's own hanging under a tree block with nothing under it: no collision, no fluid, no block entity,
+         * drawn as a model (a plain {@code Block} vine such as Luminous Nether's ash vines is none of the vine classes or tags).
+         * Floor plants are out because they stand on something sturdy; fire is out by class.
+         */
+        private boolean loose(BlockPos q) {
+            BlockState s = level.getBlockState(q);
+            if (s.isAir() || s.hasBlockEntity() || s.getBlock() instanceof BaseFireBlock || !s.getFluidState().isEmpty()) return false;
+            if (s.getRenderShape() != RenderShape.MODEL || !s.getCollisionShape(level, q).isEmpty()) return false;
+            BlockPos below = q.below();
+            return !level.getBlockState(below).isFaceSturdy(level, below, Direction.UP);
         }
 
         /** One decor block, the vines or moss hanging straight below it, and twisting vines growing straight up from it. */
         void decor(BlockPos q) {
             if (!takeDecor(q)) return;
-            for (BlockPos d = q.below(); level.getBlockState(d).is(HANGING) && takeDecor(d); d = d.below()) { }
+            for (BlockPos d = q.below(); (TreeType.hanging(level.getBlockState(d)) || loose(d)) && takeDecor(d); d = d.below()) { }
             for (BlockPos u = q.above(); level.getBlockState(u).is(RISING) && takeDecor(u); u = u.above()) { }
         }
 

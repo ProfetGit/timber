@@ -8,7 +8,11 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.GrowingPlantBlock;
+import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.LeavesBlock;
+import net.minecraft.world.level.block.ScaffoldingBlock;
+import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -58,6 +62,21 @@ public record TreeType(TagKey<Block> trunk, Optional<TagKey<Block>> crown, Rule 
     }
 
     public boolean isDecor(BlockState s) {
-        return s.is(TreeScan.DECOR) || decor.isPresent() && s.is(decor.get());
+        return s.is(TreeScan.DECOR) || vineLike(s) || decor.isPresent() && s.is(decor.get());
+    }
+
+    /**
+     * A vine from any mod, tagged or not: {@link VineBlock} and {@link GrowingPlantBlock} subclasses (willow, jungle, cave,
+     * weeping vines) and whatever a mod puts in {@code #minecraft:climbable} short of a ladder or scaffolding. Water plants out.
+     */
+    public static boolean vineLike(BlockState s) {
+        Block b = s.getBlock();
+        if (b instanceof LadderBlock || b instanceof ScaffoldingBlock) return false;
+        return b instanceof VineBlock || b instanceof GrowingPlantBlock && s.getFluidState().isEmpty() || s.is(BlockTags.CLIMBABLE);
+    }
+
+    /** A block that hangs below its decor: the tag, or any vine-like block. */
+    public static boolean hanging(BlockState s) {
+        return s.is(TreeScan.HANGING) || vineLike(s);
     }
 }

@@ -1794,6 +1794,8 @@ final class Parity {
         check("decor: vines, cocoa and snow go with the tree", vines == 0 && cocoa == 0 && snow == 0, "vines " + vines + ", cocoa " + cocoa + ", snow " + snow);
         long vineDisplays = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> shownState(l).is(net.minecraft.world.level.block.Blocks.VINE)).count());
         check("decor: vines ride along as displays with their faces", vineDisplays == 4, vineDisplays + " vine displays");
+        cmd("fill " + at(1, 2, 0) + " " + at(1, 4, 0) + " vanilla_timber:test_vine[west=true]");
+        cmd("fill " + at(2, 2, 2) + " " + at(2, 3, 2) + " vanilla_timber:test_hanging");
         finish(120);
         tick(2);
         check("decor: ripe cocoa drops beans", itemsOf("minecraft:cocoa_beans", 20) >= 2, itemsNear(p(0, 0, 0), 20).toString());
@@ -1801,6 +1803,10 @@ final class Parity {
 
     /** Plants a 1.3.6 sampler fixture ({@code selftest/trees/<file>}) with its base log at p(0, 0, 0). */
     static void fixture(String file) {
+        int modded = blocks("vanilla_timber:test_vine", 6);
+        check("decor: a mod's untagged vine goes with the tree", modded == 0, modded + " test_vine blocks left");
+        int hung = blocks("vanilla_timber:test_hanging", 6);
+        check("decor: a mod's plain hanging block under the leaves goes with the tree", hung == 0, hung + " test_hanging blocks left");
         String text;
         try (var in = Parity.class.getResourceAsStream("/selftest/trees/" + file + ".mcfunction")) {
             text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);

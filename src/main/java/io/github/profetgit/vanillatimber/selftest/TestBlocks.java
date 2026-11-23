@@ -9,12 +9,13 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
+import net.minecraft.world.level.block.VineBlock;
 //? if >=1.21.5
 import net.minecraft.world.level.block.TintedParticleLeavesBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 
 /**
- * PRD 13 M3 {@code modded_fallback}: a mod's log and an untagged {@code LeavesBlock} subclass, registered only for the
+ * PRD 13 M3 {@code modded_fallback}: a mod's log, an untagged {@code LeavesBlock} subclass and an untagged {@code VineBlock}, registered only for the
  * parity scene (a normal game, and every other scene and mp case, never sees them).
  */
 public final class TestBlocks {
@@ -37,12 +38,18 @@ public final class TestBlocks {
             .setId(k)));
 //?} else if >=1.21.2 {
 /*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
+        block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
+        block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollision().setId(k)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion().setId(k)));
 *///?} else {
 /*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
+        block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
+        block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission().setId(k)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()));
 *///?}
     }
+        block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f)));
+        block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission()));
 
     private static java.util.function.BiConsumer<ResourceKey<Block>, Block> sink;
 

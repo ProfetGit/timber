@@ -6,6 +6,8 @@
     {"id": "minecraft:pale_hanging_moss", "required": false},
     {"id": "minecraft:resin_clump", "required": false},
     {"id": "minecraft:creaking_heart", "required": false},
-    {"id": "minecraft:shelf_mushroom", "required": false}
+    {"id": "minecraft:shelf_mushroom", "required": false},
+    {"id": "luminous_nether:ash_vines", "required": false},
+    {"id": "luminous_nether:driprot_vine", "required": false}
   ]
 }

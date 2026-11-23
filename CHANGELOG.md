@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.5 — unreleased
+
+### Fixed
+- **Vines from other mods no longer stay hanging when the tree falls.** Any mod's vine now goes with the tree: vine and growing-plant blocks, whatever is in `#minecraft:climbable` (short of ladders and scaffolding), and a block with no collision hanging free under the tree's leaves. Luminous Nether's ash vines and driprot vines on its withered trees are listed by name too.
+
 ## 2.2.4 — 2026-11-23
 
 ### Fixed
