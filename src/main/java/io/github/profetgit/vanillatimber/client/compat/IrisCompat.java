@@ -15,7 +15,8 @@ import net.minecraft.world.level.block.state.BlockState;
  * Timber has no Iris dependency (the mesh shadow hook is {@code mixin.compat.IrisShadowMixin}). Pattern from SeamlessDisplays.
  */
 public final class IrisCompat {
-    private static MethodHandle begin, end, packInUse, shadows, idsGetter;
+    private static MethodHandle begin, beginOld, end, packInUse, shadows, idsGetter;
+    private static boolean ready;
     private static Class<?> sensitive;
     private static boolean tried;
     private static Object2IntMap<BlockState> ids;
@@ -32,8 +33,14 @@ public final class IrisCompat {
                 try {
                     MethodHandles.Lookup l = MethodHandles.publicLookup();
                     sensitive = Class.forName("net.irisshaders.iris.vertices.BlockSensitiveBufferBuilder");
-                    begin = l.findVirtual(sensitive, "beginBlock", MethodType.methodType(void.class, int.class, byte.class, byte.class, int.class, int.class, int.class))
-                        .asType(MethodType.methodType(void.class, Object.class, int.class, byte.class, byte.class, int.class, int.class, int.class));
+                    // Iris 1.8+ takes (int id, byte renderType, byte emission, x, y, z); Iris 1.7 (1.20.1) takes (short id, short renderType, x, y, z)
+                    try {
+                        begin = l.findVirtual(sensitive, "beginBlock", MethodType.methodType(void.class, int.class, byte.class, byte.class, int.class, int.class, int.class))
+                            .asType(MethodType.methodType(void.class, Object.class, int.class, byte.class, byte.class, int.class, int.class, int.class));
+                    } catch (NoSuchMethodException old) {
+                        beginOld = l.findVirtual(sensitive, "beginBlock", MethodType.methodType(void.class, short.class, short.class, int.class, int.class, int.class))
+                            .asType(MethodType.methodType(void.class, Object.class, short.class, short.class, int.class, int.class, int.class));
+                    }
                     end = l.findVirtual(sensitive, "endBlock", MethodType.methodType(void.class)).asType(MethodType.methodType(void.class, Object.class));
                     Class<?> iris = Class.forName("net.irisshaders.iris.Iris");
                     packInUse = l.findStatic(iris, "isPackInUseQuick", MethodType.methodType(boolean.class));
@@ -41,18 +48,18 @@ public final class IrisCompat {
                     Class<?> settings = Class.forName("net.irisshaders.iris.shaderpack.materialmap.WorldRenderingSettings");
                     Object instance = l.findStaticGetter(settings, "INSTANCE", settings).invoke();
                     idsGetter = l.findVirtual(settings, "getBlockStateIds", MethodType.methodType(Object2IntMap.class)).bindTo(instance);
+                    ready = true;
                 } catch (Throwable t) {
                     Timber.LOG.warn("Iris block ids unavailable ({}); the mesh keeps an unknown block id under shader packs", t.toString());
-                    begin = null;
                 }
             }
         }
         ids = null;
-        if (begin == null) return;
+        if (!ready) return;
         try {
             if ((boolean) packInUse.invokeExact()) ids = (Object2IntMap<BlockState>) (Object) idsGetter.invoke();
         } catch (Throwable t) {
-            begin = null;
+            ready = false;
         }
     }
 
@@ -80,7 +87,8 @@ public final class IrisCompat {
 
     public static void begin(VertexConsumer buffer, int id, int emission, int lx, int ly, int lz) {
         try {
-            begin.invokeExact((Object) buffer, id, (byte) 0, (byte) emission, lx, ly, lz);
+            if (begin != null) begin.invokeExact((Object) buffer, id, (byte) 0, (byte) emission, lx, ly, lz);
+            else beginOld.invokeExact((Object) buffer, (short) id, (short) 0, lx, ly, lz);
         } catch (Throwable t) {
             ids = null;
         }

@@ -10,14 +10,22 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import org.spongepowered.asm.service.MixinService;
 
 /**
- * Mixins into other mods (package {@code compat}) apply only when their target class exists and has a method with
- * exactly the name and descriptor listed in {@link #METHODS}: a handler that doesn't match crashes the game even with
- * require = 0, so a mismatch skips the mixin instead (pattern from Snappy Blocks).
+ * Mixins into other mods (package {@code compat}) apply only when their target class exists and has a method of the
+ * name and shape listed in {@link #METHODS}: a handler that doesn't match crashes the game even with require = 0, so a
+ * mismatch skips the mixin instead (pattern from Snappy Blocks). A shape is {@code name:parameter count:return}, with the
+ * trailing parameters checked as listed in {@link #TAILS}: Minecraft's own types are named differently per loader
+ * (intermediary, SRG, Mojang), so the full descriptor can't be listed.
  */
 public final class MixinPlugin implements IMixinConfigPlugin {
+    /** Iris's {@code ShadowRenderer.renderEntities(accessor, dispatcher, [buffers,] poseStack, tickDelta, frustum, x, y, z)}: the buffers are the version before 26.1. */
     private static final Map<String, String> METHODS = Map.of(
-        "IrisShadowMixin", "renderEntities(Lnet/irisshaders/iris/mixin/LevelRendererAccessor;Lnet/minecraft/client/renderer/entity/EntityRenderDispatcher;"
-            + "Lcom/mojang/blaze3d/vertex/PoseStack;FLnet/minecraft/client/renderer/culling/Frustum;DDD)I");
+//? if >=26.1 {
+        "IrisShadowMixin", "renderEntities:8:I"
+//?} else {
+/*        "IrisShadowMixin", "renderEntities:9:I"
+*///?}
+    );
+    private static final Map<String, String> TAILS = Map.of("IrisShadowMixin", "DDD)");
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -41,8 +49,12 @@ public final class MixinPlugin implements IMixinConfigPlugin {
         String name = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
         String wanted = METHODS.get(name);
         if (wanted == null) return true;
+        String[] shape = wanted.split(":");
+        String tail = TAILS.get(name);
         for (MethodNode m : node.methods) {
-            if ((m.name + m.desc).equals(wanted)) {
+            if (m.name.equals(shape[0]) && org.objectweb.asm.Type.getArgumentTypes(m.desc).length == Integer.parseInt(shape[1])
+                && org.objectweb.asm.Type.getReturnType(m.desc).getDescriptor().equals(shape[2])
+                && (tail == null || (m.desc.substring(0, m.desc.indexOf(')') + 1)).endsWith(tail))) {
                 org.slf4j.LoggerFactory.getLogger("Timber").info("Timber: {} applies", name);
                 return true;
             }

@@ -9,6 +9,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 //? if >=26.1 {
@@ -46,8 +47,11 @@ final class RestLight implements BlockQuadOutput {
     private final ModelBlockRenderer renderer;
     private final Getter getter = new Getter();
     private final Map<BakedQuad, int[]> quads = new IdentityHashMap<>();
+    private final boolean treeOnly;
 
-    RestLight(ClientLevel level, TreeFall msg) {
+    RestLight(ClientLevel level, TreeFall msg, boolean treeOnly) {
+        this.treeOnly = treeOnly;
+        getter.treeOnly = treeOnly;
         Minecraft mc = Minecraft.getInstance();
         renderer = new ModelBlockRenderer(mc.options.ambientOcclusion().get(), true, mc.getBlockColors());
         getter.level = level;
@@ -56,8 +60,9 @@ final class RestLight implements BlockQuadOutput {
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
         for (int i = 0; i < msg.blocks(); i++) {
-            getter.tree.put(BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]),
-                msg.palette().get(cells[i * 4 + 3] >> 2));
+            long at = BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
+            getter.tree.put(at, msg.palette().get(cells[i * 4 + 3] >> 2));
+            if ((cells[i * 4 + 3] & 1) != 0) getter.leaves.add(at);
         }
     }
 
@@ -67,13 +72,21 @@ final class RestLight implements BlockQuadOutput {
         getter.blockPos = at;
         getter.randomSeedPos = at;
         getter.blockState = state;
-        renderer.tesselateBlock(this, 0, 0, 0, getter, at, state, Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
-            state.getSeed(at));
+        // a log's own shading ignores the leaves: they go at the slam and the trunk must not stay dark for them
+        getter.skipLeaves = treeOnly && !getter.leaves.contains(at.asLong());
+        // the shared cache holds the other pass's world: the tree-only pass runs uncached, then the cache comes back
+        if (treeOnly) BlockModelLighter.clearCache();
+        try {
+            renderer.tesselateBlock(this, 0, 0, 0, getter, at, state, Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state),
+                state.getSeed(at));
+        } finally {
+            if (treeOnly) BlockModelLighter.enableCaching();
+        }
     }
 
     /** One bake shares vanilla's light and AO cache between its blocks (the getter's world doesn't change meanwhile). */
     void begin() {
-        BlockModelLighter.enableCaching();
+        if (!treeOnly) BlockModelLighter.enableCaching();
     }
 
     void end() {
@@ -97,12 +110,15 @@ final class RestLight implements BlockQuadOutput {
 
     private static final class Getter extends MovingBlockRenderState {
         ClientLevel level;
+        boolean treeOnly, skipLeaves;
         final Long2ObjectOpenHashMap<BlockState> tree = new Long2ObjectOpenHashMap<>();
+        final it.unimi.dsi.fastutil.longs.LongOpenHashSet leaves = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
 
         @Override
         public BlockState getBlockState(BlockPos pos) {
             BlockState s = tree.get(pos.asLong());
-            return s != null ? s : level.getBlockState(pos);
+            if (s != null) return skipLeaves && leaves.contains(pos.asLong()) ? Blocks.AIR.defaultBlockState() : s;
+            return treeOnly ? Blocks.AIR.defaultBlockState() : level.getBlockState(pos);
         }
 
         @Override
@@ -137,14 +153,16 @@ final class RestLight implements BlockQuadOutput {
 
     void end() {}
 
-    RestLight(ClientLevel level, TreeFall msg) {
+    RestLight(ClientLevel level, TreeFall msg, boolean treeOnly) {
         renderer = new ModelBlockRenderer(Minecraft.getInstance().getBlockColors());
         getter.level = level;
+        getter.treeOnly = treeOnly;
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
         for (int i = 0; i < msg.blocks(); i++) {
-            getter.tree.put(BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]),
-                msg.palette().get(cells[i * 4 + 3] >> 2));
+            long at = BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]);
+            getter.tree.put(at, msg.palette().get(cells[i * 4 + 3] >> 2));
+            if ((cells[i * 4 + 3] & 1) != 0) getter.leaves.add(at);
         }
     }
 
@@ -157,6 +175,7 @@ final class RestLight implements BlockQuadOutput {
 /*    void run(BlockPos cell, BlockState state) {
         quads.clear();
         BlockPos at = cell.immutable();
+        getter.skipLeaves = getter.treeOnly && !getter.leaves.contains(at.asLong());
         java.util.List<BlockModelPart> parts = Minecraft.getInstance().getBlockRenderer().getBlockModel(state).collectParts(RandomSource.create(state.getSeed(at)));
         ModelBlockRenderer.enableCaching();
         try {
@@ -169,6 +188,7 @@ final class RestLight implements BlockQuadOutput {
 /*    void run(BlockPos cell, BlockState state) {
         quads.clear();
         BlockPos at = cell.immutable();
+        getter.skipLeaves = getter.treeOnly && !getter.leaves.contains(at.asLong());
         ModelBlockRenderer.enableCaching();
         try {
             renderer.tesselateBlock(getter, Minecraft.getInstance().getBlockRenderer().getBlockModel(state), state, at, new PoseStack(), sink, true,
@@ -318,7 +338,9 @@ final class RestLight implements BlockQuadOutput {
 
     private static final class Getter implements BlockAndTintGetter {
         ClientLevel level;
+        boolean treeOnly, skipLeaves;
         final Long2ObjectOpenHashMap<BlockState> tree = new Long2ObjectOpenHashMap<>();
+        final it.unimi.dsi.fastutil.longs.LongOpenHashSet leaves = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
 
         @Override
         public float getShade(Direction direction, boolean shade) {
@@ -333,7 +355,8 @@ final class RestLight implements BlockQuadOutput {
         @Override
         public BlockState getBlockState(BlockPos pos) {
             BlockState s = tree.get(pos.asLong());
-            return s != null ? s : level.getBlockState(pos);
+            if (s != null) return skipLeaves && leaves.contains(pos.asLong()) ? Blocks.AIR.defaultBlockState() : s;
+            return treeOnly ? Blocks.AIR.defaultBlockState() : level.getBlockState(pos);
         }
 
         @Override

@@ -78,6 +78,8 @@ final class MeshFall {
     // this frame's face normals (model direction -> world) and their cardinal shade, shared by every group
     final float[] normals = new float[18], shade = new float[6];
     boolean dead;
+    /** Per block and face, {@link Canopy}: the tree's own sky shade, baked once. */
+    float[] canopy;
     /** The pitch of the last drawn frame and its drawing time (tests). */
     volatile double drawnPitch = Double.NaN, drawnTau = Double.NaN;
 
@@ -178,6 +180,7 @@ final class MeshFall {
         BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
         BlockPos o = msg.origin();
         int[] cells = msg.cells();
+        canopy = Canopy.faces(msg);
         BlockBake baker = new BlockBake(level, msg);
         baker.begin();
         try {
@@ -423,6 +426,8 @@ final class MeshFall {
         int[] tint = new int[4], block = new int[4];
         /** Per vertex: the terrain's colour (AO x tint) and light where the block stood (RestLight). */
         int[] rcol = new int[16], rlight = new int[16];
+        /** Per vertex: the colour that stays once the terrain's is gone: the tree's own AO x tint x {@link Canopy} shade. */
+        int[] rself = new int[16];
         byte[] dir = new byte[4], emission = new byte[4];
         /** Quads vanilla culls at rest: no rest colour or light to keep, so they always take the path light. */
         boolean[] culled = new boolean[4];
@@ -442,8 +447,10 @@ final class MeshFall {
         }
 
         void add(BlockBake.Quad quad, Quaternionf right, float tx, float ty, float tz, Vector3f c, Vector3f q, int bi, int flat) {
-            int[] lv = quad.rest;
+            int[] lv = quad.rest, own = quad.self;
             int col = quad.color;
+            // the crown only: the trunk loses its leaves at the slam, and a shader pack shades from its own shadow map
+            float shade = leaf && !IrisCompat.active() ? fall.canopy[bi * 6 + quad.shade] : 1f;
             if (quads == tint.length) {
                 int n = quads * 2;
                 pos = java.util.Arrays.copyOf(pos, n * 12);
@@ -453,6 +460,7 @@ final class MeshFall {
                 block = java.util.Arrays.copyOf(block, n);
                 rcol = java.util.Arrays.copyOf(rcol, n * 4);
                 rlight = java.util.Arrays.copyOf(rlight, n * 4);
+                rself = java.util.Arrays.copyOf(rself, n * 4);
                 dir = java.util.Arrays.copyOf(dir, n);
                 emission = java.util.Arrays.copyOf(emission, n);
                 culled = java.util.Arrays.copyOf(culled, n);
@@ -470,6 +478,7 @@ final class MeshFall {
                 uv[(quads * 4 + v) * 2 + 1] = quad.uv[v * 2 + 1];
                 rcol[quads * 4 + v] = lv != null ? lv[v] : col;
                 rlight[quads * 4 + v] = lv != null ? lv[4 + v] : flat;
+                rself[quads * 4 + v] = Packed.scaleRGB(own != null ? own[v] : col, shade);
             }
             tint[quads] = col;
             block[quads] = bi;
@@ -509,7 +518,7 @@ final class MeshFall {
                         col = rcol[rv];
                         li = rlight[rv];
                     } else {
-                        col = qw <= 0 ? tint[qi] : Packed.srgbLerp(qw, tint[qi], rcol[rv]);
+                        col = qw <= 0 ? rself[rv] : Packed.srgbLerp(qw, rself[rv], rcol[rv]);
                         int rl = rlight[rv];
                         li = Math.round(pu + ((rl & 0xFFFF) - pu) * qw) | Math.round(pv + ((rl >>> 16) - pv) * qw) << 16;
                     }

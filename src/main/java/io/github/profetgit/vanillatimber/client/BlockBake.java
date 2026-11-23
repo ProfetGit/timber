@@ -46,6 +46,8 @@ final class BlockBake {
         int color = -1, shade, emission;
         RenderPass.Layer layer;
         int[] rest;
+        /** The colours (AO x tint) of the same quad with only the tree around it: what stays true while it falls. */
+        int[] self;
     }
 
 //? if >=26.3 {
@@ -60,7 +62,7 @@ final class BlockBake {
 
     private final Minecraft mc = Minecraft.getInstance();
     private final ClientLevel level;
-    private final RestLight rest;
+    private final RestLight rest, own;
     private final List<Quad> out = new ArrayList<>();
 
     /** Call once before the first block and {@link #end} after the last (a shared light cache, see {@link RestLight}). */
@@ -77,7 +79,8 @@ final class BlockBake {
 
     BlockBake(ClientLevel level, TreeFall msg) {
         this.level = level;
-        rest = new RestLight(level, msg);
+        rest = new RestLight(level, msg, false);
+        own = new RestLight(level, msg, true);
     }
 
     // the quads of the block at cell; the list is reused by the next call
@@ -91,6 +94,7 @@ final class BlockBake {
         parts.clear();
         mc.getModelManager().getBlockStateModelSet().get(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
         rest.run(cell, state);
+        own.run(cell, state);
         boolean opaque = ModelBlockRenderer.forceOpaque(cutoutLeaves, state);
         out.clear();
         for (BlockStateModelPart part : parts) {
@@ -109,6 +113,7 @@ final class BlockBake {
                     q.shade = (sd != null ? sd : quad.direction()).ordinal();
                     q.emission = quad.materialInfo().lightEmission();
                     q.rest = rest.get(quad);
+                    q.self = own.get(quad);
                     for (int v = 0; v < 4; v++) {
                         var p = quad.position(v);
                         q.pos[v * 3] = p.x();
@@ -129,7 +134,8 @@ final class BlockBake {
 
     BlockBake(ClientLevel level, TreeFall msg) {
         this.level = level;
-        rest = new RestLight(level, msg);
+        rest = new RestLight(level, msg, false);
+        own = new RestLight(level, msg, true);
     }
 
     // the quads of the block at cell; the list is reused by the next call
@@ -137,6 +143,7 @@ final class BlockBake {
         parts.clear();
         mc.getBlockRenderer().getBlockModel(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
         rest.run(cell, state);
+        own.run(cell, state);
         RenderPass.Layer layer = layer(state);
         out.clear();
         for (BlockModelPart part : parts) {
@@ -151,6 +158,7 @@ final class BlockBake {
                     q.shade = (quad.shade() ? quad.direction() : Direction.UP).ordinal();
                     q.emission = quad.lightEmission();
                     q.rest = rest.get(quad);
+                    q.self = own.get(quad);
                     corners(quad, q);
                     out.add(q);
                 }
@@ -171,13 +179,15 @@ final class BlockBake {
 *///?} else {
 /*    BlockBake(ClientLevel level, TreeFall msg) {
         this.level = level;
-        rest = new RestLight(level, msg);
+        rest = new RestLight(level, msg, false);
+        own = new RestLight(level, msg, true);
     }
 
     // the quads of the block at cell; the list is reused by the next call
     List<Quad> block(BlockPos cell, BlockState state) {
         BakedModel model = mc.getBlockRenderer().getBlockModel(state);
         rest.run(cell, state);
+        own.run(cell, state);
         RenderPass.Layer layer = layer(state);
         RandomSource random = RandomSource.create();
         out.clear();
@@ -192,6 +202,7 @@ final class BlockBake {
                 }
                 q.shade = (quad.isShade() ? quad.getDirection() : Direction.UP).ordinal();
                 q.rest = rest.get(quad);
+                q.self = own.get(quad);
                 int[] vertices = quad.getVertices();
                 for (int v = 0; v < 4; v++) {
                     for (int i = 0; i < 3; i++) q.pos[v * 3 + i] = Float.intBitsToFloat(vertices[v * 8 + i]);
