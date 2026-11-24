@@ -183,6 +183,18 @@ final class BlockBake {
         own = new RestLight(level, msg, true);
     }
 
+    private final java.util.Map<net.minecraft.client.renderer.texture.TextureAtlasSprite, Boolean> holes = new java.util.HashMap<>();
+
+    // A mod's block on Forge or NeoForge names its layer in the model json, not in the block map, so the map calls it solid and a
+    // vine or fruit would fall inside a black box. A sprite with see-through pixels is cutout whatever the map says.
+    private boolean seeThrough(net.minecraft.client.renderer.texture.TextureAtlasSprite sprite) {
+        return holes.computeIfAbsent(sprite, s -> {
+            var c = s.contents();
+            for (int y = 0; y < c.height(); y++) for (int x = 0; x < c.width(); x++) if (c.isTransparent(0, x, y)) return true;
+            return false;
+        });
+    }
+
     // the quads of the block at cell; the list is reused by the next call
     List<Quad> block(BlockPos cell, BlockState state) {
         BakedModel model = mc.getBlockRenderer().getBlockModel(state);
@@ -195,7 +207,7 @@ final class BlockBake {
             random.setSeed(state.getSeed(cell));
             for (BakedQuad quad : model.getQuads(state, d < 6 ? DIRS[d] : null, random)) {
                 Quad q = new Quad();
-                q.layer = layer;
+                q.layer = layer == RenderPass.Layer.SOLID && seeThrough(quad.getSprite()) ? RenderPass.Layer.CUTOUT : layer;
                 if (quad.isTinted()) {
                     int c = mc.getBlockColors().getColor(state, level, cell, quad.getTintIndex());
                     q.color = c == -1 ? -1 : c | 0xFF000000;

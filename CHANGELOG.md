@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.10 — 2026-11-24
+
+### Fixed
+- **Black boxes behind falling vines and fruit** on Forge and NeoForge (1.20.1 and 1.21.1). A mod's plant that marks itself see-through in its own model file, such as Luminous Nether's vines, fell inside a black rectangle. Timber now draws any block whose texture has see-through pixels with cut-out edges.
+
 ## 2.2.9 — 2026-11-24
 
 ### Fixed
