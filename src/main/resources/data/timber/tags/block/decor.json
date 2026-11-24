@@ -8,6 +8,8 @@
     {"id": "minecraft:creaking_heart", "required": false},
     {"id": "minecraft:shelf_mushroom", "required": false},
     {"id": "luminous_nether:ash_vines", "required": false},
-    {"id": "luminous_nether:driprot_vine", "required": false}
+    {"id": "luminous_nether:driprot_vine", "required": false},
+    {"id": "nomansland:apple", "required": false},
+    {"id": "nomansland:pear", "required": false}
   ]
 }

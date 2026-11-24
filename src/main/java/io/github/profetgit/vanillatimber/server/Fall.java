@@ -235,6 +235,7 @@ public final class Fall {
             for (Tree.Part p : tree.parts()) if (p.hidden()) remove(p.pos(), p.state());
         } else if (n == 1) {
             for (Tree.Part p : tree.parts()) if (!p.pos().equals(tree.anchor())) remove(p.pos(), p.state());
+            settle();
             owe();
         }
         send();
@@ -262,6 +263,7 @@ public final class Fall {
      */
     void instantly() {
         for (Tree.Part p : tree.parts()) remove(p.pos(), p.state());
+        settle();
         Vec3 at = new Vec3(x, y0, z);
         Fx.instant(level, at);
         Vec3 p = at.add(0, 0.5, 0);
@@ -277,8 +279,22 @@ public final class Fall {
 
     /** Ends the fall now (server stop, chunk unload): every display goes and every drop pops at the stump. */
     void abort() {
-        if (n < 1) for (Tree.Part p : tree.parts()) remove(p.pos(), p.state());
+        if (n < 1) {
+            for (Tree.Part p : tree.parts()) remove(p.pos(), p.state());
+            settle();
+        }
         finish(new Vec3(x, y0, z));
+    }
+
+    /**
+     * Pop, never float: a block that stood on the tree and whose support check could not be run without it ({@link Support})
+     * pops now if it cannot stay, as vanilla would have done with a neighbour update.
+     */
+    private void settle() {
+        for (BlockPos q : tree.watch()) {
+            BlockState s = level.getBlockState(q);
+            if (!s.isAir() && !s.canSurvive(level, q)) level.destroyBlock(q, true);
+        }
     }
 
     /** Clears a tree cell unless something else stands there now; same block is enough (a leaf's distance or a vine's faces change when the anchor goes). */

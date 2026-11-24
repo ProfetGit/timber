@@ -44,6 +44,8 @@ public final class TreeScan {
     public static final TagKey<Block> DECOR = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "decor"));
     public static final TagKey<Block> HANGING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "hanging"));
     public static final TagKey<Block> RISING = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "rising"));
+    /** Never taken as decor, whatever the support rule says (a pack or player's opt-out). */
+    public static final TagKey<Block> KEEP = TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("timber", "keep"));
     static final int[] TRIES = {3375, -3375, 0, 6750, -6750, 9000, -9000};
     /** Fall directions tried with {@code land_blocks} on: the facing axis, then the side axes (never back at the player). */
     static final int[] AXIS_TRIES = {0, 9000, -9000};
@@ -249,6 +251,7 @@ public final class TreeScan {
             take.blocks++;
             take.around(p);
         }
+        take.dependents(logs);
         List<BlockPos> leaves = take.crown;
         LongOpenHashSet treeLogs = new LongOpenHashSet();
         for (BlockPos p : logs) treeLogs.add(p.asLong());
@@ -323,7 +326,7 @@ public final class TreeScan {
         FallSpec spec = FallSpec.sized(h, best / 100.0, gap, hang, dr, km, rs);
         BlockState leaf = take.lastLeaf == null ? null : level.getBlockState(take.lastLeaf);
         return new Tree(origin, parts, px, py, pz, bin, spec, logRings, anchor, gap, hang, logs.size(), take.leafCount, hw,
-            Math.min(cw, 4000), chopped, leaf, roots, base.immutable(), total);
+            Math.min(cw, 4000), chopped, leaf, roots, base.immutable(), total, take.watch);
     }
 
     private static boolean lower(BlockPos a, BlockPos b) {
@@ -387,6 +390,8 @@ public final class TreeScan {
         final LongOpenHashSet taken = new LongOpenHashSet();
         int blocks, leafCount;
         BlockPos lastLeaf;
+        /** Blocks that stand on the tree but whose own survival check cannot run without it ({@link Support}): popped after the fall if they cannot stay. */
+        final List<BlockPos> watch = new ArrayList<>();
 
         Take(ServerLevel level, int max, TreeType type) {
             this.level = level;
@@ -484,8 +489,46 @@ public final class TreeScan {
             for (BlockPos u = q.above(); level.getBlockState(u).is(RISING) && takeDecor(u); u = u.above()) { }
         }
 
+        /**
+         * The general rule: every block next to the tree that stands now and would not without the tree's cells (an apple under
+         * its fruit leaves, a lantern under a branch, a torch on a log) goes with it. Newly taken cells can carry more, so it runs
+         * on them again, three rounds at most.
+         */
+        void dependents(List<BlockPos> logs) {
+            LongOpenHashSet gone = new LongOpenHashSet(taken);
+            List<BlockPos> frontier = new ArrayList<>(logs);
+            for (BlockPos p : crown) {
+                gone.add(p.asLong());
+                frontier.add(p);
+            }
+            for (BlockPos p : logs) gone.add(p.asLong());
+            Support support = new Support(level, gone);
+            for (int round = 0; round < 3 && !frontier.isEmpty() && blocks < max; round++) {
+                List<BlockPos> next = new ArrayList<>();
+                for (BlockPos src : frontier) {
+                    for (Direction dir : FACES) {
+                        BlockPos q = src.relative(dir);
+                        if (gone.contains(q.asLong()) || taken.contains(q.asLong())) continue;
+                        BlockState s = level.getBlockState(q);
+                        if (s.isAir() || type.isCrown(s) || s.is(BlockTags.LOGS) || s.is(KEEP) || s.hasBlockEntity() || s.isCollisionShapeFullBlock(level, q)) continue;
+                        if (support.dependsOn(q, s)) {
+                            int before = crown.size();
+                            decor(q);
+                            for (int i = before; i < crown.size(); i++) {
+                                gone.add(crown.get(i).asLong());
+                                next.add(crown.get(i));
+                            }
+                        } else if (support.unknown) {
+                            watch.add(q);
+                        }
+                    }
+                }
+                frontier = next;
+            }
+        }
+
         private boolean takeDecor(BlockPos q) {
-            if (blocks >= max || !taken.add(q.asLong())) return false;
+            if (blocks >= max || level.getBlockState(q).is(KEEP) || !taken.add(q.asLong())) return false;
             blocks++;
             decor.set(crown.size());
             crown.add(q);

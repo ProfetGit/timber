@@ -38,17 +38,45 @@ public final class TestBlocks {
             .setId(k)));
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollision().setId(k)));
+        block("test_fruit", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion().setId(k), false));
+        block("test_cast", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion().setId(k), true));
 //?} else if >=1.21.2 {
 /*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion().setId(k)));
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f).setId(k)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission().setId(k)));
+        block("test_fruit", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion().setId(k), false));
+        block("test_cast", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion().setId(k), true));
 *///?} else {
 /*        block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f)));
         block("test_leaves", k -> new LeavesBlock(BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()));
         block("test_vine", k -> new VineBlock(BlockBehaviour.Properties.of().strength(0.2f)));
         block("test_hanging", k -> new Block(BlockBehaviour.Properties.of().strength(0.2f).noCollission()));
+        block("test_fruit", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion(), false));
+        block("test_cast", k -> new Fruit(BlockBehaviour.Properties.of().strength(0.2f).noOcclusion(), true));
 *///?}
+    }
+
+    /** Stands in for a mod's fruit: a small collision box (so it is no "loose" block) and a support check that needs leaves above; {@code cast} reads the level as a Level, which Timber's tree-less view is not. */
+    private static final class Fruit extends Block {
+        private static final net.minecraft.world.phys.shapes.VoxelShape SHAPE = Block.box(4, 4, 4, 12, 16, 12);
+        private final boolean cast;
+
+        Fruit(BlockBehaviour.Properties props, boolean cast) {
+            super(props);
+            this.cast = cast;
+        }
+
+        @Override
+        public net.minecraft.world.phys.shapes.VoxelShape getShape(net.minecraft.world.level.block.state.BlockState s, net.minecraft.world.level.BlockGetter l, net.minecraft.core.BlockPos p, net.minecraft.world.phys.shapes.CollisionContext c) {
+            return SHAPE;
+        }
+
+        @Override
+        public boolean canSurvive(net.minecraft.world.level.block.state.BlockState s, net.minecraft.world.level.LevelReader l, net.minecraft.core.BlockPos p) {
+            net.minecraft.world.level.BlockGetter g = cast ? (net.minecraft.world.level.Level) l : l;
+            return g.getBlockState(p.above()).getBlock() instanceof LeavesBlock;
+        }
     }
 
     private static java.util.function.BiConsumer<ResourceKey<Block>, Block> sink;
