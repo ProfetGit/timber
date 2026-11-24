@@ -3,13 +3,9 @@
 ## 2.2.10 — 2026-11-24
 
 ### Fixed
-- **Black boxes behind falling vines and fruit** on Forge and NeoForge (1.20.1 and 1.21.1). A mod's plant that marks itself see-through in its own model file, such as Luminous Nether's vines, fell inside a black rectangle. Timber now draws any block whose texture has see-through pixels with cut-out edges.
-
-## 2.2.9 — 2026-11-24
-
-### Fixed
 - **Fruit and anything else hanging from the tree now falls with it.** Apples and pears from No Man's Land stayed floating in the air after the tree was chopped. Timber now asks every block next to the tree whether it would still stand without it (the same check Minecraft uses to pop a torch or a flower), and takes the ones that would not along for the fall: fruit under its leaves, lanterns under a branch, torches on a log, any mod's vines. No list per mod is needed any more. Their drops come out where the tree lands, as before for vines and cocoa.
 - A hanging block whose own check cannot run on the felled tree pops when the tree goes, as it would have in vanilla, instead of floating.
+- **Black boxes behind falling vines and fruit** on Forge and NeoForge (1.20.1 and 1.21.1). A mod's plant that marks itself see-through in its own model file, such as Luminous Nether's vines, fell inside a black rectangle. Timber now draws any block whose texture has see-through pixels with cut-out edges.
 
 ### Added
 - **Block tag `timber:keep`** (empty by default): blocks listed in it are never taken with a tree, for a pack that wants a hanging block to stay.
