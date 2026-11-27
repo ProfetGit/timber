@@ -3,12 +3,15 @@ package io.github.profetgit.vanillatimber.server;
 //? if >=26.3
 import net.minecraft.commands.arguments.coordinates.LocalCoordinates;
 import net.minecraft.core.particles.BlockParticleOption;
+import net.minecraft.core.registries.BuiltInRegistries;
 //? if >=1.20.5
 import net.minecraft.core.particles.ColorParticleOption;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -233,7 +236,27 @@ final class Fx {
     static void ringPop(ServerLevel level, Fall f, Vec3 at, float pp) {
         particle(level, block(f.tree.log()), at, 0.35, 0.35, 0.35, 0.12, 22);
         particle(level, ParticleTypes.SMALL_GUST, at, 0.25, 0.25, 0.25, 0, 2);
-        sound(level, at, SoundEvents.WOOD_BREAK, 0.7f, pp);
-        sound(level, at, SoundEvents.CHICKEN_EGG, 0.6f, pp + 0.3f);
+        popSound(level, at, f.pivot(), SoundEvents.WOOD_BREAK, 0.7f, pp);
+        popSound(level, at, f.pivot(), SoundEvents.CHICKEN_EGG, 0.6f, pp + 0.3f);
+    }
+
+    /** A ring farther off than this and than the stump is played nearer. */
+    private static final double POP_NEAR = 8;
+
+    /**
+     * A pop is quiet, so vanilla drops it 16 blocks out, which a tall tree's upper rings pass. Each player hears it from the
+     * ring's direction, but no farther off than the stump (or {@link #POP_NEAR}).
+     */
+    private static void popSound(ServerLevel level, Vec3 at, Vec3 stump, SoundEvent sound, float volume, float pitch) {
+        long seed = level.getRandom().nextLong();
+        for (ServerPlayer player : level.players()) {
+            Vec3 ear = player.getEyePosition(), to = at.subtract(ear);
+            double d = to.length(), max = Math.max(POP_NEAR, ear.distanceTo(stump));
+            Vec3 p = d > max ? ear.add(to.scale(max / d)) : at;
+            if (ear.distanceToSqr(p) < 16 * 16) {
+                player.connection.send(new ClientboundSoundPacket(BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound), SoundSource.BLOCKS,
+                    p.x, p.y, p.z, volume, pitch, seed));
+            }
+        }
     }
 }
