@@ -15,3 +15,5 @@ dev/probe/timberprobe.jar
 forge-*/build/
 forge-*/run/
 forge-*/.gradle/
+
+dev/preview/out/

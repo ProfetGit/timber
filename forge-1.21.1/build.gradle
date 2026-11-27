@@ -101,3 +101,7 @@ tasks.register('publishForTests', Copy) {
     include 'vanilla_timber-*+1.21.1-forge.jar'
     into file('../versions/1.21.1-forge/build/libs')
 }
+
+// The shared Profet settings screen, nested in the jar (tools/ProfetSettings/STATUS.md)
+ext.profetMc = '1.21.1'
+apply from: '../../../tools/ProfetSettings/mod/consumer-fg6.gradle'

@@ -36,7 +36,6 @@ import net.minecraft.world.scores.criteria.ObjectiveCriteria;
  */
 public final class Players extends SavedData {
     static final String OBJECTIVE = "timber";
-    static final String WELCOMED = "vanilla_timber.welcomed";
     private static final Codec<Players> CODEC = RecordCodecBuilder.create(i -> i.group(
         UUIDUtil.CODEC.listOf().optionalFieldOf("off", List.of()).forGetter(d -> List.copyOf(d.off))
     ).apply(i, Players::new));
@@ -84,10 +83,6 @@ public final class Players extends SavedData {
     static void tick(MinecraftServer server) {
         Config.pollReload();
         poll(server);
-    }
-
-    static void join(ServerPlayer player) {
-        if (!player.entityTags().contains(WELCOMED)) welcome(player);
     }
 
     static Objective ensureObjective(MinecraftServer server) {
@@ -142,18 +137,5 @@ public final class Players extends SavedData {
     static MutableComponent button(String label, ChatFormatting color, String hover, String command) {
         return Component.literal(label).withStyle(Style.EMPTY.withColor(color)
             .withHoverEvent(new HoverEvent.ShowText(Component.literal(hover))).withClickEvent(new ClickEvent.RunCommand(command)));
-    }
-
-    /** The join hint, tagged so it fires once per player, and only with {@code welcome} on (1.3.4: off by default). */
-    public static void welcome(ServerPlayer player) {
-        player.addTag(WELCOMED);
-        if (!Config.on(Config.Key.WELCOME)) return;
-        int sneak = Config.get(Config.Key.SNEAK);
-        String text = sneak == 1 ? "sneak while chopping a tree with an axe to fell the whole tree. "
-            : sneak == 2 ? "chop a tree with an axe and the whole tree comes down. "
-            : "chop a tree with an axe and the whole tree comes down. Sneak to take a single log. ";
-        MutableComponent hint = Component.literal("🪓 Timber: ").withStyle(ChatFormatting.GOLD).append(Component.literal(text).withStyle(ChatFormatting.GRAY));
-        for (Component c : Api.requires(player.level().getServer())) hint.append(c);
-        Say.chat(player, hint.append(button("[Toggle]", ChatFormatting.AQUA, "/trigger timber", "/trigger timber")));
     }
 }

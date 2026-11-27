@@ -24,6 +24,7 @@ public final class SelfTest {
     private static final String OUT = System.getProperty("vanilla_timber.selftest");
     private static final String MODE = System.getProperty("vanilla_timber.selftest.mode", "full");
     private static final List<String> RESULTS = new ArrayList<>();
+    private static final int FRAMES_EVERY = Math.max(1, Integer.getInteger("vanilla_timber.selftest.frames", 1));
     // daemon: a writer still busy at shutdown never keeps the JVM alive (the client shutdown watchdog fires at 15 s)
     private static final ExecutorService WRITER = Executors.newFixedThreadPool(2, r -> {
         Thread t = new Thread(r, "timber-selftest-writer");
@@ -82,8 +83,12 @@ public final class SelfTest {
         var hook = frameHook;
         if (hook != null) hook.accept(mc);
         if (captureLeft <= 0) return;
-        Path out = Path.of(OUT, "frames", captureName, String.format("f%03d.png", captureFrame++));
+        int n = captureFrame++;
         captureLeft--;
+        // -Dvanilla_timber.selftest.frames=N keeps every Nth frame (f000, fN, ...): the capture runs as before, but a matrix
+        // run no longer spends minutes after its last check encoding 1,440 full-size PNGs (2.7 GB) nobody looks at
+        if (n % FRAMES_EVERY != 0) return;
+        Path out = Path.of(OUT, "frames", captureName, String.format("f%03d.png", n));
 //? if >=1.21.5 {
         Screenshot.takeScreenshot(mc.gameRenderer.mainRenderTarget(), (NativeImage img) -> WRITER.execute(() -> {
             try (img) {
@@ -121,10 +126,17 @@ public final class SelfTest {
         captureFrame = 0;
     }
 
+    /** The parity group running now (results.json tags each result with it, so ModTest reports and retries per group). */
+    static volatile String group;
+
     public static void record(String name, boolean pass, String detail) {
-        RESULTS.add(String.format("{\"name\":\"%s\",\"pass\":%s,\"detail\":\"%s\"}",
-            name, pass, detail.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")));
-        TimberClient.LOG.info("[selftest] {} {} {}", pass ? "PASS" : "FAIL", name, detail);
+        String g = group;
+        synchronized (RESULTS) {
+            RESULTS.add(String.format("{\"name\":\"%s\",\"pass\":%s,\"detail\":\"%s\"%s}",
+                name, pass, detail.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " "), g == null ? "" : ",\"group\":\"" + g + "\""));
+        }
+        // the common logger: this also runs on a dedicated server (ServerRun), where client classes don't exist
+        io.github.profetgit.vanillatimber.Timber.LOG.info("[selftest] {} {} {}", pass ? "PASS" : "FAIL", name, detail);
     }
 
     private static void finish(Minecraft mc) {
@@ -135,14 +147,22 @@ public final class SelfTest {
             if (!WRITER.awaitTermination(5, TimeUnit.MINUTES)) TimberClient.LOG.warn("[selftest] frame writes still running at exit");
         } catch (InterruptedException ignored) {
         }
-        String json = String.format("{\"loader\":\"%s\",\"mc\":\"%s\",\"results\":[%s]}%n",
-            io.github.profetgit.vanillatimber.platform.Platform.get().loader(), net.minecraft.SharedConstants.getCurrentVersion().name(), String.join(",", RESULTS));
+        writeResults();
+        mc.stop();
+    }
+
+    /** Writes results.json; no client classes, so ServerRun shares it. */
+    static void writeResults() {
+        String json;
+        synchronized (RESULTS) {
+            json = String.format("{\"loader\":\"%s\",\"mc\":\"%s\",\"results\":[%s]}%n",
+                io.github.profetgit.vanillatimber.platform.Platform.get().loader(), net.minecraft.SharedConstants.getCurrentVersion().name(), String.join(",", RESULTS));
+        }
         try {
             Files.createDirectories(Path.of(OUT));
             Files.writeString(Path.of(OUT, "results.json"), json);
         } catch (IOException e) {
-            TimberClient.LOG.error("[selftest] could not write results", e);
+            io.github.profetgit.vanillatimber.Timber.LOG.error("[selftest] could not write results", e);
         }
-        mc.stop();
     }
 }

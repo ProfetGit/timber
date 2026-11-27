@@ -122,3 +122,7 @@ tasks.register('publishNeoForgeCopy', Copy) {
     into file('../versions/1.20.1-neoforge/build/libs')
 }
 tasks.named('publishForTests') { finalizedBy 'publishNeoForgeCopy' }
+
+// The shared Profet settings screen, nested in the jar (tools/ProfetSettings/STATUS.md)
+ext.profetMc = '1.20.1'
+apply from: '../../../tools/ProfetSettings/mod/consumer-fg6.gradle'

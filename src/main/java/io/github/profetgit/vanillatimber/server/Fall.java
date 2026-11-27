@@ -125,6 +125,13 @@ public final class Fall {
         lb = new float[shown.length];
         ls = new float[shown.length];
         lit = new int[shown.length];
+        int lo = 0, hi = 0;
+        for (Tree.Part part : tree.parts()) {
+            lo = Math.min(lo, part.k());
+            hi = Math.max(hi, part.k());
+        }
+        kn = lo;
+        kt = hi;
         landRing = landRings(tree, landed);
         // only full blocks land beside the trunk (leaves, wart blocks, mushroom caps): vines, cocoa and moss keep the
         // faces they had standing, which point the wrong way once the tree lies down (user 2026-11-18, jungle vines)
@@ -132,13 +139,12 @@ public final class Fall {
             Tree.Part p = tree.parts().get(i);
             if (landRing[i] >= 0 && p.leaf() && !(p.state().getBlock() instanceof LeavesBlock) && !p.state().isCollisionShapeFullBlock(level, p.pos())) landRing[i] = -1;
         }
+        reserve();
         resolved = new boolean[landRing.length];
-        int lo = 0, hi = 0, idx = -1;
+        int idx = -1;
         for (Tree.Part part : tree.parts()) {
             idx++;
             partLoot.add(null);
-            lo = Math.min(lo, part.k());
-            hi = Math.max(hi, part.k());
             if (!drops) continue;
             List<ItemStack> loot = Block.getDrops(part.state(), level, part.pos(), level.getBlockEntity(part.pos()), cutter, tool);
             for (ItemStack st : loot) {
@@ -149,13 +155,49 @@ public final class Fall {
             else if (part.leaf()) leafDrops.addAll(loot);
             else ringDrops[part.k()].addAll(loot);
         }
-        kn = lo;
-        kt = hi;
         oy = new double[kt - kn + 1];
         oz = new double[kt - kn + 1];
         sent[0] = Double.NaN;
         knock = new Knock(this);
     }
+
+    /**
+     * Every landing part's cell, decided at the chop from the resting pose (the fall's last frame), before the payload
+     * leaves: each landed log its own resting cell, else the nearest free one (within 2); then each leaf its own resting
+     * cell if that is open (or one of the tree's own cells, which the fall clears) and no log took it. A leaf with no cell
+     * bursts at the slam with the crown, on every client, instead of being drawn into the ground and vanishing at the
+     * hand-over; the land tick only re-checks that nothing was built there since.
+     */
+    private void reserve() {
+        boolean any = false;
+        for (int r : landRing) any |= r >= 0;
+        if (!any) return;
+        Pose rest = new Pose(tl.end);
+        own = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        for (Tree.Part p : tree.parts()) own.add(p.pos().asLong());
+        logCell = new long[landRing.length];
+        java.util.Arrays.fill(logCell, Long.MIN_VALUE);
+        for (int pass = 0; pass < 2; pass++) {
+            for (int i = 0; i < landRing.length; i++) {
+                Tree.Part p = tree.parts().get(i);
+                if (landRing[i] < 0 || p.leaf() != (pass == 1)) continue;
+                double[] e = rest.centre(p);
+                BlockPos at = p.leaf() ? BlockPos.containing(e[0], e[1], e[2]) : nearestFree(e[0], e[1], e[2], rest.axis);
+                if (at == null || !free(at)) {
+                    if (debugLand) io.github.profetgit.vanillatimber.Timber.LOG.info("[land] {} {} has no resting cell ({}): it {}", p.leaf() ? "leaf" : "log", p.pos(), at,
+                        p.leaf() ? "bursts" : "drops");
+                    if (p.leaf()) landRing[i] = -1;
+                    continue;
+                }
+                logCell[i] = at.asLong();
+                takenCells.add(at.asLong());
+            }
+        }
+        own = null;
+    }
+
+    /** The tree's own cells while {@link #reserve} runs: the fall clears them, so they count as open. */
+    private it.unimi.dsi.fastutil.longs.LongOpenHashSet own;
 
     /** Per part the ring it lands with: a log of a landed ring its own, a leaf the ring of the nearest landed log within {@link Landing#LEAF_REACH}. */
     private static int[] landRings(Tree tree, boolean[] landed) {
@@ -232,7 +274,6 @@ public final class Fall {
         n++;
         if (n == 0) {
             if (tree.anchor() != null) remove(tree.anchor(), null);
-            for (Tree.Part p : tree.parts()) if (p.hidden()) remove(p.pos(), p.state());
         } else if (n == 1) {
             for (Tree.Part p : tree.parts()) if (!p.pos().equals(tree.anchor())) remove(p.pos(), p.state());
             settle();
@@ -265,7 +306,7 @@ public final class Fall {
         for (Tree.Part p : tree.parts()) remove(p.pos(), p.state());
         settle();
         Vec3 at = new Vec3(x, y0, z);
-        Fx.instant(level, at);
+        Fx.instant(level, this, at);
         Vec3 p = at.add(0, 0.5, 0);
         for (List<ItemStack> ring : ringDrops) {
             for (ItemStack s : ring) drop(s, p, false);
@@ -335,7 +376,7 @@ public final class Fall {
         for (int pass = 0; pass < 2; pass++) {
             for (int i = 0; i < shown.length && budget > 0; i++) {
                 Tree.Part p = tree.parts().get(i);
-                if (p.leaf() == (pass == 0) || p.state().isAir() || p.hidden()) continue;
+                if (p.leaf() == (pass == 0) || p.state().isAir()) continue;
                 int at = landRing[i];
                 if (at >= 0 ? n > tl.landTick() : p.leaf() ? n >= tl.leavesGone && tl.leavesGone >= 0
                     : tl.popTick[p.k()] >= 0 && n >= tl.popTick[p.k()]) continue;
@@ -402,22 +443,8 @@ public final class Fall {
      * A part whose cell is taken, claimed or out of the world drops its items at the ring's RING tick as a popped one does.
      */
     private void land(int k) {
-        Pose pose = new Pose(Math.max(0, n - 1));
-        // the first ring to land reserves a cell for every landed log of the tree (own cell, else the nearest free
-        // neighbour), so leaves landing with an earlier ring never take the cell a later ring's log needs
-        if (logCell == null) {
-            logCell = new long[landRing.length];
-            java.util.Arrays.fill(logCell, Long.MIN_VALUE);
-            for (int i = 0; i < landRing.length; i++) {
-                Tree.Part p = tree.parts().get(i);
-                if (landRing[i] < 0 || p.leaf()) continue;
-                double[] e = pose.centre(p);
-                BlockPos at = nearestFree(e[0], e[1], e[2], pose.axis);
-                if (at == null) continue;
-                logCell[i] = at.asLong();
-                takenCells.add(at.asLong());
-            }
-        }
+        // the resting pose: the frames drawn around this tick already show it, so the blocks come exactly where they lie
+        Pose pose = new Pose(tl.end);
         for (int pass = 0; pass < 2; pass++) {
             for (int i = 0; i < landRing.length; i++) {
                 Tree.Part p = tree.parts().get(i);
@@ -426,14 +453,15 @@ public final class Fall {
                 BlockState st = p.state();
                 if (!p.leaf() && pose.lying && st.hasProperty(BlockStateProperties.AXIS)) st = st.setValue(BlockStateProperties.AXIS, pose.axis);
                 if (p.leaf() && st.hasProperty(LeavesBlock.PERSISTENT)) st = st.setValue(LeavesBlock.PERSISTENT, false);
-                boolean ok;
-                if (p.leaf()) {
-                    // a leaf takes its own cell or none: moving leaves around stacked them into a mound (critic 2026-11-17)
-                    double[] e = pose.centre(p);
-                    BlockPos at = BlockPos.containing(e[0], e[1], e[2]);
-                    ok = free(at) && put(at, st, true);
-                } else ok = logCell[i] != Long.MIN_VALUE && put(BlockPos.of(logCell[i]), st, false);
+                // the cell reserved at the chop (a leaf takes its own cell or none: moving leaves around stacked them into a
+                // mound, critic 2026-11-17); put re-checks it is still open
+                boolean ok = logCell != null && logCell[i] != Long.MIN_VALUE && put(BlockPos.of(logCell[i]), st, p.leaf());
                 if (!ok) {
+                    if (debugLand) {
+                        BlockPos at = logCell == null || logCell[i] == Long.MIN_VALUE ? null : BlockPos.of(logCell[i]);
+                        io.github.profetgit.vanillatimber.Timber.LOG.info("[land] part {} leaf={} refused at {}: taken {} state {} tree cell {}", p.pos(), p.leaf(), at,
+                            at != null && takenCells.contains(at.asLong()), at == null ? null : level.getBlockState(at), at != null && cells != null && cells.contains(at.asLong()));
+                    }
                     landFailed++;
                     List<ItemStack> loot = partLoot.get(i);
                     if (loot != null) ringDrops[k].addAll(loot);
@@ -451,7 +479,7 @@ public final class Fall {
         }
     }
 
-    /** Per part, the cell reserved for a landed log at the first landing (-: none), or null before it. */
+    /** Per part, the cell reserved for a landing part at the chop (Long.MIN_VALUE: none), or null when nothing lands. */
     private long[] logCell;
 
     /** The pose the displays showed on frame {@code f}: where each part's centre is in the world. */
@@ -484,6 +512,28 @@ public final class Fall {
             orient.transform(t.getMatrix().transformPosition(0.5f, 0.5f, 0.5f, c));
             return new double[] {x + c.x, top + c.y, z + c.z};
         }
+    }
+
+    /** The rotation of the 24 cube turns nearest {@code q}. */
+    private static Quaternionf snap(Quaternionf q) {
+        org.joml.Matrix3f m = q.get(new org.joml.Matrix3f());
+        org.joml.Matrix3f r = new org.joml.Matrix3f().zero();
+        boolean[] used = new boolean[3];
+        for (int c = 0; c < 3; c++) {
+            int best = 0;
+            float bv = -1;
+            for (int row = 0; row < 3; row++) {
+                if (used[row]) continue;
+                float v = Math.abs(m.get(c, row));
+                if (v > bv) {
+                    bv = v;
+                    best = row;
+                }
+            }
+            used[best] = true;
+            r.set(c, best, Math.signum(m.get(c, best)));
+        }
+        return new Quaternionf().setFromNormalized(r);
     }
 
     /** Cells a landing part may move to when its own cell is taken: up to 2 blocks away, nearest first per part. */
@@ -520,7 +570,7 @@ public final class Fall {
 
     /** Not reserved by this fall, in the world, loaded, replaceable and not claimed against the cutter. */
     private boolean free(BlockPos at) {
-        return !takenCells.contains(at.asLong()) && open(at);
+        return !takenCells.contains(at.asLong()) && (own != null && own.contains(at.asLong()) && !level.isOutsideBuildHeight(at.getY()) || open(at));
     }
 
     private boolean open(BlockPos at) {
@@ -601,9 +651,59 @@ public final class Fall {
      * Every live, non-popping display's transformation when the frame's pose changed ({@code anim/xf}): the residual
      * pitch, the bend as a chain of ring origins, each group's squash, reached over one tick.
      */
+    private boolean insetSent;
+    private double lieSent;
+    /** Per landed part, its display corner's offset from the resting (hit) pose to its reserved cell, square on the grid; and that turn in degrees. */
+    private float[][] lieDelta;
+    private double lieTurn;
+    /**
+     * The cube turn that makes a leaf display face the world as a placed leaf block does (its texture's pattern otherwise
+     * turns with the tree and the hand-over shows another one), applied in the left rotation from the slam on: the cube
+     * looks the same, only which way its texture runs changes, under the slam's burst.
+     */
+    private Quaternionf leafSwap;
+
+    /**
+     * The blocks lie square on the grid, the tree rests at its hit pitch: per landed part the corner offset (display frame)
+     * that puts its display exactly on its reserved cell at the flat pitch, eased in by {@link Timeline#lie}.
+     */
+    private void lieDeltas() {
+        lieDelta = new float[landRing.length][];
+        Pose rest = new Pose(tl.end);
+        double pitch = tl.p[tl.end] / 100.0, rot = Rig.step(pitch), flat = Math.round(pitch / 90) * 90.0;
+        lieTurn = flat - pitch;
+        Quaternionf orient = new Quaternionf().rotationYXZ((float) Math.toRadians(-yaw), (float) Math.toRadians(rot), 0), back = new Quaternionf(orient).conjugate();
+        Quaternionf flatLeft = new Quaternionf().rotationX((float) Math.toRadians(flat - rot));
+        // world turn of a display at the flat rest = orient * flatLeft * right; the swap undoes it, snapped to a cube turn
+        Quaternionf q = new Quaternionf(orient).mul(flatLeft).mul(right).conjugate();
+        leafSwap = new Quaternionf(right).mul(snap(q)).mul(new Quaternionf(right).conjugate());
+        Vector3f m0 = new Vector3f(), to = new Vector3f();
+        for (int i = 0; i < landRing.length; i++) {
+            if (landRing[i] < 0 || logCell[i] == Long.MIN_VALUE) continue;
+            Tree.Part p = tree.parts().get(i);
+            double sx = (p.leaf() ? tl.lx[tl.end] : tl.gx[tl.end]) / 1000.0, sy = tl.gy[tl.end] / 1000.0, sz = (p.leaf() ? tl.lz[tl.end] : tl.gz[tl.end]) / 1000.0;
+            rest.centre(p);
+            double cx = corner[0], cy = corner[1], cz = corner[2];
+            Displays.of(0, 0, 0, flatLeft, sx, sy, sz, right).getMatrix().transformPosition(0.5f, 0.5f, 0.5f, m0);
+            BlockPos at = BlockPos.of(logCell[i]);
+            back.transform((float) (at.getX() + 0.5 - x), (float) (at.getY() + 0.5 - rest.top), (float) (at.getZ() + 0.5 - z), to);
+            lieDelta[i] = new float[] {(float) (to.x - m0.x - cx), (float) (to.y - m0.y - cy), (float) (to.z - m0.z - cz)};
+        }
+    }
+    /** Self-test: logs why a landing part bursts or is refused. */
+    public static boolean debugLand = Boolean.getBoolean("vanilla_timber.selftest.debugland") || System.getProperty("vanilla_timber.selftest") != null;
+
     private void pose(double pitch) {
         double gx = tl.gx[n], gy = tl.gy[n], gz = tl.gz[n], lx = tl.lx[n], lz = tl.lz[n], bend = tl.bn[n];
-        if (sent[0] == pitch && sent[1] == bend && sent[2] == gx && sent[3] == gy && sent[4] == gz && sent[5] == lx && sent[6] == lz) return;
+        // land_blocks: once the tree rests, the landed displays sit a hair inside the cells their blocks come in, so the
+        // blocks cover them as soon as a client draws them (no z-fighting over the hand-over)
+        boolean inset = tl.landTick() >= 0 && tl.settled >= 0 && n > tl.settled;
+        double lie = landRing != null && logCell != null ? tl.lie(n) : 0;
+        if (sent[0] == pitch && sent[1] == bend && sent[2] == gx && sent[3] == gy && sent[4] == gz && sent[5] == lx && sent[6] == lz && inset == insetSent
+            && lie == lieSent) return;
+        insetSent = inset;
+        lieSent = lie;
+        if (lie > 0 && lieDelta == null) lieDeltas();
         boolean first = Double.isNaN(sent[0]);
         sent[0] = pitch;
         sent[1] = bend;
@@ -626,7 +726,35 @@ public final class Fall {
             if (shown[i] == null || !p.leaf() && popping[p.k()]) continue;
             double sx = (p.leaf() ? lx : gx) / 1000.0, sz = (p.leaf() ? lz : gz) / 1000.0, sy = gy / 1000.0;
             Rig.corner(p.tx() / 1000.0, p.wy() / 1000.0, p.tz() / 1000.0, p.k(), sx, sy, sz, res, oy[p.k() - kn], oz[p.k() - kn], corner);
-            Transformation t = Displays.of(corner[0], corner[1], corner[2], left, sx, sy, sz, right);
+            Transformation t;
+            Quaternionf lq = left;
+            if (lie > 0 && landRing[i] >= 0 && lieDelta[i] != null) {
+                // toward the block grid on top of the bounce: the resting pose's offset to the cell, turned flat
+                float[] dl = lieDelta[i];
+                corner[0] += dl[0] * lie;
+                corner[1] += dl[1] * lie;
+                corner[2] += dl[2] * lie;
+                lq = new Quaternionf().rotationX((float) Math.toRadians(res + lieTurn * lie));
+                t = Displays.of(corner[0], corner[1], corner[2], lq, sx, sy, sz, right);
+            } else {
+                t = Displays.of(corner[0], corner[1], corner[2], left, sx, sy, sz, right);
+            }
+            if (lie > 0 && p.leaf() && landRing[i] >= 0 && leafSwap != null) {
+                // the same cube about its centre, the texture running as the placed block's
+                Vector3f mid = t.getMatrix().transformPosition(0.5f, 0.5f, 0.5f, new Vector3f());
+                lq = new Quaternionf(lq).mul(leafSwap);
+                Vector3f m2 = Displays.of(0, 0, 0, lq, sx, sy, sz, right).getMatrix().transformPosition(0.5f, 0.5f, 0.5f, new Vector3f());
+                corner[0] = mid.x - m2.x;
+                corner[1] = mid.y - m2.y;
+                corner[2] = mid.z - m2.z;
+                t = Displays.of(corner[0], corner[1], corner[2], lq, sx, sy, sz, right);
+            }
+            if (inset && landRing[i] >= 0) {
+                Vector3f mid = t.getMatrix().transformPosition(0.5f, 0.5f, 0.5f, new Vector3f());
+                double f = 0.004;
+                t = Displays.of(corner[0] + (mid.x - corner[0]) * f, corner[1] + (mid.y - corner[1]) * f, corner[2] + (mid.z - corner[2]) * f, lq,
+                    sx * (1 - f), sy * (1 - f), sz * (1 - f), right);
+            }
             Displays.pose(shown[i], t, 1);
             orient.transform(t.getMatrix().transformPosition(0.5f, 0.5f, 0.5f, c));
             cell.set(Math.floor(x + c.x), Math.floor(lastY + c.y), Math.floor(z + c.z));

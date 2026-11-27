@@ -596,6 +596,8 @@ final class Parity {
         cmd("gamerule advance_time false");
         cmd("gamerule advance_weather false");
         cmd("time set 6000");
+        // -Dmodtest.tickrate=N|sprint (ModTest): server-logic groups at N ticks per second, or as fast as the server can
+        for (String c : ModTestHook.commands()) info("  " + c + ": " + cmd(c));
         if (resetConfig) {
             on(() -> {
                 Config.reset();
@@ -610,13 +612,13 @@ final class Parity {
         for (String g : java.util.stream.Stream.concat(java.util.Arrays.stream(ALL), java.util.stream.Stream.of("giants_xl", "m8sheet", "chopsheet", "layersheet", "widesheet", "ghosttrace", "looks", "looksdense", "looksdensebefore", "looksbefore", "looksprobe", "looksprobebefore", "looksplants", "looksplantsbefore")).toList()) {
             if (!((groups.equals("all") && !g.startsWith("looks") && !g.equals("m8sheet") && !g.equals("chopsheet") && !g.equals("layersheet") && !g.equals("widesheet") && !g.equals("ghosttrace")) || ("," + groups + ",").contains("," + g + ","))) continue;
             long t0 = System.currentTimeMillis();
+            SelfTest.group = g;
             try {
                 switch (g) {
                     case "oak" -> oak();
                     case "swap" -> {
                         swap();
                         putBack();
-                        hideLeaves();
                     }
                     case "gates" -> gates();
                     case "protection" -> protection();
@@ -708,8 +710,14 @@ final class Parity {
                 io.github.profetgit.vanillatimber.Timber.LOG.error("[parity] group {} threw", g, t);
                 SelfTest.record("group " + g + " completed", false, t.toString());
             }
+            SelfTest.group = null;
             info("group " + g + " took " + (System.currentTimeMillis() - t0) / 1000 + " s");
         }
+    }
+
+    /** False with -Dvanilla_timber.selftest.timing=0: cost and frame-time asserts are skipped (ModTest's matrix runs them once, alone). */
+    static boolean timing() {
+        return !"0".equals(System.getProperty("vanilla_timber.selftest.timing", "1"));
     }
 
     static void oak() {
@@ -758,40 +766,6 @@ final class Parity {
         int dropped = itemsOf("minecraft:oak_log", 24);
         check("oak: every log dropped", dropped == logs, dropped + " of " + logs);
         check("oak: axe used 1 per log", damage() == logs, "damage " + damage() + " for " + logs + " logs");
-    }
-
-    /** hide_leaves 1: the old saving, leaves shut in on all sides get no display and no stand-in survives. */
-    static void hideLeaves() {
-        try {
-            plot();
-            cfg("hide_leaves", 1);
-            customTree(0, 0, 6, 2, "oak_log", "oak_leaves");
-            tick(40);
-            int logs = count(Parity::isLog, 6), leaves = count(Parity::natLeaf, 6), hidden = enclosedLeaves(6);
-            hold("minecraft:iron_axe");
-            stand(-2, 0, -90);
-            List<int[]> samples = new ArrayList<>();
-            int[] waited = {0};
-            CompletableFuture<Void> done = everyTick(gt -> {
-                int n = 0;
-                for (Fall f : plotFalls) n += f.displays();
-                if (n == 0 && samples.isEmpty()) return ++waited[0] < 400;
-                int lf = 0;
-                for (BlockPos q : BlockPos.betweenClosed(cx - 6, Y - 1, cz - 6, cx + 6, Y + 40, cz + 6)) if (isLeaf(level.getBlockState(q))) lf++;
-                samples.add(new int[] {n, lf});
-                return samples.size() < 2;
-            });
-            destroy(p(0, 0, 0));
-            await(done);
-            int[] a = samples.get(0);
-            check("hide_leaves 1: no display for leaves shut in on all sides", hidden > 0 && a[0] == logs - 1 + leaves - hidden,
-                a[0] + " displays for " + (logs - 1) + " logs + " + leaves + " leaves - " + hidden + " enclosed");
-            check("hide_leaves 1: only displayed leaves are put back", a[1] == leaves - hidden, a[1] + " of " + (leaves - hidden));
-            check("hide_leaves 1: no stand-in blocks left behind", blocks("minecraft:structure_void", 8) == 0, blocks("minecraft:structure_void", 8) + " structure voids");
-            finish(120);
-        } finally {
-            cfg("hide_leaves", 0);
-        }
     }
 
     /** The chop tick (frame 0) ends with the displays spawned and the visible blocks still in the world, except the anchor cell. */
@@ -1039,7 +1013,7 @@ final class Parity {
         List<String> menu = cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
         for (String m : shown) info("menu| " + m);
-        check("settings menu renders", shown.size() == 18 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
+        check("settings menu renders", shown.size() == 17 && menu.stream().noneMatch(m -> m.contains("rror") || m.contains("<--")), shown.size() + " lines " + menu);
         cmd("timber config max_logs 99999");
         check("max_logs clamped", Config.get(Config.Key.MAX_LOGS) == 4096 && cmd("timber config max_logs").toString().contains("4096"), "");
         cfg("max_logs", Config.Key.MAX_LOGS.def);
@@ -1059,20 +1033,6 @@ final class Parity {
         tick(2);
         List<String> t2 = chat();
         check("/trigger timber toggles back on", t2.toString().contains("enabled") && on(() -> Players.enabled(server, player.getUUID())), t2.toString());
-        on(() -> {
-            Players.welcome(player);
-            return null;
-        });
-        List<String> quiet = chat();
-        check("join hint is off by default", quiet.isEmpty(), quiet.toString());
-        cfg("welcome", 1);
-        on(() -> {
-            Players.welcome(player);
-            return null;
-        });
-        List<String> w = chat();
-        cfg("welcome", 0);
-        check("welcome hint", w.toString().contains("Sneak to take a single log"), w.toString());
         notApplicable("uninstall removes all objectives", "the mod has no uninstall function; its one trigger objective is removed at server stop");
     }
 
@@ -1785,9 +1745,9 @@ final class Parity {
         cmd("setblock " + at(1, 1, 0) + " minecraft:cocoa[facing=west,age=2]");
         cmd("fill " + at(-1, 1, 0) + " " + at(-1, 3, 0) + " minecraft:vine[east=true]");
         cmd("setblock " + at(-2, 3, 0) + " minecraft:vine[up=true]");
-        cmd("setblock " + at(0, 8, 0) + " minecraft:snow[layers=2]");
-        cmd("fill " + at(1, 2, 0) + " " + at(1, 3, 0) + " vanilla_timber:test_vine[west=true]");
+        cmd("fill " + at(1, 2, 0) + " " + at(1, 4, 0) + " vanilla_timber:test_vine[west=true]");
         cmd("fill " + at(2, 2, 2) + " " + at(2, 3, 2) + " vanilla_timber:test_hanging");
+        cmd("setblock " + at(0, 8, 0) + " minecraft:snow[layers=2]");
         cmd("setblock " + at(-2, 3, 2) + " vanilla_timber:test_fruit");
         cmd("setblock " + at(-2, 3, -2) + " vanilla_timber:test_cast");
         cmd("setblock " + at(3, 4, 0) + " minecraft:stone");
@@ -1797,12 +1757,12 @@ final class Parity {
         chop(0, 0, 0);
         int vines = blocks("minecraft:vine", 6), cocoa = blocks("minecraft:cocoa", 6), snow = blocks("minecraft:snow", 6);
         check("decor: vines, cocoa and snow go with the tree", vines == 0 && cocoa == 0 && snow == 0, "vines " + vines + ", cocoa " + cocoa + ", snow " + snow);
-        long vineDisplays = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> shownState(l).is(net.minecraft.world.level.block.Blocks.VINE)).count());
-        check("decor: vines ride along as displays with their faces", vineDisplays == 4, vineDisplays + " vine displays");
         int modded = blocks("vanilla_timber:test_vine", 6);
         check("decor: a mod's untagged vine goes with the tree", modded == 0, modded + " test_vine blocks left");
         int hung = blocks("vanilla_timber:test_hanging", 6);
         check("decor: a mod's plain hanging block under the leaves goes with the tree", hung == 0, hung + " test_hanging blocks left");
+        long vineDisplays = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> shownState(l).is(net.minecraft.world.level.block.Blocks.VINE)).count());
+        check("decor: vines ride along as displays with their faces", vineDisplays == 4, vineDisplays + " vine displays");
         int fruit = blocks("vanilla_timber:test_fruit", 6);
         check("decor: a block that needs its leaves above (fruit, collision box, untagged) goes with the tree", fruit == 0, fruit + " test_fruit blocks left");
         long fruitDisplays = on(() -> cur == null ? 0L : cur.live().stream().filter(l -> BuiltInRegistries.BLOCK.getKey(shownState(l).getBlock()).toString().equals("vanilla_timber:test_fruit")).count());
@@ -2150,7 +2110,7 @@ final class Parity {
                     BlockState now = level.getBlockState(e.getKey());
                     if (!natLeaf(now)) continue;
                     String part = "not in the tree";
-                    if (fall != null) for (var pt : fall.tree.parts()) if (pt.pos().equals(e.getKey())) part = "scanned " + pt.state() + (pt.hidden() ? " hidden" : "");
+                    if (fall != null) for (var pt : fall.tree.parts()) if (pt.pos().equals(e.getKey())) part = "scanned " + pt.state();
                     l.add((e.getKey().getX() - base.getX()) + "," + (e.getKey().getY() - base.getY()) + "," + (e.getKey().getZ() - base.getZ()) + " " + e.getValue()
                         + " now " + now + ", " + part);
                 }
@@ -2722,22 +2682,9 @@ final class Parity {
         chopSneaking(0, 0, 0);
         check("hooks: run only after Timber's own checks pass", tb("#calls_a") == 0 && count(Parity::isLog, 6) == logs - 1, "a=" + tb("#calls_a"));
 
-        try {
-            cfg("welcome", 1);
-            cfg("sneak", 0);
-            chat();
-            on(() -> {
-                Players.welcome(player);
-                return null;
-            });
-            List<String> hello = chat();
-            check("hooks: join hint shows add-on requirement", hello.stream().anyMatch(m -> m.contains("Sneak to take a single log. Test requirement. [Toggle]")), hello.toString());
-        } finally {
-            cfg("welcome", 0);
-        }
         cmd("execute as " + who() + " run timber menu");
         List<String> shown = chat();
-        check("hooks: menu shows add-on requirement", shown.size() == 19 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
+        check("hooks: menu shows add-on requirement", shown.size() == 18 && shown.get(1).contains("Test requirement"), shown.size() + " lines: " + shown);
 
         cmd("datapack disable \"file/hookpack\"");
         tick(5);
@@ -3072,6 +3019,14 @@ final class Parity {
     /** Enchanted Timber (data pack, unchanged): its enchantment is a dynamic registry entry, so the world is reopened with the pack in. */
     static void enchantedTimber() {
         installPack("enchanted_timber", workspace().resolve("packs/EnchantedTimber/pack"));
+        if (net.minecraft.SharedConstants.getCurrentVersion().name().startsWith("26.1")) {
+            try {
+                java.nio.file.Path mc = worldPacks().resolve("enchanted_timber/pack.mcmeta");
+                java.nio.file.Files.writeString(mc, java.nio.file.Files.readString(mc).replace("[107, 1]", "[101, 1]").replace("\"max_format\": 121", "\"max_format\": 101"));
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
         reopen();
         tick(50);
         List<String> packs = cmd("datapack list enabled");
@@ -3451,6 +3406,10 @@ final class Parity {
                 String.format(java.util.Locale.ROOT, "drift %.3f, hp %.1f/%.1f", off.drift, off.health, off.max));
             cfg("knockback", 1);
 
+            if (!timing()) {
+                notApplicable("knock cost", "timing asserts are off (-Dvanilla_timber.selftest.timing=0)");
+                return;
+            }
             // cost: the giant spruce with a field of sleeping cows under it, warm fall
             List<Double> means = new ArrayList<>();
             List<Double> worst = new ArrayList<>();
@@ -4162,7 +4121,11 @@ final class Parity {
                     }
                 }
             }
-            return new int[] {logs, leaves};
+            // a leaf whose resting cell is in the ground bursts with the crown (Fall.keepOpenLeaves): at most the rule's count
+            int decided = 0;
+            int[] lr = f.landRing();
+            for (int i = 0; i < lr.length; i++) if (lr[i] >= 0 && parts.get(i).leaf()) decided++;
+            return new int[] {logs, Math.min(leaves, decided), leaves};
         });
     }
 
@@ -4307,7 +4270,7 @@ final class Parity {
             check(kind + ": a decaying landed leaf drops what a tree's leaf drops (saplings, sticks)", itemsOf("minecraft:" + kind + "_sapling", 24) + itemsOf("minecraft:stick", 24) >= 0, "");
         }
 
-        // 50 %: the stump ring first, then every second one
+        // 50 %: the top half of the log rings, one piece at the crown end
         cfg("land_blocks", 50);
         landTree("oak");
         chop(0, 0, 0);
@@ -4321,7 +4284,11 @@ final class Parity {
         int landedRings = 0;
         for (boolean b : mask) if (b) landedRings++;
         int expectedRings = (50 * rings + 50) / 100;
-        check("land_blocks 50: half the log rings, rounded", landedRings == expectedRings && mask.length > 0 && mask[0], landedRings + " of " + rings + " rings, mask " + java.util.Arrays.toString(mask));
+        int topRing = -1;
+        for (int k = 0; k < mask.length; k++) if (on(() -> half.tree.logRings())[k]) topRing = k;
+        boolean crownEnd = topRing >= 0 && mask[topRing];
+        for (int k = 0, seen = 0; k < mask.length; k++) if (mask[k]) seen++; else if (seen > 0 && on(() -> half.tree.logRings())[k]) crownEnd = false;
+        check("land_blocks 50: half the log rings, rounded, one piece at the crown end", landedRings == expectedRings && crownEnd, landedRings + " of " + rings + " rings, mask " + java.util.Arrays.toString(mask));
         int logsAll = on(() -> half.tree.logs());
         int wear = logsAll - on(() -> {
             int n = 0;
@@ -4401,11 +4368,12 @@ final class Parity {
                 return null;
             });
 
-            // a burst over the hand-over for wb img flicker (one-frame pops, a ring drawn twice or missing), then one still once it settled
-            tick(land - 4);
-            client(mc -> SelfTest.startCapture(name + "_burst", 60));
+            // the whole fall at 60 fps from just after the chop to 12 ticks past the hand-over, for a frame-by-frame sheet
+            // and wb img flicker (one-frame pops, a ring drawn twice or missing), then one still once it settled
+            int frames = Math.max(60, (land + 12 - on(() -> f.n)) * 3);
+            client(mc -> SelfTest.startCapture(name + "_burst", frames));
             tick(2);
-            for (int i = 0; i < 200 && SelfTest.capturing(); i++) tick(1);
+            for (int i = 0; i < 400 && SelfTest.capturing(); i++) tick(1);
             tick(Math.max(0, land + 12 - on(() -> f.n)));
             client(mc -> SelfTest.startCapture(name + "_after", 1));
             tick(5);

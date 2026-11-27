@@ -132,8 +132,8 @@ public final class TimberCommand {
         }
         numRow(src, Key.MAX_LOGS, "Max logs per tree", "Bigger trees are left alone (only the one log breaks)", 256, 512, 1024, 2048);
         numRow(src, Key.RADIUS, "Search radius", "How far (in blocks, sideways) from the cut a tree may reach", 8, 12, 16, 24);
-        choiceRow(src, Key.SNEAK, "Sneaking", new String[] {"Sneak = one log", "Sneak to fell", "Always"},
-            new String[] {"Fell trees normally; sneak to take a single log", "Only fell trees while sneaking", "Always fell, sneaking or not"});
+        choiceRow(src, Key.SNEAK, "Trees fall when", new String[] {"Not sneaking", "Sneaking", "Always"},
+            new String[] {"Sneak to break just one log", "Only a chop while sneaking fells the tree", "Every chop fells the tree, sneaking or not"});
         choiceRow(src, Key.DROPS, "Drops", new String[] {"Where it lands", "At player"},
             new String[] {"Each log hops out where it lands, leaf drops burst from the crown", "Drops appear at your feet as the tree breaks apart"});
         boolRow(src, Key.REQUIRE_AXE, "Require an axe", "Only fell trees with an item from the tools list (axes by default; /timber config tools)");
@@ -148,8 +148,6 @@ public final class TimberCommand {
         boolRow(src, Key.REPLANT, "Auto-replant", "A free sapling is planted at the stump when the tree has fallen");
         boolRow(src, Key.KNOCKBACK, "Trunk knockback", "The falling trunk knocks back mobs in its way (never players)");
         numRow(src, Key.TRUNK_DAMAGE, "Trunk damage", "Half hearts the trunk deals to hostile mobs it hits (0 = push only)", 0, 2, 4, 8);
-        boolRow(src, Key.HIDE_LEAVES, "Hide inner leaves", "Leaves shut in on all sides get no display: cheaper, but the crown looks hollow when it falls");
-        boolRow(src, Key.WELCOME, "Join hint", "Explain Timber to each player once");
         line(src, Component.literal(" ").append(Players.button("[Reset to defaults]", ChatFormatting.YELLOW, "Restore every setting to its default", "/timber menu reset")));
         return 1;
     }

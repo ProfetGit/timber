@@ -72,6 +72,7 @@ final class Scenarios {
         }
         if (only.equals("all") || only.contains("mesh")) mesh(s);
         if (only.equals("all") || only.contains("sync")) sync(s);
+        if (java.util.Arrays.asList(only.split(",")).contains("ui")) UiScenes.add(s);
         if (only.contains("perfmeshoff")) s.run(mc -> io.github.profetgit.vanillatimber.client.GroundShadow.on = false);
         if (only.contains("perfmesh")) perfMesh(s);
         if (only.contains("parity")) {

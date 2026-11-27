@@ -32,11 +32,15 @@ public final class ModTestHook {
         }
     }
 
-    /** Extra setup commands for the test world: -Dmodtest.tickrate=N runs the game at N ticks per second. */
+    /**
+     * Extra setup commands for the test world: -Dmodtest.tickrate=N runs the game at N ticks per second, =sprint as fast
+     * as the server can (`/tick sprint`; for server-logic checks, not frame timing). Both need 1.20.3+ (`/tick`).
+     */
     public static List<String> commands() {
         List<String> out = new ArrayList<>();
         String rate = System.getProperty("modtest.tickrate", "");
-        if (!rate.isEmpty()) out.add("tick rate " + rate);
+        if (rate.equals("sprint")) out.add("tick sprint 1000000");
+        else if (!rate.isEmpty()) out.add("tick rate " + rate);
         return out;
     }
 }

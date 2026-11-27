@@ -44,7 +44,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         return cells.length / 4;
     }
 
-    /** The payload of one fall, sent at server frame {@code e}. Air parts (a block that changed under the scan) and hidden leaves are left out. */
+    /** The payload of one fall, sent at server frame {@code e}. Air parts (a block that changed under the scan) are left out. */
     public static TreeFall of(int id, Tree tree, int e, boolean[] landed, int[] landRing, boolean poof) {
         Map<BlockState, Integer> index = new IdentityHashMap<>();
         List<BlockState> palette = new ArrayList<>();
@@ -55,7 +55,7 @@ public record TreeFall(int id, BlockPos origin, int px, int py, int pz, int bin,
         int pi = -1;
         for (Tree.Part p : parts) {
             pi++;
-            if (p.state().isAir() || p.hidden()) continue;
+            if (p.state().isAir()) continue;
             if (e == 0 && probe < 0 && !p.pos().equals(tree.anchor())) probe = n / 4;
             Integer i = index.get(p.state());
             if (i == null) {

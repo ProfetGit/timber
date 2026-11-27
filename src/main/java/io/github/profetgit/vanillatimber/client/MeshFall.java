@@ -80,6 +80,9 @@ final class MeshFall {
     boolean dead;
     /** Per block and face, {@link Canopy}: the tree's own sky shade, baked once. */
     float[] canopy;
+    /** Whether the lying tree's light has been baked ({@link #bakeLie}), and this frame's share of it. */
+    private boolean lieBaked;
+    float lieW;
     /** The pitch of the last drawn frame and its drawing time (tests). */
     volatile double drawnPitch = Double.NaN, drawnTau = Double.NaN;
 
@@ -224,6 +227,161 @@ final class MeshFall {
                 g.add(quad, right, tx, ty, tz, c, q, i, lit);
             }
         }
+    }
+
+    /**
+     * The colour and light vanilla will give each kept vertex once its block is placed ({@code land_blocks}): the kept parts
+     * put in at their resting cells (logs turned to the lying axis, as {@code Fall.land}), the tree's own cells emptied, each
+     * block tessellated there, and every mesh vertex at the resting pose matched to the real quad facing the same world way
+     * at the same corner. Run once at the slam; {@link #submit} eases toward it until the settle, so the blocks that take
+     * over draw what the mesh already drew. A vertex with no match (a face the blocks cull, a log moved to a free cell)
+     * keeps its own colour.
+     */
+    private void bakeLie(ClientLevel level) {
+        lieBaked = true;
+        if (level == null || tl.settled < 0) return;
+        boolean any = false;
+        for (Group g : groups) any |= g.landRing >= 0;
+        if (!any) return;
+        Timeline.Sample s = tl.sample(tl.end, new Timeline.Sample());
+        double[] ly = new double[oy.length], lz = new double[oz.length];
+        Rig.origins(s.pitch, s.bend, s.gy, tl.spec.h(), kn, kt, ly, lz);
+        Matrix4f[] mats = new Matrix4f[(kt - kn + 1) * 2];
+        Vector3f w = new Vector3f();
+        int bin = msg.bin();
+        Direction.Axis axis = Math.abs(Layout.sin(bin)) > Math.abs(Layout.cos(bin)) ? Direction.Axis.X : Direction.Axis.Z;
+        boolean lying = Math.abs(s.pitch) >= 45;
+        it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<BlockState> put = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+        it.unimi.dsi.fastutil.longs.LongOpenHashSet air = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        long[] at = new long[blocks];
+        BlockState[] st = new BlockState[blocks];
+        BlockPos o = msg.origin();
+        int[] cells = msg.cells();
+        for (int i = 0; i < blocks; i++) {
+            air.add(BlockPos.asLong(o.getX() + cells[i * 4], o.getY() + cells[i * 4 + 1], o.getZ() + cells[i * 4 + 2]));
+            if (landRing[i] < 0) continue;
+            int gi = (ring[i] - kn) * 2 + (leaf[i] ? 1 : 0);
+            if (mats[gi] == null) mats[gi] = pose(new Matrix4f(), ring[i], 0, s.pitch, s.dy, leaf[i] ? s.lx : s.gx, s.gy, leaf[i] ? s.lz : s.gz, ly, lz, 0, 0, 0);
+            mats[gi].transformPosition(cx[i], cy[i], cz[i], w);
+            at[i] = BlockPos.asLong(Mth.floor(w.x), Mth.floor(w.y), Mth.floor(w.z));
+            BlockState b = states[i];
+            if (!leaf[i] && lying && b.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS))
+                b = b.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS, axis);
+            st[i] = b;
+            if (!put.containsKey(at[i])) put.put(at[i], b);
+        }
+        for (long c : put.keySet()) air.remove(c);
+        // per block, its real quads: corner positions in the world and the vanilla colour and light at each
+        Map<Integer, float[]> pos = new HashMap<>();
+        Map<Integer, int[]> lit = new HashMap<>();
+        Map<Integer, byte[]> face = new HashMap<>();
+        Map<Integer, float[]> uvs = new HashMap<>();
+        BlockBake baker = new BlockBake(level, new RestLight(level, put, air));
+        baker.begin();
+        try {
+            BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
+            for (int i = 0; i < blocks; i++) {
+                if (landRing[i] < 0 || put.get(at[i]) != st[i]) continue;
+                cell.set(BlockPos.getX(at[i]), BlockPos.getY(at[i]), BlockPos.getZ(at[i]));
+                List<BlockBake.Quad> qs = baker.block(cell, st[i]);
+                float[] p = new float[qs.size() * 12];
+                int[] l = new int[qs.size() * 8];
+                byte[] f = new byte[qs.size()];
+                float[] uv = new float[qs.size() * 8];
+                for (int q = 0; q < qs.size(); q++) {
+                    BlockBake.Quad bq = qs.get(q);
+                    System.arraycopy(bq.uv, 0, uv, q * 8, 8);
+                    f[q] = (byte) (bq.rest == null ? -1 : bq.shade);
+                    for (int v = 0; v < 4; v++) {
+                        p[q * 12 + v * 3] = cell.getX() + bq.pos[v * 3];
+                        p[q * 12 + v * 3 + 1] = cell.getY() + bq.pos[v * 3 + 1];
+                        p[q * 12 + v * 3 + 2] = cell.getZ() + bq.pos[v * 3 + 2];
+                    }
+                    if (bq.rest != null) System.arraycopy(bq.rest, 0, l, q * 8, 8);
+                }
+                pos.put(i, p);
+                lit.put(i, l);
+                uvs.put(i, uv);
+                face.put(i, f);
+            }
+        } finally {
+            baker.end();
+        }
+        // the blocks lie square on the grid, the mesh at the hit pitch: each kept vertex goes to its block's corner, turned flat
+        float flat = (float) (Math.round(s.pitch / 90) * 90);
+        Matrix3f r = new Matrix3f().rotationY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(flat)).rotateY((float) Math.toRadians(yaw));
+        Matrix3f lo = new Matrix3f().rotationY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(flat));
+        for (Direction d : DIRS) {
+            r.transform(d.getStepX(), d.getStepY(), d.getStepZ(), w);
+            lieNormal[d.ordinal()] = nearest(w);
+        }
+        Vector3f n = new Vector3f();
+        int matched = 0, total = 0;
+        for (Group g : groups) {
+            if (g.landRing < 0) continue;
+            g.lcol = new int[g.quads * 4];
+            g.llight = new int[g.quads * 4];
+            g.to = new float[g.quads * 12];
+            g.luv = new float[g.quads * 8];
+            Matrix4f mr = pose(new Matrix4f(), g.k, 0, s.pitch, s.dy, g.leaf ? s.lx : s.gx, s.gy, g.leaf ? s.lz : s.gz, ly, lz, 0, 0, 0);
+            for (int qi = 0; qi < g.quads; qi++) {
+                int b = g.block[qi];
+                float bx = BlockPos.getX(at[b]) + 0.5f - (float) x, by = BlockPos.getY(at[b]) + 0.5f - (float) y0, bz = BlockPos.getZ(at[b]) + 0.5f - (float) z;
+                float[] p = pos.get(b);
+                int[] l = lit.get(b);
+                byte[] f = face.get(b);
+                float[] ruv = uvs.get(b);
+                int wd = lieNormal[g.dir[qi]];
+                for (int v = 0; v < 4; v++) {
+                    int i = (qi * 4 + v) * 3;
+                    lo.transform(g.off[i], g.off[i + 1], g.off[i + 2], n);
+                    mr.transformPosition(g.pos[i], g.pos[i + 1], g.pos[i + 2], w);
+                    g.to[i] = bx + n.x - (float) (w.x - x);
+                    g.to[i + 1] = by + n.y - (float) (w.y - y0);
+                    g.to[i + 2] = bz + n.z - (float) (w.z - z);
+                    total++;
+                    if (p == null) continue;
+                    double wx = x + bx + n.x, wy = y0 + by + n.y, wz = z + bz + n.z;
+                    float best = 0.0025f;
+                    int hit = -1;
+                    for (int q = 0; q < f.length; q++) {
+                        if (f[q] != wd) continue;
+                        for (int c = 0; c < 4; c++) {
+                            int j = q * 12 + c * 3;
+                            float dx = (float) (p[j] - wx), dy = (float) (p[j + 1] - wy), dz = (float) (p[j + 2] - wz), d2 = dx * dx + dy * dy + dz * dz;
+                            if (d2 < best) {
+                                best = d2;
+                                hit = q * 8 + c;
+                            }
+                        }
+                    }
+                    if (hit < 0) continue;
+                    g.lcol[qi * 4 + v] = l[hit];
+                    g.luv[(qi * 4 + v) * 2] = ruv[hit / 8 * 8 + hit % 8 * 2];
+                    g.luv[(qi * 4 + v) * 2 + 1] = ruv[hit / 8 * 8 + hit % 8 * 2 + 1];
+                    g.llight[qi * 4 + v] = l[hit + 4];
+                    matched++;
+                }
+            }
+        }
+        lieMatched = total == 0 ? 0 : matched / (double) total;
+        if (System.getProperty("vanilla_timber.selftest") != null)
+            io.github.profetgit.vanillatimber.Timber.LOG.info("[land] lie: {} of {} kept vertices matched", matched, total);
+    }
+
+    /** Per model face, the world face it shows once the blocks lie flat ({@link #bakeLie}). */
+    private final int[] lieNormal = new int[6];
+    /** This frame: each model face's shade once it lies flat. */
+    final float[] lieShade = new float[6];
+
+    /** Share of kept mesh vertices {@link #bakeLie} matched to a real block's corner (tests). */
+    volatile double lieMatched = Double.NaN;
+
+    private static int nearest(Vector3f n) {
+        float ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+        if (ay >= ax && ay >= az) return (n.y > 0 ? Direction.UP : Direction.DOWN).ordinal();
+        if (ax >= az) return (n.x > 0 ? Direction.EAST : Direction.WEST).ordinal();
+        return (n.z > 0 ? Direction.SOUTH : Direction.NORTH).ordinal();
     }
 
     /**
@@ -405,6 +563,8 @@ final class MeshFall {
             return;
         }
         DrawnPose s = drawn.draw(tau);
+        lieW = (float) tl.lie(tau);
+        if (lieW > 0 && !lieBaked) bakeLie(net.minecraft.client.Minecraft.getInstance().level);
         drawnPitch = s.rot + s.res;
         drawnTau = tau;
         Matrix3f r = new Matrix3f().rotationY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(s.rot + s.res))
@@ -419,6 +579,12 @@ final class MeshFall {
             shade[d.ordinal()] = Shading.factor(n.x, n.y, n.z, shades);
         }
         float inflate = (float) s.inflate;
+        if (lieW > 0) {
+            for (Direction d : DIRS) {
+                Direction to = DIRS[lieNormal[d.ordinal()]];
+                lieShade[d.ordinal()] = Shading.factor(to.getStepX(), to.getStepY(), to.getStepZ(), shades);
+            }
+        }
         // a ring that turns in place (the stump end) keeps none of its rest AO and light once it has turned 30 degrees
         float turned = (float) Math.max(0, 1 - Math.abs(drawnPitch) / 30);
         Matrix4f m = new Matrix4f();
@@ -427,6 +593,11 @@ final class MeshFall {
             float ex = inflate, ey = inflate;
             if (g.landRing >= 0) {
                 if (tau >= tl.landTau(g.landRing)) continue;
+                // resting where its blocks come: a hair inside them, so they cover it the frame they are drawn
+                if (tl.settled >= 0 && tau >= tl.settled) {
+                    ex = -0.004f;
+                    ey = -0.004f;
+                }
             } else if (g.leaf) {
                 if (!s.leaves) continue;
             } else {
@@ -441,6 +612,7 @@ final class MeshFall {
             g.ey = ey;
             pose(m, g.k, g.leaf, s, cam.x, cam.y, cam.z);
             g.w = Math.min(turned, restWeight(m, g, cam, tmp));
+            if (g.to != null && lieW > 0) m.invert(g.inv);
             pass.submit(m, g.layer, g);
         }
     }
@@ -459,6 +631,18 @@ final class MeshFall {
         /** Per vertex: the colour that stays once the terrain's is gone: the tree's own AO x tint x {@link Canopy} shade. */
         int[] rself = new int[16];
         byte[] dir = new byte[4], emission = new byte[4];
+        /** Per vertex: the colour and light of the placed block at its resting cell ({@link MeshFall#bakeLie}; 0: none), or null. */
+        int[] lcol, llight;
+        /** Per vertex, world offset from where it rests at the hit pitch to its block's corner on the grid ({@link MeshFall#bakeLie}). */
+        float[] to;
+        /**
+         * From the slam on: per vertex the placed block's UV at the matched corner (the standing texture turned with the tree
+         * would show another pattern than the block). Faces the placed blocks cull stay: dropping them opened sky-bright
+         * hairlines at the inset seams (critic 2026-11-26), and the blocks cover the mesh from the hand-over on.
+         */
+        float[] luv;
+        /** This frame's pose inverted (the grid targets go through it), while the lie eases in. */
+        final Matrix4f inv = new Matrix4f();
         /** Quads vanilla culls at rest: no rest colour or light to keep, so they always take the path light. */
         boolean[] culled = new boolean[4];
         int quads;
@@ -525,7 +709,11 @@ final class MeshFall {
             Vector3f c = new Vector3f();
             float[] nr = fall.normals, sh = fall.shade;
             int[] lights = fall.light;
-            float gx = ex, gy = ey, rw = w;
+            float gx = ex, gy = ey, rw = w, lw = fall.lieW;
+            int[] lc = lw > 0 ? lcol : null;
+            boolean snap = lw > 0 && to != null;
+            Vector3f tv = new Vector3f();
+            float[] ls = fall.lieShade;
             Object2IntMap<BlockState> ids = IrisCompat.applies(vc) ? IrisCompat.ids() : null;
             int open = -1;
             for (int qi = 0; qi < quads; qi++) {
@@ -552,15 +740,34 @@ final class MeshFall {
                         int rl = rlight[rv];
                         li = Math.round(pu + ((rl & 0xFFFF) - pu) * qw) | Math.round(pv + ((rl >>> 16) - pv) * qw) << 16;
                     }
+                    if (lc != null && lc[rv] != 0) {
+                        col = Packed.srgbLerp(lw, col, lc[rv]);
+                        int ll = llight[rv];
+                        li = Math.round((li & 0xFFFF) + ((ll & 0xFFFF) - (li & 0xFFFF)) * lw) | Math.round((li >>> 16) + ((ll >>> 16) - (li >>> 16)) * lw) << 16;
+                    }
                     if (emission[qi] > 0) li = Packed.light(Math.max(Packed.block(li), emission[qi]), Packed.sky(li));
+                    float tu = uv[u], tw = uv[u + 1];
+                    if (snap && lc[rv] != 0) {
+                        tu = luv[u];
+                        tw = luv[u + 1];
+                    }
+                    float px = pos[i] + gx * off[i], py = pos[i + 1] + gy * off[i + 1], pz = pos[i + 2] + gx * off[i + 2], shd = sh[d];
+                    if (snap) {
+                        // toward the block grid, on top of the bounce: the world offset through this frame's inverted pose
+                        inv.transformDirection(to[i] * lw, to[i + 1] * lw, to[i + 2] * lw, tv);
+                        px += tv.x;
+                        py += tv.y;
+                        pz += tv.z;
+                        shd += (ls[d] - shd) * lw;
+                    }
 //? if >=1.21 {
-                    vc.addVertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
-                        .setColor(Packed.scaleRGB(col, sh[d])).setUv(uv[u], uv[u + 1]).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
+                    vc.addVertex(m, px, py, pz)
+                        .setColor(Packed.scaleRGB(col, shd)).setUv(tu, tw).setOverlay(OverlayTexture.NO_OVERLAY).setLight(li)
                         .setNormal(nx, ny, nz);
 //?} else {
-/*                    int argb = Packed.scaleRGB(col, sh[d]);
-                    vc.vertex(m, pos[i] + gx * off[i], pos[i + 1] + gy * off[i + 1], pos[i + 2] + gx * off[i + 2])
-                        .color(argb >> 16 & 0xFF, argb >> 8 & 0xFF, argb & 0xFF, argb >>> 24).uv(uv[u], uv[u + 1]).overlayCoords(OverlayTexture.NO_OVERLAY)
+/*                    int argb = Packed.scaleRGB(col, shd);
+                    vc.vertex(m, px, py, pz)
+                        .color(argb >> 16 & 0xFF, argb >> 8 & 0xFF, argb & 0xFF, argb >>> 24).uv(tu, tw).overlayCoords(OverlayTexture.NO_OVERLAY)
                         .uv2(li).normal(nx, ny, nz).endVertex();
 *///?}
                 }

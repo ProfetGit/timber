@@ -11,7 +11,7 @@ import java.nio.file.Path;
 
 /**
  * The server config {@code config/timber.json} (PRD 5.8): the 1.3.x keys with 1.3.6's defaults and clamps, plus
- * {@code hide_leaves}, {@code display_cap} and {@code slice_ms}. Re-read when the file's modification time changes,
+ * {@code display_cap} and {@code slice_ms}. Re-read when the file's modification time changes,
  * every value clamped, a commented file written on the first run. Switches are 0 or 1 like the 1.3.x scores.
  */
 public final class Config {
@@ -20,7 +20,7 @@ public final class Config {
         MAX_BLOCKS("max_blocks", 5000, 100, 8000, "Most leaves (and attached blocks) one tree takes with it"),
         RADIUS("radius", 12, 4, 64, "How far, in blocks sideways, a tree may reach from the cut"),
         REQUIRE_AXE("require_axe", 1, 0, 1, "1: only fell trees when chopping with an item from the tools list (axes by default)"),
-        SNEAK("sneak", 0, 0, 2, "0: sneaking takes a single log; 1: only fell while sneaking; 2: always fell"),
+        SNEAK("sneak", 0, 0, 2, "0: trees fall unless you sneak; 1: trees fall only while you sneak; 2: trees always fall"),
         DURABILITY("durability", 1, 0, 1, "1: each log costs axe durability (Unbreaking applies); a tree that would break the axe still falls and the axe breaks; chop mode pays per chop instead"),
         CHOPS("chops", 0, 0, 1, "1: chop mode: each break of a trunk log is a chop that wears the axe and cracks the log; the tree falls on the last chop (chop_curve)"),
         CHOP_CURVE("chop_curve", 10, 1, 100, "Chop mode: chops a tree takes = 1 + a * ln(1 + (logs - 1) / a) with a = this value; smaller is fewer chops"),
@@ -30,11 +30,9 @@ public final class Config {
         DROPS("drops", 0, 0, 1, "0: each log hops out where it lands, leaf drops burst from the crown; 1: everything drops at the player"),
         PROTECT("protect", 1, 0, 1, "1: logs placed by players are never felled"),
         FEEDBACK("feedback", 1, 0, 1, "1: action bar message when a tree is not felled, and why"),
-        WELCOME("welcome", 0, 0, 1, "1: explain Timber to each player once, on their first join"),
         REPLANT("replant", 0, 0, 1, "1: a free sapling of the tree's kind is planted in each stump cell when the fall ends (giants get four)"),
         KNOCKBACK("knockback", 1, 0, 1, "1: the falling trunk knocks back every mob it sweeps through (never players)"),
         TRUNK_DAMAGE("trunk_damage", 4, 0, 20, "Damage the trunk deals to a hostile mob without a name tag that it hits (half hearts); other mobs are only pushed"),
-        HIDE_LEAVES("hide_leaves", 0, 0, 1, "1: leaves shut in on all sides get no display (cheaper, but the crown looks hollow when it falls)"),
         DISPLAY_CAP("display_cap", 600, 100, 4000, "Most displays one fall may spawn for players without Timber; over it the rest of the crown only bursts at the slam"),
         SLICE_MS("slice_ms", 2, 1, 20, "Server milliseconds a fall may spend per tick when work is time-sliced");
 

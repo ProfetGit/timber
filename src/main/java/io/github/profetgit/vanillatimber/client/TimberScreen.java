@@ -44,9 +44,9 @@ public final class TimberScreen extends OptionsSubScreen {
 
     private static final Section[] SECTIONS = {
         new Section("felling", "Felling", Key.CHOPS, Key.CHOP_CURVE, Key.SNEAK, Key.PROTECT),
-        new Section("fall", "Fall", Key.ANIMATION, Key.STYLE, Key.LAND_BLOCKS, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT, Key.HIDE_LEAVES),
+        new Section("fall", "Fall", Key.ANIMATION, Key.STYLE, Key.LAND_BLOCKS, Key.DROPS, Key.KNOCKBACK, Key.TRUNK_DAMAGE, Key.REPLANT),
         new Section("axe", "Tool", Key.REQUIRE_AXE, Key.DURABILITY),
-        new Section("server", "Server", Key.MAX_LOGS, Key.MAX_BLOCKS, Key.RADIUS, Key.FEEDBACK, Key.WELCOME, Key.DISPLAY_CAP, Key.SLICE_MS),
+        new Section("server", "Server", Key.MAX_LOGS, Key.MAX_BLOCKS, Key.RADIUS, Key.FEEDBACK, Key.DISPLAY_CAP, Key.SLICE_MS),
     };
 
     /** Self-test: the last screen built, its mode, its widgets by key, and the changes it applied. */
@@ -274,9 +274,9 @@ public final class TimberScreen extends OptionsSubScreen {
 *///?}
     }
 
-    private static String[] choices(Key k) {
+    public static String[] choices(Key k) {
         return switch (k) {
-            case SNEAK -> new String[] {"One log", "Sneak to fell", "Always fell"};
+            case SNEAK -> new String[] {"Not sneaking", "Sneaking", "Always"};
             case DROPS -> new String[] {"Where it lands", "At the player"};
             case STYLE -> new String[] {"Classic", "Poof"};
             default -> null;
@@ -287,7 +287,7 @@ public final class TimberScreen extends OptionsSubScreen {
      * The config file's comment for a player: the file's value keys ("1: "), tag ids and key names in brackets go, the
      * first letter is a capital. A comment that lists choices ("0: ...; 1: ...") keeps them.
      */
-    static String readable(Key k) {
+    public static String readable(Key k) {
         String t = k.comment.replaceAll("\\s*\\([^)]*[#_][^)]*\\)", "");
         if (k.min == 0 && k.max == 1 && t.startsWith("1: ")) t = t.substring(3);
         else if (t.startsWith("0: ") && choices(k) == null) t = t.substring(3);
@@ -295,7 +295,7 @@ public final class TimberScreen extends OptionsSubScreen {
         return t.isEmpty() ? t : Character.toUpperCase(t.charAt(0)) + t.substring(1) + ".";
     }
 
-    private static String shown(Key k, int v) {
+    public static String shown(Key k, int v) {
         return switch (k) {
             case CHOP_CURVE -> io.github.profetgit.vanillatimber.server.Chops.needed(5, v) + " to " + io.github.profetgit.vanillatimber.server.Chops.needed(100, v);
             case RADIUS -> v + " blocks";

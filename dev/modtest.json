@@ -5,12 +5,20 @@
   "props": {
     "vanilla_timber.selftest.mode": "{mode}",
     "vanilla_timber.selftest.scene": "{scene}",
-    "vanilla_timber.selftest.groups": "{groups}"
+    "vanilla_timber.selftest.groups": "{groups}",
+    "vanilla_timber.selftest.timing": "{timing}",
+    "modtest.tickrate": "{tickrate}",
+    "vanilla_timber.selftest.frames": "{frames}",
+    "vanilla_timber.selftest.pv": "{pv}"
   },
   "defaults": {
     "mode": "full",
     "scene": "all",
-    "groups": "all"
+    "groups": "all",
+    "timing": "1",
+    "tickrate": "",
+    "frames": "1",
+    "pv": ""
   },
   "fabric_api": true,
   "width": 1280,
@@ -99,18 +107,16 @@
       "jobs": [
         {
           "mc": "26.3",
-          "loader": "fabric"
+          "loader": "quilt",
+          "vars": {
+            "scene": "all",
+            "frames": "24"
+          },
+          "tag": "all"
         },
         {
-          "mc": [
-            "26.2",
-            "26.1.2",
-            "1.21.11",
-            "1.21.1",
-            "1.20.1"
-          ],
-          "loader": "fabric",
-          "scenes": "smoke,fall,mesh"
+          "mc": "26.3",
+          "loader": "fabric"
         },
         {
           "mc": [
@@ -125,13 +131,136 @@
             "neoforge",
             "forge"
           ],
+          "tag": "scenes",
+          "vars": {
+            "scene": "smoke,fall,mesh,parity",
+            "groups": "chops",
+            "frames": "24",
+            "tickrate": "100"
+          }
+        },
+        {
+          "mc": [
+            "26.2",
+            "26.1.2",
+            "1.21.11",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": "fabric",
+          "tag": "scenes",
+          "vars": {
+            "scene": "smoke,fall,mesh,parity",
+            "groups": "chops",
+            "frames": "24",
+            "tickrate": "100"
+          }
+        },
+        {
+          "mc": "26.3",
+          "loader": "fabric",
+          "tag": "chops",
+          "vars": {
+            "scene": "parity",
+            "groups": "chops",
+            "tickrate": "100"
+          }
+        },
+        {
+          "mc": "1.21.1",
+          "loader": "quilt",
+          "vars": {
+            "scene": "smoke,fall,mesh",
+            "frames": "24"
+          },
+          "tag": "scenes"
+        },
+        {
+          "mc": [
+            "1.20.1",
+            "26.3",
+            "26.2",
+            "26.1.2",
+            "1.21.11",
+            "1.21.1"
+          ],
+          "loader": [
+            "fabric",
+            "neoforge",
+            "forge"
+          ],
+          "side": "server",
+          "tag": "parity",
+          "vars": {
+            "scene": "parity",
+            "mode": "server",
+            "groups": "oak,replant,knock,claims,durability",
+            "timing": "0",
+            "tickrate": "100"
+          }
+        },
+        {
+          "mc": "26.1.2",
+          "loader": "quilt",
+          "vars": {
+            "scene": "smoke,fall,mesh",
+            "frames": "24"
+          },
+          "tag": "scenes"
+        }
+      ],
+      "timing": [
+        {
+          "mc": "26.3",
+          "loader": "fabric",
+          "tag": "timing",
+          "vars": {
+            "scene": "parity",
+            "groups": "knock,perf_spruce,giants_xl"
+          }
+        }
+      ],
+      "mp": [
+        "join"
+      ]
+    },
+    "release_v1": {
+      "unit": [
+        ":26.3-fabric:test"
+      ],
+      "jobs": [
+        {
+          "mc": "26.3",
+          "loader": "fabric"
+        },
+        {
+          "mc": [
+            "26.2",
+            "1.21.11",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": "fabric",
           "scenes": "smoke,fall,mesh"
         },
         {
           "mc": [
             "26.3",
             "26.2",
-            "26.1.2",
+            "1.21.11",
+            "1.21.1",
+            "1.20.1"
+          ],
+          "loader": [
+            "neoforge",
+            "forge"
+          ],
+          "scenes": "smoke,fall,mesh"
+        },
+        {
+          "mc": [
+            "26.3",
+            "26.2",
             "1.21.11",
             "1.21.1",
             "1.20.1"
@@ -153,7 +282,6 @@
           "mc": [
             "26.3",
             "26.2",
-            "26.1.2",
             "1.21.11",
             "1.21.1",
             "1.20.1"
@@ -187,15 +315,6 @@
           ],
           "loader": "quilt",
           "scenes": "smoke,fall,mesh"
-        },
-        {
-          "mc": "26.1.2",
-          "loader": "quilt",
-          "vars": {
-            "scene": "smoke,fall,mesh",
-            "frames": "24"
-          },
-          "tag": "scenes"
         }
       ],
       "mp": [
@@ -598,5 +717,73 @@
         ]
       }
     }
+  },
+  "groups_var": "groups",
+  "groups": {
+    "chops": {
+      "client": true
+    },
+    "layer": {
+      "client": true
+    },
+    "land": {
+      "client": true
+    },
+    "screen": {
+      "client": true
+    },
+    "conflict": {
+      "client": true
+    },
+    "ghosttrace": {
+      "client": true
+    },
+    "m3sheet": {
+      "client": true
+    },
+    "m8sheet": {
+      "client": true
+    },
+    "chopsheet": {
+      "client": true
+    },
+    "layersheet": {
+      "client": true
+    },
+    "widesheet": {
+      "client": true
+    },
+    "looks": {
+      "client": true
+    },
+    "looksdense": {
+      "client": true
+    },
+    "looksdensebefore": {
+      "client": true
+    },
+    "looksbefore": {
+      "client": true
+    },
+    "looksprobe": {
+      "client": true
+    },
+    "looksprobebefore": {
+      "client": true
+    },
+    "looksplants": {
+      "client": true
+    },
+    "looksplantsbefore": {
+      "client": true
+    }
+  },
+  "server_jvm": [
+    "-XX:+UnlockDiagnosticVMOptions",
+    "-XX:-BytecodeVerificationRemote"
+  ],
+  "groups_retry_vars": {
+    "scene": "parity",
+    "frames": "24"
   }
 }

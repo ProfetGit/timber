@@ -88,7 +88,6 @@ public final class TreeScan {
         if (type == null) return no("not a trunk");
         boolean connected = type.rule() == TreeType.Rule.CONNECTED;
         int radius = Config.radius(), maxLogs = Config.maxLogs(), maxBlocks = Config.maxBlocks();
-        boolean hideLeaves = Config.on(Config.Key.HIDE_LEAVES);
         Placed placed = Placed.get(level);
         boolean protect = Config.on(Config.Key.PROTECT);
         // flood (1.3.6 flood/*): 26 neighbours of the same log within the radius across, plus creaking hearts on a
@@ -316,7 +315,7 @@ public final class TreeScan {
                 int k = Layout.ring(wy), tx = Layout.tx(wx, wz, bin);
                 if (pass == 1) km = Math.max(km, k);
                 else cw = Math.max(cw, Math.abs(tx) + 500);
-                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, tx, wy, Layout.tz(wx, wz, bin), k, pass == 0 && hideLeaves && !take.decor.get(i) && shut(level, p)));
+                parts.add(new Tree.Part(p, level.getBlockState(p), pass == 0, tx, wy, Layout.tz(wx, wz, bin), k));
                 if (p.equals(anchorCell)) anchor = p;
             }
         }
@@ -335,7 +334,6 @@ public final class TreeScan {
         return a.getZ() < b.getZ();
     }
 
-    /** 1.3.6 {@code leaves/hide} ({@code #timber:shell}): a leaf with leaves, logs or a creaking heart on all six sides gets no display. */
     /** A trunk cell stands on ground unless the block below is {@code #timber:not_ground}, its own trunk or crown (a mushroom stem on a stem). */
     private static boolean ground(BlockState below, Block log, TreeType type) {
         return !below.is(NOT_GROUND) && !below.is(log) && !type.isCrown(below);
@@ -352,14 +350,6 @@ public final class TreeScan {
 //?} else {
 /*        return false;
 *///?}
-    }
-
-    private static boolean shut(ServerLevel level, BlockPos p) {
-        for (Direction d : Direction.values()) {
-            BlockState s = level.getBlockState(p.relative(d));
-            if (!s.is(BlockTags.LEAVES) && !s.is(BlockTags.LOGS) && !heartBlock(s)) return false;
-        }
-        return true;
     }
 
     /** One 26-step layer at a time from {@code front}: unowned, unplaced nodes take the label of the node that reaches them first. */

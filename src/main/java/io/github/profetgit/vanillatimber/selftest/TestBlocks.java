@@ -32,6 +32,8 @@ public final class TestBlocks {
     /** Through a loader's own registration (NeoForge 1.20.1 refuses Registry.register inside RegisterEvent). */
     public static void register(java.util.function.BiConsumer<ResourceKey<Block>, Block> sink) {
         TestBlocks.sink = sink;
+        // the one self-test call every loader makes at init on a dedicated server too: arms the server-side run
+        if (ServerRun.wanted()) ServerRun.arm();
 //? if >=1.21.5 {
         block("test_log", k -> new RotatedPillarBlock(BlockBehaviour.Properties.of().strength(2f).setId(k)));
         block("test_leaves", k -> new TintedParticleLeavesBlock(0.01f, BlockBehaviour.Properties.of().strength(0.2f).randomTicks().noOcclusion()

@@ -48,7 +48,10 @@ public final class Timeline {
     public final int leavesGone;
     /** Last tick (everything is killed at its end). */
     public final int end;
+    /** First tick the lying tree no longer moves (the slam's bounce has settled), or -1. */
+    public final int settled;
     public final List<Event> events;
+
 
     public Timeline(FallSpec spec, boolean[] logRings) {
         this(spec, logRings, null);
@@ -62,7 +65,9 @@ public final class Timeline {
         this.spec = spec;
         this.poof = poof;
         this.landed = !poof && landed != null && landed.length == logRings.length ? landed : new boolean[logRings.length];
-        Sim s = new Sim(spec, logRings, poof);
+        boolean any = false;
+        for (boolean b : this.landed) any |= b;
+        Sim s = new Sim(spec, logRings, poof, any);
         s.run();
         int n = s.frames.size();
         p = new double[n];
@@ -88,6 +93,7 @@ public final class Timeline {
         }
         popTick = s.popTick;
         leavesGone = s.leavesGone;
+        settled = s.settled;
         end = n - 1;
         events = Collections.unmodifiableList(s.events);
     }
@@ -128,12 +134,8 @@ public final class Timeline {
      * the tag tick's packets arrive, one tick before that tick's pose is reached.
      */
     public float[] pop(int ring, double tau, float[] out) {
-        if (lands(ring)) {
-            if (tau < landTau(ring)) return null;
-            out[0] = 0;
-            out[1] = 0;
-            return out;
-        }
+        // a landed ring never pops: it lies where it fell and becomes blocks there
+        if (lands(ring)) return null;
         if (ring < 0 || ring >= popTick.length || popTick[ring] < 0) return null;
         double x = tau - (popTick[ring] - 1);
         if (x <= 0) return null;
@@ -156,6 +158,21 @@ public final class Timeline {
         return out;
     }
 
+    /** Ticks from the slam to {@link #settled}: the bounce ({@code Sim.ripple}'s first arc). */
+    public static final int BOUNCE = 4;
+
+    /**
+     * How far the kept parts have eased from the hit pose onto the block grid and the light their blocks get, at drawing
+     * time {@code t}: 0 until the slam, a smoothstep to 1 at the settle, on top of the bounce, so the hand-over shows nothing.
+     */
+    public double lie(double t) {
+        if (settled < 0 || landTick() < 0) return 0;
+        int a = Math.max(0, settled - BOUNCE);
+        if (t <= a) return 0;
+        double f = Math.min(1, (t - a) / Math.max(1, settled - a));
+        return f * f * (3 - 2 * f);
+    }
+
     /** Whether ring {@code k} turns into blocks (never popping). */
     public boolean lands(int k) {
         return k >= 0 && k < landed.length && landed[k];
@@ -167,8 +184,15 @@ public final class Timeline {
      * part still animated (critic 2026-11-17).
      */
     public double landTau(int k) {
-        return landTick() - LAG + HOLD;
+        return landTick() - LAG + MESH_HOLD;
     }
+
+    /**
+     * Ticks the mesh keeps drawing the landed rings after their blocks arrive. The mesh is drawn a hair inside the blocks
+     * from the settle on (it rests exactly where they come), so the blocks cover it as soon as their chunk section is
+     * rebuilt, whenever that is: no blank frame and nothing drawn twice (a short hold blanked 2 frames under load).
+     */
+    public static final double MESH_HOLD = 6.0;
 
     /**
      * Ticks the landed rings stay drawn after their blocks arrive (1 still blanked a frame under load), so the client has rebuilt the chunk sections before the
@@ -177,17 +201,15 @@ public final class Timeline {
      */
     public static final double HOLD = 2.0;
 
-    /** The one tick every landed ring turns into blocks on, or -1 when none lands. */
+    /**
+     * The one tick every landed ring turns into blocks on, or -1 when none lands: two ticks after the lying tree has
+     * stopped moving, so the frames drawn around the blocks' arrival are already the resting pose the blocks take.
+     */
     public int landTick() {
-        int t = -1;
         boolean any = false;
-        for (int k = 0; k < landed.length; k++) {
-            if (!lands(k)) continue;
-            any = true;
-            t = Math.max(t, popTick[k]);
-        }
-        // a ring that never pops (popTick -1) lands with the others; with no popping ring at all, the tick before the end
-        return !any ? -1 : t >= 0 ? t : Math.max(0, end - 1);
+        for (int k = 0; k < landed.length; k++) any |= lands(k);
+        if (!any) return -1;
+        return settled >= 0 ? Math.min(end - 1, settled + 2) : Math.max(0, end - 1);
     }
 
     static double lerp(double a, double b, double f) {
@@ -208,13 +230,16 @@ public final class Timeline {
         final List<double[]> frames = new ArrayList<>();
         final List<Event> events = new ArrayList<>();
         final int[] popTick;
-        int leavesGone = -1;
+        int leavesGone = -1, settled = -1;
+        /** Some leaves stay fallen: the crown keeps its shape at the slam (a squash made the kept leaves jump for a frame, critic). */
+        final boolean keep;
         int n, t, ph, dur, kr, ks, kf, kx;
         double p, bn, bv, pv, wv, gx = 1000, gy = 1000, gz = 1000, lx = 1000, lz = 1000, y, y0;
         boolean shiver = true, flex = true, hang, whoosh, dropped, done;
 
-        Sim(FallSpec s, boolean[] logRings, boolean poof) {
+        Sim(FallSpec s, boolean[] logRings, boolean poof, boolean keep) {
             this.s = s;
+            this.keep = keep;
             this.logRings = logRings;
             this.poof = poof;
             popTick = new int[s.km() + 1];
@@ -336,7 +361,8 @@ public final class Timeline {
             flex = false;
             bn = 0;
             bv = 0;
-            shape(1060, 1000, 820, 1080, 380);
+            if (keep) shape(1060, 1000, 820, 1000, 1000);
+            else shape(1060, 1000, 820, 1080, 380);
             event(Kind.IMPACT, -1, 1.6f, 0.6f);
         }
 
@@ -346,7 +372,10 @@ public final class Timeline {
         }
 
         void bounce() {
-            if (t == 1) shape(980, 1000, 1060, 1140, 90);
+            if (t == 1) {
+                if (keep) shape(980, 1000, 1060, 1000, 1000);
+                else shape(980, 1000, 1060, 1140, 90);
+            }
             if (t == 2) {
                 if (!poof) {
                     leavesGone = n;
@@ -413,7 +442,10 @@ public final class Timeline {
 
         void ripple() {
             if (t <= 4) arc(0, 4, 140, 1600);
-            if (t == 4) event(Kind.THUD, -1, 0.5f, 1.2f);
+            if (t == 4) {
+                event(Kind.THUD, -1, 0.5f, 1.2f);
+                settled = n;
+            }
             while (kr <= s.km() && t >= ks) {
                 popTick[kr] = n;
                 kr++;

@@ -66,6 +66,18 @@ final class RestLight implements BlockQuadOutput {
         }
     }
 
+    // the world with the kept parts put in at their resting cells and the tree's own cells emptied
+    RestLight(ClientLevel level, Long2ObjectOpenHashMap<BlockState> lying, it.unimi.dsi.fastutil.longs.LongOpenHashSet air) {
+        treeOnly = false;
+        Minecraft mc = Minecraft.getInstance();
+        renderer = new ModelBlockRenderer(mc.options.ambientOcclusion().get(), true, mc.getBlockColors());
+        getter.level = level;
+        getter.lightEngine = level.getLightEngine();
+        getter.cardinalLighting = FLAT;
+        getter.tree.putAll(lying);
+        getter.air = air;
+    }
+
     void run(BlockPos cell, BlockState state) {
         quads.clear();
         BlockPos at = cell.immutable();
@@ -113,11 +125,13 @@ final class RestLight implements BlockQuadOutput {
         boolean treeOnly, skipLeaves;
         final Long2ObjectOpenHashMap<BlockState> tree = new Long2ObjectOpenHashMap<>();
         final it.unimi.dsi.fastutil.longs.LongOpenHashSet leaves = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        it.unimi.dsi.fastutil.longs.LongOpenHashSet air;
 
         @Override
         public BlockState getBlockState(BlockPos pos) {
             BlockState s = tree.get(pos.asLong());
             if (s != null) return skipLeaves && leaves.contains(pos.asLong()) ? Blocks.AIR.defaultBlockState() : s;
+            if (air != null && air.contains(pos.asLong())) return Blocks.AIR.defaultBlockState();
             return treeOnly ? Blocks.AIR.defaultBlockState() : level.getBlockState(pos);
         }
 
@@ -164,6 +178,13 @@ final class RestLight implements BlockQuadOutput {
             getter.tree.put(at, msg.palette().get(cells[i * 4 + 3] >> 2));
             if ((cells[i * 4 + 3] & 1) != 0) getter.leaves.add(at);
         }
+    }
+
+    RestLight(ClientLevel level, Long2ObjectOpenHashMap<BlockState> lying, it.unimi.dsi.fastutil.longs.LongOpenHashSet air) {
+        renderer = new ModelBlockRenderer(Minecraft.getInstance().getBlockColors());
+        getter.level = level;
+        getter.tree.putAll(lying);
+        getter.air = air;
     }
 
     // the quad's 4 colours then 4 packed lights from the last run, or null if vanilla didn't emit it
@@ -341,6 +362,7 @@ final class RestLight implements BlockQuadOutput {
         boolean treeOnly, skipLeaves;
         final Long2ObjectOpenHashMap<BlockState> tree = new Long2ObjectOpenHashMap<>();
         final it.unimi.dsi.fastutil.longs.LongOpenHashSet leaves = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        it.unimi.dsi.fastutil.longs.LongOpenHashSet air;
 
         @Override
         public float getShade(Direction direction, boolean shade) {
@@ -356,6 +378,7 @@ final class RestLight implements BlockQuadOutput {
         public BlockState getBlockState(BlockPos pos) {
             BlockState s = tree.get(pos.asLong());
             if (s != null) return skipLeaves && leaves.contains(pos.asLong()) ? Blocks.AIR.defaultBlockState() : s;
+            if (air != null && air.contains(pos.asLong())) return Blocks.AIR.defaultBlockState();
             return treeOnly ? Blocks.AIR.defaultBlockState() : level.getBlockState(pos);
         }
 

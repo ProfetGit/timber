@@ -72,7 +72,6 @@ public final class Hooks {
 
     public static void join(MinecraftServer server, ServerPlayer player) {
         Migrate.join(server, player);
-        Players.join(player);
         Conflicts.tell(player);
         Chops.sendSettings(player);
     }

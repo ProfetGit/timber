@@ -16,8 +16,7 @@ public final class Landing {
     private Landing() {}
 
     /**
-     * The landed rings: of the {@code R} rings with logs, {@code round(pct * R / 100)}, one per Bresenham step from the
-     * stump up (ring order), so any share keeps the stump ring first.
+     * The landed rings: of the {@code R} rings with logs, {@code round(pct * R / 100)}, the top ones (the crown end).
      */
     public static boolean[] rings(boolean[] logRings, int pct) {
         boolean[] out = new boolean[logRings.length];
@@ -25,11 +24,12 @@ public final class Landing {
         for (boolean b : logRings) if (b) r++;
         int n = Math.min(r, (Math.max(0, pct) * r + 50) / 100);
         if (n <= 0) return out;
-        int j = 0;
-        for (int k = 0; k < logRings.length; k++) {
+        // one piece at the crown end: the top n log rings, so the tree lies with its crown and breaks off near the stump
+        // (director 2026-11-26 picked this over rings spread from the stump, which left a trunk with gaps)
+        for (int k = logRings.length - 1, left = n; k >= 0 && left > 0; k--) {
             if (!logRings[k]) continue;
-            out[k] = -Math.floorDiv(-(j + 1) * n, r) > -Math.floorDiv(-j * n, r);
-            j++;
+            out[k] = true;
+            left--;
         }
         return out;
     }

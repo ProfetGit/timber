@@ -24,6 +24,7 @@ public final class TimberClient {
     /** Called once by the loader's client entry. */
     public static void init(Platform.Client client) {
         net = client;
+        io.github.profetgit.profetsettings.ProfetSettings.register(io.github.profetgit.vanillatimber.Timber.ID, io.github.profetgit.vanillatimber.client.ui.TimberSettings::create);
         LOG.info("Profet's Timber client loaded");
     }
 

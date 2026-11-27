@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.3.1 — unreleased
+
+### Added
+- **A new settings screen** with a live preview for each option: a small tree that the screen chops and fells with your current settings. You see the fall style, chop mode, the sneak and tool rules, protected logs, what stays fallen, where the drops go, auto-replant, the trunk knocking a zombie aside and axe wear. Open it from the Profet golem button in the Game Menu or with the config button in Mod Menu, Forge's or NeoForge's mod list. It is the same screen on every Minecraft version and loader Timber supports.
+- **Quick setup presets**: Default, Chop mode, Tidy (replant and drops at the player), Stays fallen, Instant.
+- **Report a bug from inside the game**: the Report bug button fills in your Minecraft version, loader, Timber's settings and recent errors for you.
+- On a server, operators change the server's settings from the screen (as `/timber config`); other players see them, locked.
+
+### Changed
+- The settings screen replaces the old one. The `config/timber.json` file is unchanged apart from the two removed options below. The tools list is still set with `/timber config tools`.
+- The sneaking option is now **Trees fall when**: Not sneaking, Sneaking or Always.
+- **Tree stays fallen** is one smooth motion: after the bounce the part that stays settles into place as blocks, with no snap or flash. (Players without Timber on their own game still see the leaf colour change at that moment.)
+- With the falling animation off, the leaves burst into crumbs where the tree stood.
+
+### Removed
+- The join hint (`welcome`).
+- Hide inner leaves (`hide_leaves`): a falling tree now always keeps all of its leaves. Old config files that still have either key load as before; the keys do nothing.
+
 ## 2.2.10 — 2026-11-24
 
 ### Fixed

@@ -60,7 +60,6 @@ public final class Migrate extends SavedData {
     public static volatile String summary;
 
     private static final String PREFIX = "timber.";
-    private static final String OLD_WELCOMED = "timber.welcomed";
     private static final Identifier PLACED = Identifier.fromNamespaceAndPath("timber", "placed");
     private static final List<Identifier> STORAGES = List.of(PLACED, id("types"), id("curve"), id("menu"), id("op"), id("anim"));
     private static final Identifier PACK_TICK = Identifier.fromNamespaceAndPath("timber", "function/tick.mcfunction");
@@ -118,7 +117,6 @@ public final class Migrate extends SavedData {
 
     static void join(MinecraftServer server, ServerPlayer p) {
         if (inert) return;
-        if (p.entityTags().contains(OLD_WELCOMED)) p.addTag(Players.WELCOMED);
         for (String t : new ArrayList<>(p.entityTags())) if (t.startsWith(PREFIX)) p.removeTag(t);
         tell(server, p);
     }

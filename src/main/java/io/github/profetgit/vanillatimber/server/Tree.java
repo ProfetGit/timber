@@ -20,8 +20,8 @@ import net.minecraft.world.level.block.state.BlockState;
 public record Tree(BlockPos origin, List<Part> parts, int px, int py, int pz, int bin, FallSpec spec, boolean[] logRings,
                    BlockPos anchor, int gap, boolean hang, int logs, int leaves, int hw, int cw, BlockState log, BlockState leaf,
                    List<BlockPos> roots, BlockPos base, int total, List<BlockPos> watch) {
-    /** One block: world cell, state, leaf or log, rest corner (tx, wy, tz) x1000 and ring; {@code hidden}: a leaf shut in on all sides, no display (hide_leaves). */
-    public record Part(BlockPos pos, BlockState state, boolean leaf, int tx, int wy, int tz, int k, boolean hidden) {}
+    /** One block: world cell, state, leaf or log, rest corner (tx, wy, tz) x1000 and ring. */
+    public record Part(BlockPos pos, BlockState state, boolean leaf, int tx, int wy, int tz, int k) {}
 
     public double yaw() {
         return bin * 11.25;

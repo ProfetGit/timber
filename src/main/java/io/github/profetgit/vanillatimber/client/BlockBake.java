@@ -73,6 +73,13 @@ final class BlockBake {
     void end() {
         rest.end();
     }
+
+    /** A bake whose rest colours and lights come from {@code rest} alone (the lying tree's, see {@link MeshFall}); no tree-only pass. */
+    BlockBake(ClientLevel level, RestLight rest) {
+        this.level = level;
+        this.rest = rest;
+        this.own = null;
+    }
 //? if >=26.1 {
     private final boolean cutoutLeaves = mc.options.cutoutLeaves().get();
     private final List<BlockStateModelPart> parts = new ArrayList<>();
@@ -94,7 +101,7 @@ final class BlockBake {
         parts.clear();
         mc.getModelManager().getBlockStateModelSet().get(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
         rest.run(cell, state);
-        own.run(cell, state);
+        if (own != null) own.run(cell, state);
         boolean opaque = ModelBlockRenderer.forceOpaque(cutoutLeaves, state);
         out.clear();
         for (BlockStateModelPart part : parts) {
@@ -113,7 +120,7 @@ final class BlockBake {
                     q.shade = (sd != null ? sd : quad.direction()).ordinal();
                     q.emission = quad.materialInfo().lightEmission();
                     q.rest = rest.get(quad);
-                    q.self = own.get(quad);
+                    q.self = own != null ? own.get(quad) : null;
                     for (int v = 0; v < 4; v++) {
                         var p = quad.position(v);
                         q.pos[v * 3] = p.x();
@@ -143,7 +150,7 @@ final class BlockBake {
         parts.clear();
         mc.getBlockRenderer().getBlockModel(state).collectParts(RandomSource.create(state.getSeed(cell)), parts);
         rest.run(cell, state);
-        own.run(cell, state);
+        if (own != null) own.run(cell, state);
         RenderPass.Layer layer = layer(state);
         out.clear();
         for (BlockModelPart part : parts) {
@@ -158,7 +165,7 @@ final class BlockBake {
                     q.shade = (quad.shade() ? quad.direction() : Direction.UP).ordinal();
                     q.emission = quad.lightEmission();
                     q.rest = rest.get(quad);
-                    q.self = own.get(quad);
+                    q.self = own != null ? own.get(quad) : null;
                     corners(quad, q);
                     out.add(q);
                 }
@@ -199,7 +206,7 @@ final class BlockBake {
     List<Quad> block(BlockPos cell, BlockState state) {
         BakedModel model = mc.getBlockRenderer().getBlockModel(state);
         rest.run(cell, state);
-        own.run(cell, state);
+        if (own != null) own.run(cell, state);
         RenderPass.Layer layer = layer(state);
         RandomSource random = RandomSource.create();
         out.clear();
@@ -214,7 +221,7 @@ final class BlockBake {
                 }
                 q.shade = (quad.isShade() ? quad.getDirection() : Direction.UP).ordinal();
                 q.rest = rest.get(quad);
-                q.self = own.get(quad);
+                q.self = own != null ? own.get(quad) : null;
                 int[] vertices = quad.getVertices();
                 for (int v = 0; v < 4; v++) {
                     for (int i = 0; i < 3; i++) q.pos[v * 3 + i] = Float.intBitsToFloat(vertices[v * 8 + i]);

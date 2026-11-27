@@ -21,6 +21,8 @@ final class ForgeClientEntry implements Platform.Client {
 
     static void register() {
         TimberClient.init(new ForgeClientEntry());
+        net.minecraftforge.fml.ModLoadingContext.get().registerExtensionPoint(net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
+            () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory((mc, parent) -> io.github.profetgit.vanillatimber.client.ConfigHook.create(parent)));
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn e) -> TimberClient.joined());
         MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut e) -> TimberClient.left());
         MinecraftForge.EVENT_BUS.addListener((TickEvent.LevelTickEvent.Post e) -> {

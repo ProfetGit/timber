@@ -77,3 +77,6 @@ tasks.named<Jar>("jar") {
 
 extra["mcVersion"] = mc
 apply(from = rootProject.file("../../tools/Backport/renames.gradle.kts"))
+
+// The shared Profet settings screen, nested in the jar (tools/ProfetSettings/STATUS.md)
+apply(from = rootProject.file("../../tools/ProfetSettings/mod/consumer.gradle.kts"))
