@@ -1217,6 +1217,36 @@ final class Parity {
         check("dark oak pair: chopped trunk fully felled", mine == 0, mine + " logs left in its 2x2 trunk");
         check("dark oak pair: neighbour's trunk still standing", before == 4 && after >= 8, "base " + before + ", trunk logs " + after);
         finish(120);
+
+        // two fungi whose caps touch while their stems stand apart, as in a nether forest (issue #9)
+        plot();
+        fungus(0);
+        fungus(5);
+        tick(40);
+        Predicate<BlockState> wart = st -> st.is(net.minecraft.world.level.block.Blocks.WARPED_WART_BLOCK);
+        int theirs = countIn(wart, 3, 7);
+        hold("minecraft:iron_axe");
+        chop(0, 0, 0);
+        check("touching fungi: neighbour keeps its whole cap", theirs > 0 && countIn(wart, 3, 7) == theirs, theirs + " -> " + countIn(wart, 3, 7));
+        check("touching fungi: felled fungus's cap gone", countIn(wart, -2, 2) == 0, countIn(wart, -2, 2) + " left");
+        finish(120);
+        chop(5, 0, 0);
+        check("touching fungi: the neighbour still fells afterwards", logsIn(5, 0, 0, 5, 5, 0) == 0, logsIn(5, 0, 0, 5, 5, 0) + " stem blocks left");
+        finish(120);
+    }
+
+    /** A warped fungus at plot x {@code dx}: a 6-block stem under a 5 x 2 x 5 cap. */
+    static void fungus(int dx) {
+        cmd("fill " + at(dx, 0, 0) + " " + at(dx, 5, 0) + " minecraft:warped_stem");
+        cmd("fill " + at(dx - 2, 5, -2) + " " + at(dx + 2, 6, 2) + " minecraft:warped_wart_block keep");
+    }
+
+    static int countIn(Predicate<BlockState> f, int x0, int x1) {
+        return on(() -> {
+            int n = 0;
+            for (BlockPos q : BlockPos.betweenClosed(cx + x0, Y, cz - 2, cx + x1, Y + 8, cz + 2)) if (f.test(level.getBlockState(q))) n++;
+            return n;
+        });
     }
 
     static void direction() {

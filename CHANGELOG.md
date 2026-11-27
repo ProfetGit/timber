@@ -18,6 +18,9 @@
 - The join hint (`welcome`).
 - Hide inner leaves (`hide_leaves`): a falling tree now always keeps all of its leaves. Old config files that still have either key load as before; the keys do nothing.
 
+### Fixed
+- Felling a warped or crimson tree, or a huge mushroom, no longer takes the caps of the trees around it, which also left them impossible to fell.
+
 ## 2.2.10 — 2026-11-24
 
 ### Fixed

@@ -171,9 +171,6 @@ public final class TreeScan {
             ours.add(nodes.get(i));
         }
         if (owned == 0) return no("owned by another tree");
-        // logs of the touching trees, for the connected crown walk to leave their crowns alone
-        List<BlockPos> others = new ArrayList<>();
-        for (int i = 0; i < n; i++) if (label[i] > 0 && label[i] != tree) others.add(nodes.get(i));
         // build rules (job/p2): leaves touching the owned logs, at least one per 8 logs, and natural leaves 1-2 above the top
         int leafCount = 0, top = Integer.MIN_VALUE;
         for (BlockPos p : ours) {
@@ -247,7 +244,12 @@ public final class TreeScan {
 
         // leaves by the distance rule (leaves/*), then the logs, each taking its decor (decor/*) as it goes
         Take take = new Take(level, maxBlocks, type);
-        if (connected) take.connected(ours, others, origin, radius);
+        if (connected) {
+            // every stem block of this tree, under the cut too: none of them is a neighbour's
+            List<BlockPos> own = new ArrayList<>();
+            for (int i = 0; i < n; i++) if (label[i] == tree) own.add(nodes.get(i));
+            take.connected(ours, own, take.neighbours(ours, own, cut, placed, origin, radius), origin, radius);
+        }
         else for (BlockPos p : ours) take.leaves(p, 1);
         for (BlockPos p : logs) {
             take.blocks++;
@@ -385,8 +387,8 @@ public final class TreeScan {
         BlockPos lastLeaf;
         /** Blocks that stand on the tree but whose own survival check cannot run without it ({@link Support}): popped after the fall if they cannot stay. */
         final List<BlockPos> watch = new ArrayList<>();
-        /** The connected walk's own logs, the logs of the trees touching it, and the crown blocks it left to those trees. */
-        List<BlockPos> trunk = List.of(), others = List.of();
+        /** The connected walk's own stems, the stems of the trees whose crowns it can reach, and the crown blocks it left to them. */
+        List<BlockPos> own = List.of(), others = List.of();
         final LongOpenHashSet rejected = new LongOpenHashSet();
 
         Take(ServerLevel level, int max, TreeType type) {
@@ -396,8 +398,8 @@ public final class TreeScan {
         }
 
         /** PRD 5.3 connected rule: crown blocks touching the trunk, then each other through up to max_crown_gap cells, within the radius. */
-        void connected(List<BlockPos> trunk, List<BlockPos> others, BlockPos origin, int radius) {
-            this.trunk = trunk;
+        void connected(List<BlockPos> trunk, List<BlockPos> own, List<BlockPos> others, BlockPos origin, int radius) {
+            this.own = own;
             this.others = others;
             int reach = 1 + type.maxCrownGap();
             java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
@@ -411,6 +413,44 @@ public final class TreeScan {
                 if (c > most) {
                     most = c;
                     lastLeaf = q;
+                }
+            }
+        }
+
+        /**
+         * The stems of other trees of this kind (placed blocks aside) near any crown block the connected walk can get to.
+         * In a nether forest the caps touch while the stems stand apart, so the walk has to know them before it starts.
+         */
+        List<BlockPos> neighbours(List<BlockPos> trunk, List<BlockPos> own, LongOpenHashSet cut, Placed placed, BlockPos origin, int radius) {
+            LongOpenHashSet known = new LongOpenHashSet(), seen = new LongOpenHashSet();
+            for (BlockPos p : own) known.add(p.asLong());
+            if (cut != null) known.addAll(cut);
+            known.add(origin.asLong());
+            List<BlockPos> found = new ArrayList<>();
+            java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>(trunk);
+            int stems = trunk.size(), wide = 1 + type.maxCrownGap();
+            while (!queue.isEmpty() && seen.size() < 4 * max) {
+                BlockPos from = queue.poll();
+                int reach = stems-- > 0 ? 1 : wide;
+                for (int dy = -reach; dy <= reach; dy++) for (int dx = -reach; dx <= reach; dx++) for (int dz = -reach; dz <= reach; dz++) {
+                    BlockPos q = from.offset(dx, dy, dz);
+                    BlockState s = level.getBlockState(q);
+                    if (type.isCrown(s)) {
+                        if (Math.abs(q.getX() - origin.getX()) <= radius && Math.abs(q.getZ() - origin.getZ()) <= radius && seen.add(q.asLong())) queue.add(q);
+                    } else if (TreeTypes.forTrunk(s) == type && !placed.holds(level, q) && known.add(q.asLong())) stem(q, known, placed, found);
+                }
+            }
+            return found;
+        }
+
+        /** Adds the whole stem through {@code start} to {@code found} (a stem is far smaller than the cap of 256). */
+        private void stem(BlockPos start, LongOpenHashSet known, Placed placed, List<BlockPos> found) {
+            int first = found.size();
+            found.add(start);
+            for (int i = first; i < found.size() && found.size() - first < 256; i++) {
+                for (int[] o : NEAR) {
+                    BlockPos q = found.get(i).offset(o[0], o[1], o[2]);
+                    if (TreeTypes.forTrunk(level.getBlockState(q)) == type && !placed.holds(level, q) && known.add(q.asLong())) found.add(q);
                 }
             }
         }
@@ -438,10 +478,10 @@ public final class TreeScan {
             }
         }
 
-        /** A crown block belongs to the tree whose nearest log is closest (a tie stays with this tree), so a crowded fungus forest keeps its neighbours' crowns. */
+        /** A crown block belongs to the tree whose nearest stem is closest (a tie stays with this tree), so a crowded fungus forest keeps its neighbours' crowns. */
         private boolean nearerOurs(BlockPos q) {
             if (others.isEmpty()) return true;
-            double mine = nearest(q, trunk), theirs = nearest(q, others);
+            double mine = nearest(q, own), theirs = nearest(q, others);
             return mine <= theirs;
         }
 
