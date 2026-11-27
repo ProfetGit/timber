@@ -171,6 +171,9 @@ public final class TreeScan {
             ours.add(nodes.get(i));
         }
         if (owned == 0) return no("owned by another tree");
+        // logs of the touching trees, for the connected crown walk to leave their crowns alone
+        List<BlockPos> others = new ArrayList<>();
+        for (int i = 0; i < n; i++) if (label[i] > 0 && label[i] != tree) others.add(nodes.get(i));
         // build rules (job/p2): leaves touching the owned logs, at least one per 8 logs, and natural leaves 1-2 above the top
         int leafCount = 0, top = Integer.MIN_VALUE;
         for (BlockPos p : ours) {
@@ -244,7 +247,7 @@ public final class TreeScan {
 
         // leaves by the distance rule (leaves/*), then the logs, each taking its decor (decor/*) as it goes
         Take take = new Take(level, maxBlocks, type);
-        if (connected) take.connected(ours, origin, radius);
+        if (connected) take.connected(ours, others, origin, radius);
         else for (BlockPos p : ours) take.leaves(p, 1);
         for (BlockPos p : logs) {
             take.blocks++;
@@ -382,6 +385,9 @@ public final class TreeScan {
         BlockPos lastLeaf;
         /** Blocks that stand on the tree but whose own survival check cannot run without it ({@link Support}): popped after the fall if they cannot stay. */
         final List<BlockPos> watch = new ArrayList<>();
+        /** The connected walk's own logs, the logs of the trees touching it, and the crown blocks it left to those trees. */
+        List<BlockPos> trunk = List.of(), others = List.of();
+        final LongOpenHashSet rejected = new LongOpenHashSet();
 
         Take(ServerLevel level, int max, TreeType type) {
             this.level = level;
@@ -390,7 +396,9 @@ public final class TreeScan {
         }
 
         /** PRD 5.3 connected rule: crown blocks touching the trunk, then each other through up to max_crown_gap cells, within the radius. */
-        void connected(List<BlockPos> trunk, BlockPos origin, int radius) {
+        void connected(List<BlockPos> trunk, List<BlockPos> others, BlockPos origin, int radius) {
+            this.trunk = trunk;
+            this.others = others;
             int reach = 1 + type.maxCrownGap();
             java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
             for (BlockPos p : trunk) visit(p, 1, origin, radius, queue);
@@ -412,7 +420,11 @@ public final class TreeScan {
                 if (dx == 0 && dy == 0 && dz == 0) continue;
                 BlockPos q = from.offset(dx, dy, dz);
                 if (Math.abs(q.getX() - origin.getX()) > radius || Math.abs(q.getZ() - origin.getZ()) > radius) continue;
-                if (taken.contains(q.asLong()) || !type.isCrown(level.getBlockState(q))) continue;
+                if (taken.contains(q.asLong()) || rejected.contains(q.asLong()) || !type.isCrown(level.getBlockState(q))) continue;
+                if (!nearerOurs(q)) {
+                    rejected.add(q.asLong());
+                    continue;
+                }
                 if (blocks >= max) return;
                 taken.add(q.asLong());
                 blocks++;
@@ -424,6 +436,19 @@ public final class TreeScan {
                 if (level.getBlockState(up).is(Blocks.SNOW)) decor(up);
                 queue.add(q);
             }
+        }
+
+        /** A crown block belongs to the tree whose nearest log is closest (a tie stays with this tree), so a crowded fungus forest keeps its neighbours' crowns. */
+        private boolean nearerOurs(BlockPos q) {
+            if (others.isEmpty()) return true;
+            double mine = nearest(q, trunk), theirs = nearest(q, others);
+            return mine <= theirs;
+        }
+
+        private static double nearest(BlockPos q, List<BlockPos> logs) {
+            double best = Double.MAX_VALUE;
+            for (BlockPos p : logs) best = Math.min(best, p.distSqr(q));
+            return best;
         }
 
         /**
