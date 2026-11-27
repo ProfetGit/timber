@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.3.1 — unreleased
+## 2.3.1 — 2026-11-27
 
 ### Added
 - **A new settings screen** with a live preview for each option: a small tree that the screen chops and fells with your current settings. You see the fall style, chop mode, the sneak and tool rules, protected logs, what stays fallen, where the drops go, auto-replant, the trunk knocking a zombie aside and axe wear. Open it from the Profet golem button in the Game Menu or with the config button in Mod Menu, Forge's or NeoForge's mod list. It is the same screen on every Minecraft version and loader Timber supports.
@@ -20,6 +20,7 @@
 
 ### Fixed
 - Felling a warped or crimson tree, or a huge mushroom, no longer takes the caps of the trees around it, which also left them impossible to fell.
+- **Log popping sounds on tall trees.** Pops from logs that landed more than 16 blocks away were silent, so a tall tree went quiet part way up. You now hear every log pop.
 
 ## 2.2.10 — 2026-11-24
 
